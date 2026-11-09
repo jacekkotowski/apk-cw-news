@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><title>CW News</title>
+<style>
+:root{--bg:#10222c;--panel:#18313e;--line:#2b4a5a;--text:#e8f0f2;--dim:#93aab5;--gold:#f2b84b;--bad:#ff9a8a}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,sans-serif}
+body{display:flex;flex-direction:column}
+main{flex:1;overflow-y:auto;padding:16px}
+nav{display:flex;border-top:1px solid var(--line)}
+nav button{flex:1;background:none;border:0;color:var(--dim);padding:14px 0;font:inherit}
+nav button.on{color:var(--gold);font-weight:600}
+section{display:none}section.on{display:block}
+h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:22px 0 8px;font-weight:600}
+.src{color:var(--gold);font-size:14px;min-height:20px}
+.head{font-size:22px;line-height:1.3;margin:6px 0 14px;min-height:58px;overflow-wrap:anywhere}
+.bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--gold);width:0}
+.ctrl{display:flex;justify-content:center;align-items:center;gap:14px;margin:20px 0 8px}
+.ctrl button{width:56px;height:56px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--text);font-size:19px}
+.ctrl #toggle{width:76px;height:76px;background:var(--gold);border:0;color:#10222c;font-size:26px}
+.msg{background:var(--panel);border-radius:8px;padding:12px;margin:14px 0;color:var(--text);font-size:15px}
+.msg:empty{display:none}.bad{color:var(--bad)}
+.btn{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 14px;font:inherit}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.story{padding:10px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.story small{color:var(--dim);display:block}.story.heard{color:var(--dim)}.story.cur{color:var(--gold)}
+input[type=text],input[type=url]{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:11px;font:inherit;margin-bottom:8px}
+.feed{background:var(--panel);border-radius:8px;padding:12px;margin:10px 0;overflow-wrap:anywhere}.feed small{color:var(--dim);display:block}
+.feed .row{margin-top:8px}.feed .btn{padding:6px 10px;font-size:14px;background:var(--bg)}
+.chip{color:var(--gold);background:none;border:1px solid var(--line);border-radius:16px;padding:5px 11px;font-size:14px}
+.set{margin:14px 0}.set label{display:flex;justify-content:space-between}.set b{color:var(--gold);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--gold);height:30px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{flex:1;background:none;border:0;color:var(--dim);padding:10px 2px;font:inherit;font-size:14px}.seg button.on{background:var(--gold);color:#10222c;font-weight:600}
+</style></head><body>
+<main>
+<section id="now" class="on">
+  <div class="src" id="src"></div><div class="head" id="head">CW News</div>
+  <div class="bar"><i id="prog"></i></div>
+  <div class="ctrl"><button id="prev" aria-label="Previous story">&#9198;</button><button id="toggle" aria-label="Play or pause">&#9654;</button><button id="next" aria-label="Next story">&#9197;</button><button id="stop" aria-label="Stop">&#9632;</button></div>
+  <div class="msg" id="msg"></div>
+  <div class="row"><button class="btn" id="refresh">Refresh now</button><button class="btn" id="replay">Replay all cached</button></div>
+  <h2>Stories</h2><div id="list"></div>
+</section>
+<section id="feeds">
+  <h2>Add a feed</h2>
+  <input type="url" id="url" placeholder="https://example.com/rss" autocomplete="off" autocapitalize="off"><input type="text" id="name" placeholder="Name (optional), e.g. BBC World (BBC)">
+  <div class="row"><button class="btn" id="add">Add</button><button class="btn" id="cancel" style="display:none">Cancel</button><button class="chip" data-u="https://news.ycombinator.com/rss">Hacker News</button><button class="chip" data-u="https://feeds.bbci.co.uk/news/world/rss.xml">BBC World</button></div>
+  <div class="msg bad" id="ferr"></div>
+  <h2>Your feeds</h2><div id="flist"></div>
+</section>
+<section id="settings">
+  <h2>Morse</h2>
+  <div class="set"><label>Character speed<b id="v-wpm"></b></label><input type="range" id="wpm" min="5" max="50"></div>
+  <div class="set"><label>Effective speed<b id="v-eff"></b></label><input type="range" id="eff" min="5" max="50"></div>
+  <div class="set"><label>Tone<b id="v-pitch"></b></label><input type="range" id="pitch" min="400" max="1000" step="10"></div>
+  <div class="set"><label>Volume<b id="v-volume"></b></label><input type="range" id="volume" min="5" max="100" step="5"></div>
+  <h2>Calming background</h2>
+  <div class="seg" data-k="bed"><button data-v="1">Ionosphere</button><button data-v="2">Cosmic</button><button data-v="0">Off</button></div>
+  <div class="set"><label>Background level<b id="v-bedDb"></b></label><input type="range" id="bedDb" min="-40" max="-12"></div>
+  <h2>News</h2>
+  <div class="set"><label>Send</label><div class="seg" data-k="mode"><button data-v="0">Headline</button><button data-v="1">Headline + summary</button></div></div>
+  <div class="set"><label>Announce the source (DE ...)</label><div class="seg" data-k="announce"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+  <div class="set"><label>Continue to the next story</label><div class="seg" data-k="auto"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+  <div class="set"><label>Story age</label><div class="seg" data-k="age"><button data-v="6">6 h</button><button data-v="24">24 h</button><button data-v="168">7 days</button><button data-v="0">All</button></div></div>
+  <div class="set"><label>Check for new stories</label><div class="seg" data-k="refresh"><button data-v="15">15 min</button><button data-v="30">30 min</button><button data-v="60">1 h</button><button data-v="0">Manual</button></div></div>
+  <div class="msg" style="color:var(--dim)">Feeds usually carry only a headline and a short summary, so full articles are not sent. When the app is closed, Android decides when a check really runs.</div>
+</section>
+</main>
+<nav><button data-t="now" class="on">Listen</button><button data-t="feeds">Feeds</button><button data-t="settings">Settings</button></nav>
+<script>
+const $=id=>document.getElementById(id), A=window.Android;
+const NEWS={no_feeds:'No feeds yet. Add one on the Feeds tab.',never_fetched:'Fetching your feeds. Press Refresh if nothing appears.',empty_feeds:'Your feeds were fetched but contain no stories.',fetch_error:'The feeds could not be fetched. See the Feeds tab for the reason.',offline_empty:'No network and nothing cached yet.',offline_cache:'No network. Playing stories already cached.',all_heard:'All stories heard. New ones will play as they arrive, or use Replay all cached.',has_news:''};
+let S={},editing=null,listSig='',feedSig='';
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,section').forEach(e=>e.classList.remove('on'));b.classList.add('on');$(b.dataset.t).classList.add('on');});
+['prev','next','stop'].forEach(c=>$(c).onclick=()=>A.command(c));
+$('toggle').onclick=()=>A.command('toggle');
+$('replay').onclick=()=>A.command('replay');
+$('refresh').onclick=()=>A.refresh();
+function unit(k,v){return k==='pitch'?v+' Hz':k==='volume'?v+' %':k==='bedDb'?v+' dB':v+' WPM'}
+function paint(){for(const k of ['wpm','eff','pitch','volume','bedDb']){$(k).value=S[k];$('v-'+k).textContent=unit(k,S[k]);}
+ document.querySelectorAll('.seg').forEach(g=>g.querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S[g.dataset.k])));
+ $('bedDb').disabled=S.bed===0;}
+function load(){S=JSON.parse(A.settings());paint();}
+for(const k of ['wpm','eff','pitch','volume','bedDb']){
+ $(k).oninput=()=>{let v=+$(k).value;if(k==='eff')v=Math.min(v,S.wpm);if(k==='eff')$(k).value=v;$('v-'+k).textContent=unit(k,v);};
+ $(k).onchange=()=>{A.set(k,+$(k).value);load();};
+}
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{A.set(b.parentNode.dataset.k,+b.dataset.v);load();});
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
+function resetForm(){editing=null;$('url').value='';$('name').value='';$('add').textContent='Add';$('cancel').style.display='none';$('ferr').textContent='';}
+$('cancel').onclick=resetForm;
+$('add').onclick=()=>{const u=$('url').value,n=$('name').value,r=editing?A.editFeed(editing,u,n):A.addFeed(u,n);if(r)$('ferr').textContent=r;else{resetForm();feedSig='';tick();}};
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{$('url').value=c.dataset.u;});
+function ago(t){if(!t)return'not fetched yet';const m=Math.round((Date.now()-t)/60000);return m<1?'fetched just now':m<60?'fetched '+m+' min ago':'fetched '+Math.round(m/60)+' h ago';}
+function feeds(){const j=A.feeds();if(j===feedSig)return;feedSig=j;const f=JSON.parse(j),l=$('flist');l.textContent='';if(!f.length)l.append(el('div','msg','No feeds yet.'));
+ f.forEach(x=>{const d=el('div','feed');d.append(el('div','',x.name||x.url),el('small','',x.url),el('small','',x.count+' stories, '+ago(x.lastOk)));if(x.error)d.append(el('small','bad',x.error));
+  const r=el('div','row'),t=el('button','btn',x.enabled?'Disable':'Enable'),e=el('button','btn','Edit'),del=el('button','btn','Remove');
+  t.onclick=()=>{A.setFeedEnabled(x.id,!x.enabled);feedSig='';tick();};
+  e.onclick=()=>{editing=x.id;$('url').value=x.url;$('name').value=x.custom?x.name:'';$('add').textContent='Save';$('cancel').style.display='';window.scrollTo(0,0);document.querySelector('main').scrollTop=0;};
+  del.onclick=()=>{if(del.dataset.sure){A.removeFeed(x.id);feedSig='';tick();}else{del.dataset.sure=1;del.textContent='Tap again to remove';}};
+  r.append(t,e,del);d.append(r);l.append(d);});}
+function list(cur){const j=A.recent()+cur;if(j===listSig)return;listSig=j;const f=JSON.parse(A.recent()),l=$('list');l.textContent='';
+ f.forEach(x=>{const d=el('div','story'+(x.heard?' heard':'')+(x.id===cur?' cur':''));d.append(el('small','',x.source),document.createTextNode(x.title));d.onclick=()=>A.playStory(x.id);l.append(d);});}
+function tick(){const s=JSON.parse(A.state());const n=s.news||{};
+ $('src').textContent=s.source||'';$('head').textContent=s.title||(s.status==='waiting'?'Listening for new stories':'CW News');
+ $('prog').style.width=(s.words?100*Math.min(s.word+1,s.words)/s.words:0)+'%';
+ $('toggle').innerHTML=(s.status==='playing'||s.status==='waiting')?'&#10074;&#10074;':'&#9654;';
+ let m=s.error||NEWS[n.state]||'';if(!s.error&&n.state==='has_news'&&n.failed)m=n.failed+' feed(s) failed on the last check.';if(s.refreshing)m='Fetching feeds...';$('msg').textContent=m;
+ $('refresh').disabled=!!s.refreshing;
+ feeds();list(s.id);}
+load();tick();setInterval(tick,500);
+</script></body></html>

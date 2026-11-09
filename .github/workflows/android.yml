@@ -1,0 +1,30 @@
+name: android
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Install Android SDK packages
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+      - name: Tests
+        run: bash tests/run.sh
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.KS_PASS }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > ci.keystore
+            printf 'KS_FILE=ci.keystore\nKS_PASS=%s\n' "$KS_PASS" > signing.env
+          else
+            keytool -genkeypair -keystore ci.keystore -storepass throwaway -keypass throwaway -alias ci -keyalg RSA -keysize 2048 -validity 3650 -dname "CN=CW News CI"
+            printf 'KS_FILE=ci.keystore\nKS_PASS=throwaway\n' > signing.env
+          fi
+      - name: Build
+        env: { ANDROID_SDK_ROOT: '${{ env.ANDROID_HOME }}' }
+        run: bash build.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: CWNews-apk, path: CWNews.apk }
