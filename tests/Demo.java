@@ -3,12 +3,12 @@ import java.io.*;
 /** Writes 40-second WAV previews: java pl.cwnews.Demo <folder> */
 public class Demo {
     public static void main(String[] a) throws Exception {
-        String[] names = {"none", "ionosphere", "cosmic"};
+        String[] names = {"none", "band", "cosmic"};
         for (int type = 0; type < 3; type++) {
             int rate = 48000, block = 480, secs = 40;
             Engine e = new Engine(rate, 42, block);
             e.setBed(type); e.bedDb = -24; e.volume = 1; e.setAudible(true);
-            Keying k = Keying.build(TextNorm.story("Hacker News (HN)", "Morse code news is back on the air", "", TextNorm.HEADLINE, true), new Timing(20, 12), rate);
+            Keying k = Keying.build(TextNorm.story("Hacker News (HN)", "Thanks for listening, good news from the weather station", "", TextNorm.HEADLINE, true, Abbrev.LIGHT), new Timing(20, 12), rate);
             float[] b = new float[2 * block];
             ByteArrayOutputStream pcm = new ByteArrayOutputStream();
             for (int n = 0; n < secs * rate; n += block) {

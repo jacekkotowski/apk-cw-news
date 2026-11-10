@@ -33,6 +33,12 @@ final class Dsp {
             b0 = (1 + c) / 2 / a0; b1 = -(1 + c) / a0; b2 = b0; a1 = -2 * c / a0; a2 = (1 - alpha) / a0;
             return this;
         }
+        /** Band-pass with 0 dB gain at the centre. */
+        Biquad bandpass(double f, double q, int rate) {
+            double w = 2 * Math.PI * f / rate, c = Math.cos(w), alpha = Math.sin(w) / (2 * q), a0 = 1 + alpha;
+            b0 = alpha / a0; b1 = 0; b2 = -b0; a1 = -2 * c / a0; a2 = (1 - alpha) / a0;
+            return this;
+        }
         Biquad notch(double f, double q, int rate) {
             double w = 2 * Math.PI * f / rate, c = Math.cos(w), alpha = Math.sin(w) / (2 * q), a0 = 1 + alpha;
             b0 = 1 / a0; b1 = -2 * c / a0; b2 = b0; a1 = b1; a2 = (1 - alpha) / a0;

@@ -54,7 +54,7 @@ final class Refresher {
         HttpURLConnection h = (HttpURLConnection) new URL(address).openConnection();
         try {
             h.setConnectTimeout(CONNECT_MS); h.setReadTimeout(READ_MS);
-            h.setRequestProperty("User-Agent", "CWNews/1.0 (Android RSS to Morse)");
+            h.setRequestProperty("User-Agent", "CWNews/1.1 (Android RSS to Morse)");
             h.setRequestProperty("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml, */*");
             int code = h.getResponseCode();
             if (code != 200) throw new IOException("The server answered HTTP " + code);

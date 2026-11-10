@@ -48,7 +48,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     private Thread thread;
     private volatile boolean alive, paused;
     private boolean resumeOnGain, autoAdvance = true, announce = true, finishedRestore;
-    private int mode, gap;
+    private int mode, gap, abbr;
     private double wpm = 20, eff = 12, volume = 0.8, duck = 1;
     private long notBefore = 0, lastRefresh, lastSave;
     private int refreshMin = 30;
@@ -186,8 +186,9 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         double w = prefs.getInt("wpm", 20), e = Math.min(w, prefs.getInt("eff", 12));
         int m = prefs.getInt("mode", TextNorm.HEADLINE);
         boolean ann = prefs.getBoolean("announce", true);
-        boolean timingChanged = w != wpm || e != eff, textChanged = m != mode || ann != announce;
-        wpm = w; eff = e; mode = m; announce = ann;
+        int ab = prefs.getInt("abbr", Abbrev.LIGHT);
+        boolean timingChanged = w != wpm || e != eff, textChanged = m != mode || ann != announce || ab != abbr;
+        wpm = w; eff = e; mode = m; announce = ann; abbr = ab;
         autoAdvance = prefs.getBoolean("auto", true);
         volume = prefs.getInt("volume", 80) / 100.0;
         refreshMin = prefs.getInt("refresh", 30);
@@ -195,7 +196,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         engine.toneHz = prefs.getInt("pitch", 600);
         engine.volume = volume * duck;
         engine.bedDb = prefs.getInt("bedDb", -24);
-        engine.setBed(prefs.getInt("bed", Bed.IONOSPHERE));
+        engine.setBed(prefs.getInt("bed", Bed.BAND));
         if ((timingChanged || textChanged) && engine.hasStory() && storyId != PlaybackQueue.NONE) {
             load(storyId, textChanged ? 0 : engine.word());
         }
@@ -205,7 +206,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         Db.Story s = id == PlaybackQueue.NONE ? null : db.story(id);
         if (s == null) return false;
         if (TextNorm.forMorse(s.title).isEmpty()) { db.markHeard(id); return false; } // nothing in this headline can be sent
-        Keying k = Keying.build(TextNorm.story(s.source, s.title, s.summary, mode, announce), new Timing(wpm, eff), RATE);
+        Keying k = Keying.build(TextNorm.story(s.source, s.title, s.summary, mode, announce, abbr), new Timing(wpm, eff), RATE);
         boolean wasHeld = paused;
         engine.load(k, startWord);
         engine.hold(wasHeld);

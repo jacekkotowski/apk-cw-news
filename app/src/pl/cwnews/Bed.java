@@ -2,69 +2,75 @@ package pl.cwnews;
 
 /** Synthesized background sounds, scaled to an RMS level near 1 so the level setting means the same for each. */
 abstract class Bed {
-    static final int OFF = 0, IONOSPHERE = 1, COSMIC = 2;
+    static final int OFF = 0, BAND = 1, COSMIC = 2;
 
     abstract void fill(double[] lr, int frames);
+    /** Called with the CW pitch before each block; backgrounds that sit at the pitch retune here. */
+    void setTone(double hz) { }
+    /** Whether the engine should cut a gap around the CW pitch so this background cannot mask it. */
+    boolean notch() { return true; }
 
     static Bed create(int type, int rate, long seed) {
-        if (type == IONOSPHERE) return new Ionosphere(rate, seed);
+        if (type == BAND) return new Receiver(rate, seed);
         if (type == COSMIC) return new Cosmic(rate, seed);
         return null;
     }
 
-    /** A quiet shortwave band: passband hiss, slow Rayleigh fading and rare distant static. */
-    static final class Ionosphere extends Bed {
-        private static final double HISS_LOW = 200, HISS_HIGH = 2400, TILT = 900;
-        private static final double FADE_HZ = 0.1, FADE_MIN_DB = -6, FADE_MAX_DB = 3;
-        private static final int FADE_EVERY = 32;
-        private static final double CRACKLES_PER_SECOND = 0.7, CRACKLE_LOW = 1200, CRACKLE_LEVEL = 1.6;
-        private static final double SCALE = 12.5;
+    /**
+     * What a CW receiver plays on an empty band: noise through a narrow filter centred on the pitch, short static ticks
+     * that ring at that pitch, now and then a crackle of them, and an AGC that ducks after each one and recovers.
+     * Follows the receiver model of WebMorseRunner (Unlicense), written again here.
+     */
+    static final class Receiver extends Bed {
+        private static final double BANDWIDTH_HZ = 450, TICKS_PER_SECOND = 2.5, TICK_MIN = 6, TICK_SPREAD = 22;
+        private static final double CRACKLE_EVERY_S = 45, CRACKLE_MIN_S = 0.15, CRACKLE_SPREAD_S = 0.4, CRACKLE_DENSITY_HZ = 220;
+        private static final double AGC_REF = 3.2, AGC_POWER = 0.6, AGC_RELEASE_S = 0.35, DRIFT_EVERY_S = 2.5, DRIFT_DB = 1.5;
+        private static final double SCALE = 8.2;
         private final int rate;
         private final Dsp.Rng rng;
-        private final Dsp.Biquad[] hp = new Dsp.Biquad[2], lp1 = new Dsp.Biquad[2], lp2 = new Dsp.Biquad[2], tilt = new Dsp.Biquad[2], crackle = new Dsp.Biquad[2];
-        private final double fadeA, fadeNorm, fadeSmooth;
-        private double fi, fq, gainTarget = 1, gain = 1, burst, burstDecay, panL = 0.5, panR = 0.5;
-        private int tick;
+        private final Dsp.Biquad[][] bp = new Dsp.Biquad[2][2];
+        private final double[] env = new double[2];
+        private final double releaseKeep, driftSmooth;
+        private double tone = -1, crackleLeft, driftTarget = 1, drift = 1, nextDrift;
+        private int driftTick;
 
-        Ionosphere(int rate, long seed) {
+        Receiver(int rate, long seed) {
             this.rate = rate; rng = new Dsp.Rng(seed);
-            for (int c = 0; c < 2; c++) {
-                hp[c] = new Dsp.Biquad().highpass(HISS_LOW, 0.7, rate);
-                lp1[c] = new Dsp.Biquad().lowpass(HISS_HIGH, 0.7, rate);
-                lp2[c] = new Dsp.Biquad().lowpass(HISS_HIGH, 0.7, rate);
-                tilt[c] = new Dsp.Biquad().lowpass(TILT, 0.7, rate);
-                crackle[c] = new Dsp.Biquad().lowpass(CRACKLE_LOW, 0.7, rate);
-            }
-            double fadeRate = (double) rate / FADE_EVERY;
-            fadeA = Math.min(1, 2 * Math.PI * FADE_HZ / fadeRate);
-            fadeNorm = Math.sqrt(fadeA / (2 - fadeA));
-            fadeSmooth = 1 - Math.exp(-2 * Math.PI * 5.0 / rate);
-            fi = rng.gauss(); fq = rng.gauss();
+            for (int c = 0; c < 2; c++) for (int k = 0; k < 2; k++) bp[c][k] = new Dsp.Biquad();
+            releaseKeep = Math.exp(-1 / (AGC_RELEASE_S * rate));
+            driftSmooth = 1 - Math.exp(-1 / (1.0 * rate));
+            setTone(600);
+        }
+
+        @Override boolean notch() { return false; }
+
+        @Override void setTone(double hz) {
+            if (hz == tone) return;
+            tone = hz;
+            for (int c = 0; c < 2; c++) for (int k = 0; k < 2; k++) bp[c][k].bandpass(hz, hz / BANDWIDTH_HZ, rate);
         }
 
         @Override void fill(double[] lr, int frames) {
-            double crackleChance = CRACKLES_PER_SECOND / rate;
+            double tickChance = TICKS_PER_SECOND / rate, crackleChance = 1.0 / (CRACKLE_EVERY_S * rate), denseChance = CRACKLE_DENSITY_HZ / rate;
             for (int i = 0; i < frames; i++) {
-                if (tick++ % FADE_EVERY == 0) {
-                    fi += fadeA * (rng.gauss() / fadeNorm - fi);
-                    fq += fadeA * (rng.gauss() / fadeNorm - fq);
-                    double power = (fi * fi + fq * fq) / 2;
-                    double db = Math.max(FADE_MIN_DB, Math.min(FADE_MAX_DB, 10 * Math.log10(Math.max(1e-9, power))));
-                    gainTarget = Math.pow(10, db / 20);
+                if (driftTick++ >= DRIFT_EVERY_S * rate) {
+                    driftTick = 0;
+                    driftTarget = Math.pow(10, DRIFT_DB * (2 * rng.uniform() - 1) / 20);
                 }
-                gain += fadeSmooth * (gainTarget - gain);
-                if (burst < 1e-4 && rng.uniform() < crackleChance) {
-                    burst = CRACKLE_LEVEL * (0.4 + rng.uniform());
-                    burstDecay = Math.exp(-1 / ((0.008 + 0.017 * rng.uniform()) * rate));
-                    panL = 0.25 + 0.5 * rng.uniform(); panR = 1 - panL;
+                drift += driftSmooth * 0.3 * (driftTarget - drift);
+                double spark = 0;
+                if (rng.uniform() < tickChance) spark = (TICK_MIN + TICK_SPREAD * rng.uniform() * rng.uniform()) * (rng.uniform() < 0.5 ? -1 : 1);
+                if (crackleLeft <= 0 && rng.uniform() < crackleChance) crackleLeft = (CRACKLE_MIN_S + CRACKLE_SPREAD_S * rng.uniform()) * rate;
+                if (crackleLeft > 0) {
+                    crackleLeft--;
+                    if (rng.uniform() < denseChance) spark += (3 + 8 * rng.uniform()) * (rng.uniform() < 0.5 ? -1 : 1);
                 }
-                double spark = burst * rng.gauss();
-                burst *= burstDecay;
                 for (int c = 0; c < 2; c++) {
-                    double h = lp2[c].step(lp1[c].step(hp[c].step(rng.gauss())));
-                    double soft = 0.55 * h + 0.45 * tilt[c].step(h);
-                    double cr = crackle[c].step(spark * (c == 0 ? panL : panR));
-                    lr[2 * i + c] = SCALE * soft * gain * 0.48 + cr;
+                    double x = rng.gauss() * drift + (c == 0 ? spark : spark * (0.5 + 0.5 * rng.uniform()));
+                    double y = bp[c][1].step(bp[c][0].step(x));
+                    env[c] = Math.max(Math.abs(y), env[c] * releaseKeep);
+                    double g = env[c] > AGC_REF ? Math.pow(AGC_REF / env[c], AGC_POWER) : 1;
+                    lr[2 * i + c] = SCALE * y * g;
                 }
             }
         }

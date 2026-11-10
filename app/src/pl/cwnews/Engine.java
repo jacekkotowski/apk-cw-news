@@ -33,6 +33,8 @@ final class Engine {
     }
 
     void setBed(int type) { wantBed = type; }
+    /** For tests: plays this background instead of a built-in one. */
+    void setBedInstance(Bed b) { bed = b; bedType = wantBed = -1; }
     int bed() { return wantBed; }
     /** While false, the mix fades to silence. */
     void setAudible(boolean a) { audible = a; }
@@ -100,7 +102,8 @@ final class Engine {
             bedFade = 0;
         }
         boolean bedOn = bed != null;
-        if (bedOn) bed.fill(bedBuf, frames);
+        if (bedOn) { bed.setTone(toneHz); bed.fill(bedBuf, frames); }
+        boolean cut = bedOn && bed.notch();
         double bedGain = Math.pow(10, bedDb / 20);
         double gateStep = 1 / (GATE_S * rate), inStep = 1 / (BED_IN_S * rate), outStep = 1 / (BED_OUT_S * rate);
         boolean bedUp = audible && bedType == wantBed;
@@ -116,8 +119,10 @@ final class Engine {
             if (bedOn) {
                 bedFade = bedUp ? Math.min(1, bedFade + inStep) : Math.max(0, bedFade - outStep);
                 double a = bedGain * bedFade;
-                l += a * notch[0][1].step(notch[0][0].step(bedBuf[2 * i]));
-                r += a * notch[1][1].step(notch[1][0].step(bedBuf[2 * i + 1]));
+                double bl = bedBuf[2 * i], br = bedBuf[2 * i + 1];
+                if (cut) { bl = notch[0][1].step(notch[0][0].step(bl)); br = notch[1][1].step(notch[1][0].step(br)); }
+                l += a * bl;
+                r += a * br;
             }
             out[2 * i] = (float) Dsp.softLimit(l * scale);
             out[2 * i + 1] = (float) Dsp.softLimit(r * scale);

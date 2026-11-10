@@ -29,6 +29,9 @@ input[type=text],input[type=url]{width:100%;background:var(--panel);border:1px s
 .set{margin:14px 0}.set label{display:flex;justify-content:space-between}.set b{color:var(--gold);font-weight:600}
 input[type=range]{width:100%;accent-color:var(--gold);height:30px}
 .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{flex:1;background:none;border:0;color:var(--dim);padding:10px 2px;font:inherit;font-size:14px}.seg button.on{background:var(--gold);color:#10222c;font-weight:600}
+details{background:var(--panel);border-radius:8px;margin:8px 0;padding:0 12px}summary{padding:12px 0;color:var(--gold);font-weight:600}
+.ci{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.ci div{flex:1;min-width:0}.ci small{color:var(--dim);display:block}.ci .btn{padding:6px 12px;font-size:14px}.ci .btn:disabled{opacity:.5}
+.ab{display:flex;gap:12px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}.ab b{color:var(--gold);min-width:56px}.ab span{flex:1;color:var(--dim)}
 </style></head><body>
 <main>
 <section id="now" class="on">
@@ -42,9 +45,10 @@ input[type=range]{width:100%;accent-color:var(--gold);height:30px}
 <section id="feeds">
   <h2>Add a feed</h2>
   <input type="url" id="url" placeholder="https://example.com/rss" autocomplete="off" autocapitalize="off"><input type="text" id="name" placeholder="Name (optional), e.g. BBC World (BBC)">
-  <div class="row"><button class="btn" id="add">Add</button><button class="btn" id="cancel" style="display:none">Cancel</button><button class="chip" data-u="https://news.ycombinator.com/rss">Hacker News</button><button class="chip" data-u="https://feeds.bbci.co.uk/news/world/rss.xml">BBC World</button></div>
+  <div class="row"><button class="btn" id="add">Add</button><button class="btn" id="cancel" style="display:none">Cancel</button></div>
   <div class="msg bad" id="ferr"></div>
   <h2>Your feeds</h2><div id="flist"></div>
+  <h2>Built-in catalogue</h2><div id="cat"></div>
 </section>
 <section id="settings">
   <h2>Morse</h2>
@@ -57,14 +61,17 @@ input[type=range]{width:100%;accent-color:var(--gold);height:30px}
   <div class="set"><label>Background level<b id="v-bedDb"></b></label><input type="range" id="bedDb" min="-40" max="-12"></div>
   <h2>News</h2>
   <div class="set"><label>Send</label><div class="seg" data-k="mode"><button data-v="0">Headline</button><button data-v="1">Headline + summary</button></div></div>
+  <div class="set"><label>Ham abbreviations in the news (AND = ES, THANKS = TNX)</label><div class="seg" data-k="abbr"><button data-v="0">Off</button><button data-v="1">Light</button><button data-v="2">Full</button></div></div>
   <div class="set"><label>Announce the source (DE ...)</label><div class="seg" data-k="announce"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
   <div class="set"><label>Continue to the next story</label><div class="seg" data-k="auto"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
   <div class="set"><label>Story age</label><div class="seg" data-k="age"><button data-v="6">6 h</button><button data-v="24">24 h</button><button data-v="168">7 days</button><button data-v="0">All</button></div></div>
   <div class="set"><label>Check for new stories</label><div class="seg" data-k="refresh"><button data-v="15">15 min</button><button data-v="30">30 min</button><button data-v="60">1 h</button><button data-v="0">Manual</button></div></div>
+  <details id="abl"><summary>Abbreviation list</summary><div id="abt"></div></details>
   <div class="msg" style="color:var(--dim)">Feeds usually carry only a headline and a short summary, so full articles are not sent. When the app is closed, Android decides when a check really runs.</div>
 </section>
 </main>
 <nav><button data-t="now" class="on">Listen</button><button data-t="feeds">Feeds</button><button data-t="settings">Settings</button></nav>
+<script src="catalogue.js"></script>
 <script>
 const $=id=>document.getElementById(id), A=window.Android;
 const NEWS={no_feeds:'No feeds yet. Add one on the Feeds tab.',never_fetched:'Fetching your feeds. Press Refresh if nothing appears.',empty_feeds:'Your feeds were fetched but contain no stories.',fetch_error:'The feeds could not be fetched. See the Feeds tab for the reason.',offline_empty:'No network and nothing cached yet.',offline_cache:'No network. Playing stories already cached.',all_heard:'All stories heard. New ones will play as they arrive, or use Replay all cached.',has_news:''};
@@ -88,9 +95,15 @@ function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=nu
 function resetForm(){editing=null;$('url').value='';$('name').value='';$('add').textContent='Add';$('cancel').style.display='none';$('ferr').textContent='';}
 $('cancel').onclick=resetForm;
 $('add').onclick=()=>{const u=$('url').value,n=$('name').value,r=editing?A.editFeed(editing,u,n):A.addFeed(u,n);if(r)$('ferr').textContent=r;else{resetForm();feedSig='';tick();}};
-document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{$('url').value=c.dataset.u;});
+let have=new Set();
+function markCat(){document.querySelectorAll('#cat .btn').forEach(b=>{const on=have.has(b.dataset.u);b.disabled=on;b.textContent=on?'Added':'Add';});}
+function buildCat(){const c=$('cat');CATALOGUE.forEach(g=>{const d=document.createElement('details');d.append(el('summary','',g.g+' ('+g.f.length+')'));
+ g.f.forEach(x=>{const r=el('div','ci'),t=el('div');t.append(el('div','',x[0].replace(/ \([^()]*\)$/,'')),el('small','',x[2]));const b=el('button','btn','Add');b.dataset.u=x[1];
+  b.onclick=()=>{const e=A.addFeed(x[1],x[0]);if(e)$('ferr').textContent=e;else{$('ferr').textContent='';feedSig='';tick();}};r.append(t,b);d.append(r);});c.append(d);});}
+$('abl').ontoggle=()=>{const t=$('abt');if(!$('abl').open||t.childNodes.length||typeof A.abbrevs!=='function')return;
+ JSON.parse(A.abbrevs()).forEach(x=>{const r=el('div','ab');r.append(el('b','',x.a),el('span','',x.m),el('small','',x.l===1?'light':x.l===2?'full':''));t.append(r);});};
 function ago(t){if(!t)return'not fetched yet';const m=Math.round((Date.now()-t)/60000);return m<1?'fetched just now':m<60?'fetched '+m+' min ago':'fetched '+Math.round(m/60)+' h ago';}
-function feeds(){const j=A.feeds();if(j===feedSig)return;feedSig=j;const f=JSON.parse(j),l=$('flist');l.textContent='';if(!f.length)l.append(el('div','msg','No feeds yet.'));
+function feeds(){const j=A.feeds();if(j===feedSig)return;feedSig=j;const f=JSON.parse(j),l=$('flist');have=new Set(f.map(x=>x.url));markCat();l.textContent='';if(!f.length)l.append(el('div','msg','No feeds yet.'));
  f.forEach(x=>{const d=el('div','feed');d.append(el('div','',x.name||x.url),el('small','',x.url),el('small','',x.count+' stories, '+ago(x.lastOk)));if(x.error)d.append(el('small','bad',x.error));
   const r=el('div','row'),t=el('button','btn',x.enabled?'Disable':'Enable'),e=el('button','btn','Edit'),del=el('button','btn','Remove');
   t.onclick=()=>{A.setFeedEnabled(x.id,!x.enabled);feedSig='';tick();};
@@ -106,5 +119,5 @@ function tick(){const s=JSON.parse(A.state());const n=s.news||{};
  let m=s.error||NEWS[n.state]||'';if(!s.error&&n.state==='has_news'&&n.failed)m=n.failed+' feed(s) failed on the last check.';if(s.refreshing)m='Fetching feeds...';$('msg').textContent=m;
  $('refresh').disabled=!!s.refreshing;
  feeds();list(s.id);}
-load();tick();setInterval(tick,500);
+buildCat();load();tick();setInterval(tick,500);
 </script></body></html>

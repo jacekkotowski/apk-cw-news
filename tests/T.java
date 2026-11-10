@@ -65,6 +65,21 @@ public class T {
         eq("same summary skipped", TextNorm.story("x", "Hello", "hello", TextNorm.HEADLINE_SUMMARY, false), "HELLO <AR>");
     }
 
+    static void abbrev() {
+        eq("off", Abbrev.apply("THANKS FOR YOUR HELP", Abbrev.OFF), "THANKS FOR YOUR HELP");
+        eq("light", Abbrev.apply("THANKS FOR YOUR HELP AND GOOD WEATHER", Abbrev.LIGHT), "TNX FER UR HELP ES GUD WX");
+        eq("phrase beats word", Abbrev.apply("GOOD MORNING EVERYONE", Abbrev.LIGHT), "GM EVERYONE");
+        eq("punctuation kept", Abbrev.apply("WELL, THANKS. YOU?", Abbrev.LIGHT), "WELL, TNX. U?");
+        eq("full only at full", Abbrev.apply("WORKED WITH SORRY", Abbrev.LIGHT), "WORKED WITH SORRY");
+        eq("full", Abbrev.apply("WORKED WITH SORRY", Abbrev.FULL), "WKD WID SRI");
+        eq("light also in full", Abbrev.apply("SEE YOU LATER AND THANKS", Abbrev.FULL), "CUL ES TNX");
+        eq("digits untouched", Abbrev.apply("5 YOU 2026", Abbrev.LIGHT), "5 U 2026");
+        eq("quoted word untouched", Abbrev.apply("\"YOU\"", Abbrev.LIGHT), "\"YOU\"");
+        eq("are is never replaced", Abbrev.apply("WHAT ARE YOU", Abbrev.FULL), "WHAT ARE U");
+        eq("story abbreviates headline not source", TextNorm.story("Thanks FM (YOU)", "Thanks for you", "", TextNorm.HEADLINE, true, Abbrev.LIGHT), "DE YOU <BT> TNX FER U <AR>");
+        check("json has table", Abbrev.json().startsWith("[{\"a\":\"ES\"") && Abbrev.json().endsWith("}]"));
+    }
+
     static FeedParser.Feed feed(String xml) throws Exception { return FeedParser.parse(xml.getBytes(StandardCharsets.UTF_8), "https://f.example/rss"); }
     static boolean refused(String xml) { try { feed(xml); return false; } catch (Exception e) { return e instanceof FeedParser.FeedException; } }
 
@@ -140,10 +155,17 @@ public class T {
 
     static double rms(double[] x, int from, int to) { double s = 0; for (int i = from; i < to; i++) s += x[i] * x[i]; return Math.sqrt(s / (to - from)); }
 
+    /** White noise, with the notch on: stands in for any background that has energy at the CW pitch. */
+    static final class WhiteBed extends Bed {
+        private final Dsp.Rng r;
+        WhiteBed(long seed) { r = new Dsp.Rng(seed); }
+        @Override void fill(double[] lr, int frames) { for (int i = 0; i < 2 * frames; i++) lr[i] = r.gauss(); }
+    }
+
     static void audio() {
         double[] d0 = {0}, d1 = {0}, d2 = {0};
-        double[] off = renderCw(Bed.OFF, -24, 480, d0), ion = renderCw(Bed.IONOSPHERE, -12, 480, d1), cos = renderCw(Bed.COSMIC, -12, 480, d2);
-        eq("timing unchanged ionosphere", d1[0], d0[0]);
+        double[] off = renderCw(Bed.OFF, -24, 480, d0), ion = renderCw(Bed.BAND, -12, 480, d1), cos = renderCw(Bed.COSMIC, -12, 480, d2);
+        eq("timing unchanged band", d1[0], d0[0]);
         eq("timing unchanged cosmic", d2[0], d0[0]);
         double peak = 0, jump = 0;
         for (int i = 1; i < off.length; i++) { peak = Math.max(peak, Math.abs(off[i])); jump = Math.max(jump, Math.abs(off[i] - off[i - 1])); }
@@ -152,7 +174,7 @@ public class T {
         Keying k = Keying.build("E", new Timing(50, 50), R);
         near("short element", k.runs[0], 0.024 * R, 1);
 
-        for (int type : new int[]{Bed.IONOSPHERE, Bed.COSMIC}) {
+        for (int type : new int[]{Bed.BAND, Bed.COSMIC}) {
             Bed b = Bed.create(type, R, 3);
             int frames = R * 120, block = 4800;
             double[] buf = new double[2 * block];
@@ -170,20 +192,20 @@ public class T {
 
         // Full volume, loudest background and a long render must never exceed full scale.
         Engine loud = new Engine(R, 11, 1024);
-        loud.volume = 1; loud.bedDb = -12; loud.setBed(Bed.IONOSPHERE); loud.setAudible(true);
+        loud.volume = 1; loud.bedDb = -12; loud.setBed(Bed.BAND); loud.setAudible(true);
         loud.load(Keying.build("TEST TEST TEST TEST TEST TEST TEST TEST TEST", new Timing(30, 30), R), 0);
         float[] b = new float[2048];
         double max = 0;
         for (int t = 0; t < 60 * R / 1024; t++) { loud.render(b, 1024); for (float v : b) max = Math.max(max, Math.abs(v)); }
         check("never full scale: " + max, max < 1.0);
 
-        double[] a1 = renderCw(Bed.IONOSPHERE, -20, 480, d0), a2 = renderCw(Bed.IONOSPHERE, -20, 480, d1);
+        double[] a1 = renderCw(Bed.BAND, -20, 480, d0), a2 = renderCw(Bed.BAND, -20, 480, d1);
         check("seed repeatable", java.util.Arrays.equals(a1, a2));
 
         // Notch: noise energy close to the tone falls well below the same noise unfiltered.
         for (int f : new int[]{400, 600, 1000}) {
             Engine en = new Engine(R, 5, 4800);
-            en.toneHz = f; en.volume = 1; en.bedDb = -20; en.setBed(Bed.IONOSPHERE); en.setAudible(true);
+            en.toneHz = f; en.volume = 1; en.bedDb = -20; en.setBedInstance(new WhiteBed(f)); en.setAudible(true);
             float[] x = new float[9600];
             double near = 0, away = 0;
             for (int i = 0; i < 400; i++) {
@@ -223,7 +245,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); feeds(); queue(); if (a.length == 0) audio();
+        morse(); timing(); text(); abbrev(); feeds(); queue(); if (a.length == 0) audio();
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

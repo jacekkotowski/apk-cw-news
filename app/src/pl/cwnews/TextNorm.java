@@ -102,7 +102,12 @@ final class TextNorm {
 
     /** The text sent for one story: DE SOURCE BT HEADLINE BT SUMMARY AR. */
     static String story(String source, String title, String summary, int mode, boolean announce) {
-        String t = forMorse(title), body = mode == HEADLINE_SUMMARY ? forMorse(summary) : "";
+        return story(source, title, summary, mode, announce, Abbrev.OFF);
+    }
+
+    /** As above, with ham abbreviations applied to the headline and summary (not to the source name). */
+    static String story(String source, String title, String summary, int mode, boolean announce, int abbr) {
+        String t = Abbrev.apply(forMorse(title), abbr), body = mode == HEADLINE_SUMMARY ? Abbrev.apply(forMorse(summary), abbr) : "";
         StringBuilder b = new StringBuilder();
         if (announce) b.append("DE ").append(shortSource(source)).append(" <BT> ");
         b.append(t);
