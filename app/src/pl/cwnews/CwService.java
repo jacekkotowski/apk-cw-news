@@ -38,6 +38,9 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     static volatile String status = STOPPED, title = "", source = "", error = "";
     static volatile long storyId = PlaybackQueue.NONE;
     static volatile int word, words;
+    /** The band being played, or null; the dial is where the receiver is tuned (kHz). */
+    static volatile Band band;
+    static volatile double dial = Band.NEWS;
 
     private final ConcurrentLinkedQueue<Runnable> cmds = new ConcurrentLinkedQueue<>();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -50,7 +53,9 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     private boolean resumeOnGain, autoAdvance = true, announce = true, finishedRestore;
     private int mode, gap, abbr;
     private double wpm = 20, eff = 12, volume = 0.8, duck = 1;
-    private long notBefore = 0, lastRefresh, lastSave;
+    private long notBefore = 0, lastRefresh, lastSave, lastTitles;
+    private volatile java.util.List<String> titles = new java.util.ArrayList<>();
+    private int titleAt;
     private int refreshMin = 30;
     private MediaSession session;
     private AudioManager am;
@@ -155,6 +160,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     }
     private void finishService() {
         synchronized (this) { thread = null; }
+        band = null;
         status = STOPPED; storyId = PlaybackQueue.NONE; title = ""; source = ""; word = 0; words = 0;
         am.abandonAudioFocusRequest(focus);
         if (noisyOn) { unregisterReceiver(noisy); noisyOn = false; }
@@ -197,9 +203,26 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         engine.volume = volume * duck;
         engine.bedDb = prefs.getInt("bedDb", -24);
         engine.setBed(prefs.getInt("bed", Bed.BAND));
+        if (prefs.getInt("band", 1) != 0) {
+            if (band == null) {
+                band = new Band(RATE, System.nanoTime(), java.util.Calendar.getInstance().get(java.util.Calendar.MONTH), () -> {
+                    java.util.List<String> t = titles;
+                    return t.isEmpty() ? null : t.get(titleAt++ % t.size());
+                });
+                loadTitles();
+            }
+            band.setActivity(prefs.getInt("activity", 1));
+            band.setSpeed(wpm, eff);
+            engine.setBand(band);
+        } else { band = null; engine.setBand(null); }
         if ((timingChanged || textChanged) && engine.hasStory() && storyId != PlaybackQueue.NONE) {
             load(storyId, textChanged ? 0 : engine.word());
         }
+    }
+
+    private void loadTitles() {
+        lastTitles = System.currentTimeMillis();
+        new Thread(() -> { try { titles = db.recentTitles(30); } catch (RuntimeException ignored) { } }, "titles").start();
     }
 
     private boolean load(long id, int startWord) {
@@ -272,6 +295,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
             engine.setAudible(true);
             track.play();
             lastRefresh = System.currentTimeMillis();
+            dial = prefs.getFloat("dial", (float) Band.NEWS);
             float[] buf = new float[2 * BLOCK];
             boolean trackOn = true;
             String shown = "";
@@ -291,6 +315,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
                     continue;
                 }
                 if (!trackOn) { track.play(); trackOn = true; }
+                engine.dialKhz = dial;
                 engine.render(buf, BLOCK);
                 int off = 0;
                 while (off < buf.length && alive) {
@@ -303,6 +328,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
                 status = now;
                 if (!shown.equals(now)) { shown = now; publish(); }
                 long t = System.currentTimeMillis();
+                if (band != null && t - lastTitles > 300000) loadTitles();
                 if (t - lastSave > SAVE_EVERY_S * 1000L) savePosition();
                 if (refreshMin > 0 && t - lastRefresh > refreshMin * 60000L) {
                     lastRefresh = t;

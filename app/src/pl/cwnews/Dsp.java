@@ -12,6 +12,9 @@ final class Dsp {
             s ^= s << 13; s ^= s >>> 7; s ^= s << 17;
             return (s >>> 11) * 0x1.0p-53;
         }
+        int nextInt(int n) { return (int) (uniform() * n); }
+        <T> T pick(T[] a) { return a[nextInt(a.length)]; }
+        boolean chance(double p) { return uniform() < p; }
         /** Approximately Gaussian with mean 0 and standard deviation 1. */
         double gauss() {
             double a = 0;

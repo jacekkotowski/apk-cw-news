@@ -141,6 +141,15 @@ final class Db extends SQLiteOpenHelper {
         return a.toString();
     }
 
+    /** Titles of the newest stories, for the band to mention. */
+    java.util.List<String> recentTitles(int limit) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT a.title FROM articles a JOIN feeds f ON f.id=a.feed_id WHERE f.enabled=1 ORDER BY " + WHEN + " DESC, a.id DESC LIMIT " + limit, null)) {
+            while (c.moveToNext()) out.add(c.getString(0));
+        }
+        return out;
+    }
+
     String recentJson(int limit) throws Exception {
         JSONArray a = new JSONArray();
         try (Cursor c = getReadableDatabase().rawQuery("SELECT a.id, a.title, f.name, a.heard FROM articles a JOIN feeds f ON f.id=a.feed_id WHERE f.enabled=1 ORDER BY " + WHEN + " DESC, a.id DESC LIMIT " + limit, null)) {

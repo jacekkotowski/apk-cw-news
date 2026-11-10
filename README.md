@@ -1,8 +1,8 @@
 # CW News
 
-Offline-friendly Android app that fetches RSS and Atom news and sends the headlines, optionally with summaries, as audible Morse code. A built-in catalogue of 36 feeds (ham radio, world news, science, psychology) is one tap away. Ham abbreviations (AND = ES, THANKS = TNX) can replace plain words. A synthesized receiver band or Cosmic background can play underneath. No account, server, telemetry or ads.
+Offline-friendly Android app that fetches RSS and Atom news and sends the headlines, optionally with summaries, as audible Morse code. A built-in catalogue of 36 feeds (ham radio, world news, science, psychology) is one tap away. Ham abbreviations (AND = ES, THANKS = TNX) can replace plain words. A synthesized receiver band or Cosmic background can play underneath. The Band tab is a made-up slice of the 40 m CW band: a tuning dial, signals that sweep in and out as you tune, and generated contacts (callsigns, rigs, antennas, weather, hobbies, fun facts, sometimes a headline from your feeds). Your news is the bulletin station at 7020 kHz. No account, server, telemetry or ads.
 
-Current version: 1.1. Android 8.0 (API 26) or newer.
+Current version: 2.0. Android 8.0 (API 26) or newer.
 
 ## Install
 
@@ -32,6 +32,8 @@ GitHub Actions (`.github/workflows/android.yml`) runs the tests and uploads an A
 - `Morse`, `Timing`, `Keying`: text to sample-exact on/off runs. Farnsworth stretches only the letter and word gaps.
 - `Engine`: CW plus background. Morse position depends only on the CW sample count.
 - `Bed`: the two backgrounds, generated in code with no audio files. Band is a receiver: noise through a narrow filter at the CW pitch, static ticks and an AGC that ducks after each one.
+- `Qso`: makes up one contact (ragchew, POTA or contest-style quick exchange, or a lone CQ) from word tables with a seeded random source.
+- `Band`: the stations on the dial. Each sends in real time on its own frequency; pitch and loudness come from the distance to the dial through a narrow filter. The news bulletin is one station and waits, from the current word, while you are tuned away.
 - `Abbrev`: one table of CW abbreviations, used for the replacement (Off, Light, Full) and for the list in Settings.
 - `app/assets/catalogue.js`: the built-in feeds.
 - `TextNorm`, `FeedParser`, `Refresher`, `Db`: feeds, cleaning and the offline cache.

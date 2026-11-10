@@ -162,6 +162,87 @@ public class T {
         @Override void fill(double[] lr, int frames) { for (int i = 0; i < 2 * frames; i++) lr[i] = r.gauss(); }
     }
 
+    static boolean sendable(String text) {
+        String t = text.replaceAll("<(BT|AR|SK|KN)>", " ");
+        for (int i = 0; i < t.length(); i++) { char c = t.charAt(i); if (c != ' ' && !Morse.supported(c)) return false; }
+        return true;
+    }
+
+    static void band() {
+        int total = 0, kinds[] = new int[3];
+        Dsp.Rng rngAll = new Dsp.Rng(12345);
+        boolean allSendable = true, hasNews = false, rag = false;
+        for (int n = 0; n < 400; n++) {
+            Qso q = Qso.generate(rngAll, n % 12, n % 2 == 0 ? Qso.shortHeadline("Parliament passes the new energy law after long debate") : null);
+            kinds[q.kind]++;
+            check("has tx " + n, !q.tx.isEmpty());
+            for (Qso.Tx t : q.tx) {
+                total++;
+                if (!sendable(t.text) || t.text.trim().isEmpty() || t.text.contains("  ")) { allSendable = false; System.out.println("BAD: " + t.text); }
+                if (t.text.contains("HRD ON NEWS TODAY PARLIAMENT PASSES")) hasNews = true;
+            }
+            if (q.kind == Qso.RAGCHEW) { rag = true; check("ragchew is long", q.tx.size() >= 9); check("calls differ", !q.call[0].equals(q.call[1])); }
+            check("call looks right " + q.call[0], q.call[0].matches("[A-Z0-9]{3,8}"));
+        }
+        check("every transmission can be keyed", allSendable);
+        check("headline is quoted sometimes", hasNews);
+        check("all kinds appear " + java.util.Arrays.toString(kinds), kinds[0] > 100 && kinds[1] > 40 && kinds[2] > 20 && rag);
+        eq("same seed same contact", Qso.generate(new Dsp.Rng(5), 3, null).tx.get(2).text, Qso.generate(new Dsp.Rng(5), 3, null).tx.get(2).text);
+        eq("headline cut to nine words", Qso.shortHeadline("one two three four five six seven eight nine ten eleven"), "ONE TWO THREE FOUR FIVE SIX SEVEN EIGHT NINE");
+        check("two words is too short", Qso.shortHeadline("Hi there") == null);
+        near("filter at centre", Band.response(0), 1, 1e-9);
+        check("filter drops off", Band.response(320) < 0.4 && Band.response(900) < 0.001 && Band.response(1400) == 0);
+
+        // Render a minute of the band: bounded, repeatable, and only audible near a station.
+        for (int tries = 0; tries < 2; tries++) {
+            Band b = new Band(R, 7, 5, null);
+            b.setActivity(2);
+            double[] buf = new double[2 * 480];
+            double peak = 0; int blocksWithSignal = 0; boolean sawStation = false;
+            for (int blk = 0; blk < 60 * R / 480 * 3; blk++) {
+                java.util.Arrays.fill(buf, 0);
+                String act = b.activityJson();
+                double dial = Band.NEWS;
+                if (act.length() > 2 && act.contains("\"k\":")) {
+                    sawStation = true;
+                    dial = Double.parseDouble(act.substring(act.indexOf("\"k\":") + 4, act.indexOf(',')));
+                }
+                b.render(buf, 480, dial, 600);
+                double m = 0; for (double v : buf) m = Math.max(m, Math.abs(v));
+                peak = Math.max(peak, m);
+                if (m > 0.01) blocksWithSignal++;
+            }
+            check("band produced a station", sawStation);
+            check("band signal heard when tuned: " + blocksWithSignal, blocksWithSignal > 50);
+            check("band bounded: " + peak, peak < 3);
+        }
+        Band quiet = new Band(R, 9, 5, null);
+        double[] z = new double[960];
+        for (int blk = 0; blk < 4000; blk++) { java.util.Arrays.fill(z, 0); quiet.render(z, 480, 7001.0, 600); }
+        double away = 0; java.util.Arrays.fill(z, 0);
+        quiet.render(z, 480, Band.LOW - 5, 600); for (double v : z) away = Math.max(away, Math.abs(v));
+        eq("nothing heard far from the dial", away, 0.0);
+        check("copy is empty off station", quiet.copy(Band.LOW - 5).isEmpty());
+        double nxt = quiet.next(7019.0, 1);
+        check("next signal moves up", nxt > 7019.0 || nxt <= 7019.0);
+
+        // The news bulletin waits when you tune away and resumes when you return.
+        Engine en = new Engine(R, 1, 480);
+        en.setBand(new Band(R, 3, 5, null));
+        en.volume = 1; en.setAudible(true);
+        en.load(Keying.build("TEST TEST TEST TEST TEST TEST TEST TEST", new Timing(20, 20), R), 0);
+        float[] fb = new float[960];
+        for (int i = 0; i < 20; i++) en.render(fb, 480);
+        int w0 = en.word();
+        en.dialKhz = Band.NEWS + 8;
+        for (int i = 0; i < 400; i++) en.render(fb, 480);
+        int w1 = en.word();
+        eq("bulletin waits while off frequency", w1, w0);
+        en.dialKhz = Band.NEWS;
+        for (int i = 0; i < 400; i++) en.render(fb, 480);
+        check("bulletin resumes when tuned back", en.word() > w1);
+    }
+
     static void audio() {
         double[] d0 = {0}, d1 = {0}, d2 = {0};
         double[] off = renderCw(Bed.OFF, -24, 480, d0), ion = renderCw(Bed.BAND, -12, 480, d1), cos = renderCw(Bed.COSMIC, -12, 480, d2);
@@ -245,7 +326,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); feeds(); queue(); if (a.length == 0) audio();
+        morse(); timing(); text(); abbrev(); band(); feeds(); queue(); if (a.length == 0) audio();
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

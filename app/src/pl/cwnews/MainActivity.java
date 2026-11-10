@@ -32,6 +32,7 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         prefs = getSharedPreferences("cw", MODE_PRIVATE);
+        CwService.dial = prefs.getFloat("dial", (float) Band.NEWS);
         db = Db.get(this);
         web = new WebView(this);
         web.setBackgroundColor(BG);
@@ -85,12 +86,29 @@ public class MainActivity extends Activity {
                 return o.toString();
             } catch (Exception e) { return "{\"status\":\"stopped\",\"error\":\"" + e.getClass().getSimpleName() + "\",\"news\":{\"state\":\"has_news\"}}"; }
         }
+        @JavascriptInterface public String band() {
+            Band b = CwService.band;
+            return "{\"on\":" + (b != null) + ",\"dial\":" + String.format(java.util.Locale.ROOT, "%.2f", CwService.dial) + ",\"low\":" + Band.LOW + ",\"high\":" + Band.HIGH + ",\"news\":" + Band.NEWS
+                + ",\"act\":" + (b == null ? "[]" : b.activityJson()) + "}";
+        }
+        @JavascriptInterface public String bandCopy() { Band b = CwService.band; return b == null ? "" : b.copy(CwService.dial); }
+        @JavascriptInterface public void setDial(double khz) {
+            double d = Math.max(Band.LOW, Math.min(Band.HIGH, khz));
+            CwService.dial = d;
+            prefs.edit().putFloat("dial", (float) d).apply();
+        }
+        @JavascriptInterface public double nextSignal(int dir) {
+            Band b = CwService.band;
+            double d = b == null ? CwService.dial : b.next(CwService.dial, dir);
+            setDial(d);
+            return d;
+        }
         @JavascriptInterface public String abbrevs() { return Abbrev.json(); }
         @JavascriptInterface public String settings() {
             try {
                 JSONObject o = new JSONObject();
                 o.put("wpm", prefs.getInt("wpm", 20)); o.put("eff", prefs.getInt("eff", 12)); o.put("pitch", prefs.getInt("pitch", 600));
-                o.put("volume", prefs.getInt("volume", 80)); o.put("mode", prefs.getInt("mode", TextNorm.HEADLINE)); o.put("abbr", prefs.getInt("abbr", Abbrev.LIGHT));
+                o.put("volume", prefs.getInt("volume", 80)); o.put("mode", prefs.getInt("mode", TextNorm.HEADLINE)); o.put("abbr", prefs.getInt("abbr", Abbrev.LIGHT)); o.put("band", prefs.getInt("band", 1)); o.put("activity", prefs.getInt("activity", 1));
                 o.put("bed", prefs.getInt("bed", Bed.BAND)); o.put("bedDb", prefs.getInt("bedDb", -24));
                 o.put("auto", prefs.getBoolean("auto", true) ? 1 : 0); o.put("announce", prefs.getBoolean("announce", true) ? 1 : 0);
                 o.put("age", prefs.getInt("age", 0)); o.put("refresh", prefs.getInt("refresh", 30));
