@@ -8,93 +8,54 @@ What is built, what comes next, and how each step will be designed and checked. 
 |---|---|---|
 | 1.0, 1.1 | News as Morse, feed catalogue, receiver background, ham abbreviations | Released |
 | 2.0 | Band tab: tuning dial, signals that sweep in and out, generated contacts, news as the bulletin station at 7020 kHz | Released as `v2.0` |
-| 2.1 | Contacts built from topic modules by operators with personalities; reports, greetings, names and weather that agree with what you hear and when | Built by CI on branch `ccr-e3a1d112-4kb7si`. Not on `main`, not released, not tested on a phone |
+| 2.1 | Contacts built from topic modules by operators with personalities; reports, greetings, names and weather that agree with what you hear and when | Built by CI, not released |
+| 2.2 | One receiver chain with three filter widths and AGC, 10 Hz tuning, individual fists and signal faults | Built by CI, not released |
+| 2.3 | Front panel: waterfall, S-meter, tuning knob, RIT | Built by CI, not released |
 
-## To finish 2.1
+Versions 2.1 to 2.3 are on branch `ccr-e3a1d112-4kb7si`, not on `main`. None of them has been run on a phone, and nobody has listened to the new audio.
 
-1. Install the CI build on a phone and listen for ten minutes on the Band tab. Things to check:
-   - Stations differ in speed, and a beginner is clearly slower.
-   - After `PSE QRS` the other station slows down.
-   - A weak station gets a weak report and a strong one a strong report.
-   - The greeting (GM, GA, GE) fits the time of day.
-   - No crackle, dropouts or stuck tones when several stations are in the filter.
-2. Merge the branch to `main`.
-3. Publish release `v2.1` with the APK. Draft notes are in `docs/RELEASE-2.1.md`.
+## To finish 2.1 to 2.3
 
-## Step 3 (version 2.2): one receiver chain, filter width, fine tuning and individual fists
+1. Install the 2.3 build on a phone and listen for ten minutes on the Band tab. Things to check:
+   - **Sound.** With AGC on, the hiss drops behind a strong station and comes back between words. No crackle, dropouts or stuck tones.
+   - **Filter.** Narrow leaves one station and less noise; Wide lets several through at different pitches. Switching makes a short gap, not a click.
+   - **Fists.** Operators sound different from each other; the news bulletin stays machine-perfect.
+   - **Tuning.** The knob feels right: one turn is 1 kHz, a flick coasts, and there is a light click in the fingers every 100 Hz.
+   - **Waterfall and meter.** Lines break up with the keying, the meter moves with the station you hear, and the screen stays smooth.
+   - **Battery and heat** after half an hour with the Band tab open, since the waterfall redraws 25 times a second.
+2. Decide what to tune by ear: filter widths, how hard the AGC works, how strong the fists are.
+3. Merge the branch to `main` and publish a release with the APK. Draft notes are in `docs/RELEASE-2.3.md`.
 
-**What you get:** the band sounds like a receiver instead of tones laid over noise, you can widen or narrow the filter and tune finely, and you can tell operators apart by the way they key.
+## Built in 2.2: one receiver chain, filter width, fine tuning, fists
 
-**Today:** `Engine.render` adds three things side by side: the news tone, the stations from `Band.render`, and the noise from `Bed`. The AGC inside `Bed.Receiver` only sees the noise. Stations are scaled by a fixed 320 Hz gain curve (`Band.response`), not passed through a filter, and the noise has its own fixed 450 Hz filter. The dial steps 50 Hz. Every station keys with machine-exact timing; only the speed differs.
+What was built, where it differs from the first plan, and what is still open.
 
-**Receiver chain**
-- Add a receiver stage in `Engine` (plain Java): noise plus all station tones go through one band-pass at the CW pitch and one AGC, then to the output.
-- The AGC has a fast attack and a release of about 0.3 s, so a strong station pushes the noise down and the noise rushes back in the gaps.
-- `Band.response` stays, but only to skip stations that are far outside the filter, so it has to follow the chosen width.
-- The Cosmic background and the News-only mode stay outside the chain and sound as they do now.
-- Morse timing must still depend only on sample counts. The existing "timing unchanged" tests guard this.
+- **Receiver chain (`Rx`).** The bulletin, the stations and the band noise are mixed first and pass one band-pass filter and one AGC. The AGC looks 4 ms ahead, so it never overshoots or thumps.
+- **Filter widths.** Wide is 1.6 kHz, Normal 400 Hz, Narrow 250 Hz. They are steep (a station 300 Hz above is about 21 dB down in Normal and about 50 dB down in Narrow) and the narrow one rings a little.
+- **AGC On or Off** on the Band tab, added so the two can be compared on the phone. Off compresses nothing but keeps a ceiling, so static crashes cannot blast.
+- **Noise.** The band noise follows the Ionosphere background and its level in Settings. That level is what you hear in the gaps; behind a strong signal it is lower. With Cosmic or no background the receiver adds no noise.
+- **Fine tuning.** 10 Hz steps, with buttons for 10 and 100 Hz.
+- **Fists (`Fist`).** Keyer, bug, straight key and sideswiper, each drawn per operator; beginners are less even and pause more.
+- **Signal faults.** Chirp, hard keying, a rough note, drift, fading with several rhythms and flutter. A report can now carry the tone digit and `C` for chirp. Now and then someone tunes up with a plain carrier.
+- **Not built:** static that follows the season.
+- **Open:** all levels and widths were set from measurements, not by ear.
 
-**Filter width**
-- One setting on the Band tab with three positions. The widths are starting values to be tuned by ear:
+## Built in 2.3: the front panel
 
-| Position | About | What you hear |
-|---|---|---|
-| Wide | 1 to 2 kHz | Several stations at once at different pitches, more hiss, easy to find signals |
-| Normal | 500 Hz | Close to version 2.1 |
-| Narrow | 250 Hz | One station, much less noise, slight ringing, tuning must be exact |
+- **Waterfall.** Each station is a line that breaks up with its keying. Tap to tune. A Span button switches between the whole band (40 kHz) and a 4 kHz window that follows the receiver; the filter's passband is shaded.
+- **S-meter.** Reads the level after the filter. S9 is a full-strength station and an S unit is 5 dB, the same scale the stations use in their reports.
+- **Tuning knob.** One turn is 1 kHz in 10 Hz steps, geared up when spun fast, with inertia after a flick and a haptic click every 100 Hz.
+- **RIT.** Moves the receiver up to 500 Hz either side of the dial. Until you can transmit it is only a second fine-tuning control; it becomes useful with step 4.
+- **Removed:** the old slider and the bar display.
 
-- The filter is the one in the shared chain, so it shapes noise and stations alike.
-- With the wide filter a strong neighbour pumps the AGC and pushes down the station being copied; narrowing the filter removes it.
-- Switching width must not click: the filter changes over a short crossfade.
-- The news bulletin at 7020 kHz is heard through the same filter when the band is on.
-
-**Fine tuning**
-- The dial moves in 10 Hz steps instead of 50 Hz. The buttons become plus and minus 10 Hz and 100 Hz.
-- Dragging the slider stays coarse; a narrow filter needs the buttons or the scope tap to land on a station.
-- "Next signal" still jumps exactly onto a station.
-
-**Fists**
-- New plain-Java class `Fist`, applied when `Keying` turns text into on/off runs.
-- Each operator already has a key type in `Qso` (straight key, bug, paddle, sideswiper). The fist follows it:
-
-| Key | Dits | Dahs | Spacing |
-|---|---|---|---|
-| Paddle and keyer | Exact | Exact | Slightly uneven between letters |
-| Bug | Exact, machine-made | Long and varying | Uneven |
-| Straight key | Varying | Varying | Varying, with hesitations before unusual words |
-| Sideswiper | Varying | Varying, short | Rushed |
-
-- The news bulletin stays machine-perfect.
-
-**Signal character** (per operator, in `Band`)
-- A slight chirp on some signals, key clicks on a few, slow drift.
-- A rough note for homebrew rigs.
-- Fading with several rhythms (seconds to tens of seconds) instead of the current slow random steps; flutter on long paths.
-- Now and then a station tuning up with a carrier of a few seconds.
-
-**How it is checked**
-- Timing tests unchanged; level and peak bounds unchanged.
-- New test: with a strong signal keyed, the noise between elements drops by a measurable amount and recovers within the release time.
-- New test: for each filter width, a tone at the centre passes at full level and a tone one and a half widths away is down by a set amount; noise power grows with the width.
-- New test: switching width while a tone plays leaves no step in the output.
-- UI test: the width control and the 10 Hz buttons call the bridge with the right values.
-- New test: fist statistics (keyer exact, bug dahs longer than three dits on average, straight key jitter within set limits).
-- The soak test (hours of band audio) still passes.
-- `tests/BandDemo.java` writes a WAV to listen to on a PC before any phone test.
-
-**Risks and decisions**
-- CPU cost on the phone: measure render time per block in a test and keep a wide margin.
-- AGC pumping can be tiring over a long session. Decision for you: always on, or a setting (Clean / Real).
-- A narrow filter that rings too much is unpleasant to copy through. The amount of ringing is tuned by ear from the WAV demo.
-- This step is larger than first planned. If it grows too far, the fists move to their own version.
-
-## Step 4 (version 2.3): take part in a contact with typed sending
+## Step 4 (version 2.4): take part in a contact with typed sending
 
 **What you get:** you answer a CQ, or call CQ yourself, and a station works you in real time.
 
 **Settings**
 - Your callsign, name, QTH, rig and power. The bridge only stores numbers today (`set(String, int)`), so it needs a text setter.
 - Decision for you: your real callsign or a made-up one.
+- RIT, built in 2.3, then does its real job: listening beside your transmit frequency.
 
 **Band tab**
 - An **Answer** button appears when you are tuned to a station calling CQ. **Call CQ** appears on a clear frequency.
@@ -118,7 +79,7 @@ What is built, what comes next, and how each step will be designed and checked. 
 **Risks**
 - Audio delay: the output buffer is at least 150 ms. That is fine for typed sending and too slow for hand keying, which is why hand keying is a separate step.
 
-## Step 5 (version 2.4): hand keying
+## Step 5 (version 2.5): hand keying
 
 **What you get:** you send with your own fist, on the screen or with a real key.
 
@@ -129,7 +90,7 @@ What is built, what comes next, and how each step will be designed and checked. 
 - External keys: a paddle or straight key through a USB or Bluetooth keyboard or mouse adapter.
 - After each over the app can show what it copied from you, as sending practice.
 
-## Step 6 (version 2.5): a band that follows the clock
+## Step 6 (version 2.6): a band that follows the clock
 
 **What you get:** the band changes through the day, and where you tune matters.
 
@@ -139,18 +100,12 @@ What is built, what comes next, and how each step will be designed and checked. 
 - Band geography: fast DX operators near 7000 to 7010, QRP around 7030, slower operators higher up.
 - Activity: busier evenings and weekends, contest weekends from a small calendar.
 
-## Step 7 (version 2.6): reasons to come back
+## Step 7 (version 2.7): reasons to come back
 
 - Recurring stations: the same operator returns on later days with the same rig and QTH, and greets you by name once you have worked them.
 - Copy practice: after listening to a contact, fill in call, name, QTH and report; the app scores it against what was sent.
 - Awards from the logbook: countries, QRP contacts, summits and parks.
 - Pile-up mode: you are the park activator, stations call you, and the score is rate and accuracy.
-
-## Step 8 (version 2.7): the front panel
-
-- A scrolling waterfall and an S-meter. The screen polls every 500 ms today, so this needs a faster display path.
-- A large VFO knob with inertia and haptic clicks.
-- RIT.
 
 ## Ideas, not scheduled
 
@@ -160,10 +115,9 @@ What is built, what comes next, and how each step will be designed and checked. 
 
 ## Order, and why
 
-1. Receiver chain and fists first: it is mostly audio and improves everything heard afterwards. Filter width and fine tuning ride along because they come almost free once there is one filter, and the narrow filter is unusable without fine tuning.
-2. Typed contacts before hand keying: the partner logic is the hard part, and typing avoids the audio-delay problem.
-3. Hand keying only after a delay measurement on a real phone.
-4. Clock-driven band, recurring stations and the front panel build on the earlier steps and can be reordered.
+1. Typed contacts before hand keying: the partner logic is the hard part, and typing avoids the audio-delay problem.
+2. Hand keying only after a delay measurement on a real phone.
+3. The clock-driven band and the reasons to come back build on the earlier steps and can be reordered.
 
 ## How every step is finished
 
@@ -175,7 +129,7 @@ What is built, what comes next, and how each step will be designed and checked. 
 
 ## Known gaps
 
-- 2.1 has not been tested on a phone.
+- 2.1, 2.2 and 2.3 have not been tested on a phone, and the new audio has not been listened to by anyone.
 - `tests/ui.py` needs the Python Playwright module, which is missing in the cloud session.
 - SOTA region codes are plausible but unchecked against the real summit lists.
 - POTA prefixes outside the US follow the ISO country scheme by inference; only the US change (`K-` to `US-`) is confirmed.

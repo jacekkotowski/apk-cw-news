@@ -33,9 +33,21 @@ details{background:var(--panel);border-radius:8px;margin:8px 0;padding:0 12px}su
 .ci{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.ci div{flex:1;min-width:0}.ci small{color:var(--dim);display:block}.ci .btn{padding:6px 12px;font-size:14px}.ci .btn:disabled{opacity:.5}
 .ab{display:flex;gap:12px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}.ab b{color:var(--gold);min-width:56px}.ab span{flex:1;color:var(--dim)}
 .freq{font-size:34px;font-weight:600;text-align:center;margin:6px 0;color:var(--gold);font-variant-numeric:tabular-nums}.freq small{font-size:15px;color:var(--dim)}
-.scope{position:relative;height:84px;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;touch-action:none}
-.scope b{position:absolute;bottom:0;width:3px;margin-left:-1px;background:var(--dim);border-radius:2px 2px 0 0;opacity:.6}.scope b.on{background:var(--text);opacity:1}.scope b.news{background:#7fd4a0}
-.scope i{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--bad)}
+.freq em{display:block;font-size:13px;font-style:normal;font-weight:400;color:var(--dim);min-height:18px}
+.fall{position:relative;height:112px;background:#08141a;border:1px solid var(--line);border-radius:8px;overflow:hidden;touch-action:none}
+.fall canvas{display:block;width:100%;height:100%}
+.fall i{position:absolute;top:0;bottom:0;width:1px;background:var(--bad);opacity:.85;pointer-events:none}
+.fall b{position:absolute;top:0;bottom:0;background:rgba(242,184,75,.14);border-left:1px solid rgba(242,184,75,.55);border-right:1px solid rgba(242,184,75,.55);pointer-events:none}
+.meter{display:grid;grid-template-columns:1fr 62px;column-gap:10px;align-items:center;margin:2px 0 12px}
+.mbar{height:10px;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}.mbar i{display:block;height:100%;width:0;background:#7fd4a0}.mbar i.hot{background:var(--gold)}
+.meter b{color:var(--gold);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.mticks{position:relative;height:16px;color:var(--dim);font-size:11px}.mticks span{position:absolute;top:1px;transform:translateX(-50%)}.mticks span:first-child{transform:none}.mticks span:last-child{transform:translateX(-100%)}
+.panel{display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0 10px}
+.col{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}.col .btn{padding:9px 4px;font-size:14px;white-space:nowrap}
+.knob{flex:none;width:136px;height:136px;border-radius:50%;position:relative;touch-action:none;border:2px solid var(--line);background:radial-gradient(circle at 36% 30%,#35586a,#18313e 58%,#10222c);box-shadow:0 3px 10px rgba(0,0,0,.5)}
+.knob:after{content:'';position:absolute;inset:16px;border-radius:50%;border:1px dashed rgba(147,170,181,.35)}
+.knob i{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px;border-radius:50%;background:var(--gold);transform:translateY(-46px)}
+.ritrow{display:flex;gap:10px;align-items:center}.ritrow input{flex:1}.ritrow .btn{padding:6px 12px;font-size:14px}
 .scale{display:flex;justify-content:space-between;color:var(--dim);font-size:12px;margin:2px 2px 8px}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-radius:8px;padding:12px;font:13px/1.5 ui-monospace,monospace;margin:10px 0}pre:empty{display:none}
 </style></head><body>
@@ -51,20 +63,25 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
 <section id="band">
   <div class="seg" data-k="band"><button data-v="1">Band</button><button data-v="0">News only</button></div>
   <div id="bandbody">
-  <div class="freq" id="khz"></div>
-  <div class="scope" id="scope"><i id="needle"></i></div>
-  <div class="scale"><span>7000</span><span>7010</span><span>7020</span><span>7030</span><span>7040 kHz</span></div>
-  <input type="range" id="dial" min="7000" max="7040" step="0.01" aria-label="Tuning">
-  <div class="row" style="justify-content:center"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button><button class="btn" id="dminus" aria-label="Down 100 Hz">&minus;100</button><button class="btn" id="dminus10" aria-label="Down 10 Hz">&minus;10</button><button class="btn" id="dplus10" aria-label="Up 10 Hz">+10</button><button class="btn" id="dplus" aria-label="Up 100 Hz">+100</button><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button></div>
+  <div class="freq"><span id="khz"></span> <small>kHz</small><em id="ritv"></em></div>
+  <div class="fall" id="fall"><canvas id="wf" aria-label="Waterfall of the band. Tap to tune."></canvas><b id="pass"></b><i id="needle"></i></div>
+  <div class="scale" id="scale"><span></span><span></span><span></span><span></span><span></span></div>
+  <div class="meter"><div class="mbar"><i id="sbar"></i></div><b id="sval">S0</b><div class="mticks"><span style="left:0">1</span><span style="left:16.7%">3</span><span style="left:33.3%">5</span><span style="left:50%">7</span><span style="left:66.7%">9</span><span style="left:83.3%">+10</span><span style="left:100%">+20</span></div></div>
+  <div class="panel">
+    <div class="col"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button><button class="btn" id="dminus" aria-label="Down 100 Hz">&minus;100</button><button class="btn" id="dminus10" aria-label="Down 10 Hz">&minus;10</button></div>
+    <div class="knob" id="knob" aria-label="Tuning knob. Turn it to tune; one turn is 1 kHz."><i id="kmark"></i></div>
+    <div class="col"><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button><button class="btn" id="dplus" aria-label="Up 100 Hz">+100</button><button class="btn" id="dplus10" aria-label="Up 10 Hz">+10</button></div>
+  </div>
+  <div class="set"><label>RIT<b id="v-rit"></b></label><div class="ritrow"><input type="range" id="rit" min="-500" max="500" step="10" aria-label="Receiver incremental tuning"><button class="btn" id="rit0">Clear</button></div></div>
   <div class="msg" id="tuned"></div>
-  <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button></div>
+  <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button><button class="btn" id="span" aria-label="Waterfall span">Span 40 kHz</button></div>
   <pre id="copy"></pre>
   <h2>Receiver</h2>
   <div class="set"><label>Filter</label><div class="seg" data-k="width"><button data-v="0">Wide</button><button data-v="1">Normal</button><button data-v="2">Narrow</button></div></div>
   <div class="set"><label>AGC</label><div class="seg" data-k="agc"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
   <h2>Band activity</h2>
   <div class="seg" data-k="activity"><button data-v="0">Quiet</button><button data-v="1">Normal</button><button data-v="2">Busy</button></div>
-  <div class="msg" style="color:var(--dim)">Stations are made up: each contact is generated on the spot, in real time. Operators differ: some chat at length, some are brief, beginners send slowly and ask for QRS, some are out on a summit or in a park. The report they give matches how strong you hear them, and the greeting matches the other station's time of day. &lt;HH&gt; is the error sign, &lt;AS&gt; means wait. Your news is the bulletin station at 7020 kHz. Tune a few hundred Hz off a signal and its pitch changes, as on a real receiver. Everything passes one filter and one AGC: a strong station pushes the noise down, and a narrow filter cuts out the neighbours but needs careful tuning. The band noise follows the Ionosphere background and its level in Settings.</div>
+  <div class="msg" style="color:var(--dim)">Stations are made up: each contact is generated on the spot, in real time. Operators differ: some chat at length, some are brief, beginners send slowly and ask for QRS, some are out on a summit or in a park. The report they give matches how strong you hear them, and the greeting matches the other station's time of day. &lt;HH&gt; is the error sign, &lt;AS&gt; means wait. Your news is the bulletin station at 7020 kHz. Tune a few hundred Hz off a signal and its pitch changes, as on a real receiver. Everything passes one filter and one AGC: a strong station pushes the noise down, and a narrow filter cuts out the neighbours but needs careful tuning. The band noise follows the Ionosphere background and its level in Settings. The waterfall shows the band scrolling down: each station is a line that breaks up with its keying. Tap it to tune, or turn the knob; one turn is 1 kHz and a fast spin goes further. RIT moves only the receiver, up to 500 Hz either side of the dial.</div>
   </div>
 </section>
 <section id="feeds">
@@ -144,30 +161,110 @@ function tick(){const s=JSON.parse(A.state());curStatus=s.status;bandTick();cons
  let m=s.error||NEWS[n.state]||'';if(!s.error&&n.state==='has_news'&&n.failed)m=n.failed+' feed(s) failed on the last check.';if(s.refreshing)m='Fetching feeds...';$('msg').textContent=m;
  $('refresh').disabled=!!s.refreshing;
  feeds();list(s.id);}
-buildCat();let bandOn=0,dialV=7020,copyShown=false,bandSig='';
+buildCat();
+let bandOn=0,dialV=7020,rit=0,passLo=-200,passHi=200,news=7020,copyShown=false;
+const LOW=7000,HIGH=7040,rxk=()=>dialV+rit/1000,spanK=()=>S.span||40;
+// The part of the band the waterfall shows: all of it, or a window that follows the receiver.
+function view(){const sp=spanK();if(sp>=HIGH-LOW)return[LOW,HIGH];const a=Math.max(LOW,Math.min(HIGH-sp,rxk()-sp/2));return[a,a+sp];}
+function paintDial(){
+ const v=view(),pos=k=>100*(k-v[0])/(v[1]-v[0]);
+ $('khz').textContent=dialV.toFixed(2).replace(/^(\d)(\d{3})/,'$1 $2');
+ $('ritv').textContent=rit?'RIT '+(rit>0?'+':'−')+Math.abs(rit)+' Hz':'';
+ $('needle').style.left=pos(rxk())+'%';
+ const a=pos(rxk()+passLo/1000),b=pos(rxk()+passHi/1000);$('pass').style.left=a+'%';$('pass').style.width=Math.max(0.5,b-a)+'%';
+ const sc=$('scale').children;for(let i=0;i<5;i++)sc[i].textContent=(v[0]+(v[1]-v[0])*i/4).toFixed(v[1]-v[0]<40?1:0)+(i===4?' kHz':'');
+ $('kmark').style.transform='rotate('+((dialV*360)%360).toFixed(1)+'deg) translateY(-46px)';
+ if(document.activeElement!==$('rit'))$('rit').value=rit;
+ $('v-rit').textContent=(rit>0?'+':rit<0?'−':'')+Math.abs(rit)+' Hz';
+ $('span').textContent='Span '+spanK()+' kHz';
+}
+function setDial(v){v=Math.max(LOW,Math.min(HIGH,Math.round(v*100)/100));if(v===dialV)return;dialV=v;A.setDial(v);paintDial();}
+function setRit(v){rit=Math.max(-500,Math.min(500,Math.round(v/10)*10));if(typeof A.setRit==='function')A.setRit(rit);paintDial();}
 function bandPaint(b){
- bandOn=b.on?1:0;dialV=b.dial;const sc=$('scope');
- $('khz').innerHTML=b.dial.toFixed(2).replace(/^(\d)(\d{3})/,'$1 $2')+' <small>kHz</small>';
- if(document.activeElement!==$('dial'))$('dial').value=b.dial;
- const pos=k=>100*(k-b.low)/(b.high-b.low);
- const sig=JSON.stringify(b.act)+b.dial;if(sig!==bandSig){bandSig=sig;
-  sc.querySelectorAll('b').forEach(e=>e.remove());
-  const nw=document.createElement('b');nw.className='news on';nw.style.left=pos(b.news)+'%';nw.style.height='70%';sc.insertBefore(nw,$('needle'));
-  b.act.forEach(a=>{const e=document.createElement('b');e.className=a.on?'on':'';e.style.left=pos(a.k)+'%';e.style.height=(15+75*a.l)+'%';sc.insertBefore(e,$('needle'));});
-  $('needle').style.left=pos(b.dial)+'%';}
- const near=b.act.filter(a=>Math.abs(a.k-b.dial)<0.4).length>0,atNews=Math.abs(b.news-b.dial)<0.4;
+ bandOn=b.on?1:0;dialV=b.dial;rit=b.rit||0;news=b.news;if(b.passHi){passLo=b.passLo;passHi=b.passHi;}
+ paintDial();
+ const heard=k=>{const hz=(k-rxk())*1000;return hz>=passLo-50&&hz<=passHi+50;};
+ const near=b.act.some(a=>heard(a.k)),atNews=heard(b.news);
  $('tuned').textContent=!b.on?'Press play to start the band.':atNews?'Tuned to your news bulletin.':near?'A station is on this frequency.':'Nothing here. Use Signal to jump to the next one.';
  $('reveal').textContent=copyShown?'Hide':'Show what they send';
  if(copyShown)$('copy').textContent=A.bandCopy();else $('copy').textContent='';
  $('bplay').innerHTML=(curStatus==='playing'||curStatus==='waiting')?'&#10074;&#10074; Pause':'&#9654; Play';
 }
-function setDial(v){v=Math.max(7000,Math.min(7040,Math.round(v*100)/100));dialV=v;A.setDial(v);}
 function bandTick(){if(!$('band').classList.contains('on'))return;try{bandPaint(JSON.parse(A.band()));}catch(e){}}
-$('dial').oninput=()=>setDial(+$('dial').value);
+
+// Waterfall: every 40 ms the picture moves down one row and a new row is drawn on top.
+const wf=$('wf'),cx=wf.getContext('2d'),PAL=[];
+(function(){const st=[[0,8,20,26],[.3,20,62,82],[.58,56,150,140],[.8,242,184,75],[1,255,250,232]];
+ for(let i=0;i<256;i++){const t=i/255;let k=1;while(st[k][0]<t)k++;const a=st[k-1],b=st[k],f=(t-a[0])/(b[0]-a[0]);PAL.push([1,2,3].map(j=>Math.round(a[j]+(b[j]-a[j])*f)));}})();
+let W=0,H=0,RH=1,rowImg=null,amp=null,lastV=null,wfT=0,sShown=0;
+function clearWf(){cx.fillStyle='#08141a';cx.fillRect(0,0,W,H);}
+function sizeWf(){const d=Math.min(2,window.devicePixelRatio||1),w=Math.round(wf.clientWidth*d),h=Math.round(wf.clientHeight*d);
+ if(w&&h&&(w!==W||h!==H)){W=wf.width=w;H=wf.height=h;RH=Math.max(1,Math.round(d));rowImg=cx.createImageData(W,RH);amp=new Float32Array(W);clearWf();lastV=null;}}
+function wfRow(p){
+ sizeWf();if(!W)return;
+ const v=view(),sp=v[1]-v[0];
+ if(lastV&&(lastV[0]!==v[0]||lastV[1]!==v[1])){
+  // The window moved with the dial: slide the old picture sideways so each station stays one line.
+  if(Math.abs(lastV[1]-lastV[0]-sp)<1e-9){const dx=Math.round((lastV[0]-v[0])/sp*W);if(dx){cx.drawImage(wf,dx,0);cx.fillStyle='#08141a';if(dx>0)cx.fillRect(0,0,dx,H);else cx.fillRect(W+dx,0,-dx,H);}}
+  else clearWf();
+ }
+ lastV=v;
+ cx.drawImage(wf,0,0,W,H-RH,0,RH,W,H-RH);
+ const floor=S.bed===1?Math.pow(10,S.bedDb/20)*0.12:0.003;
+ for(let x=0;x<W;x++)amp[x]=floor*(0.35+1.3*Math.random());
+ const sw=Math.max(1.3*RH,0.03/sp*W);
+ for(const s of p.w.concat([[news,1,p.n]])){
+  const x0=(s[0]-v[0])/sp*W,a=s[1]*s[2];if(!(a>0)||x0<-4*sw||x0>W+4*sw)continue;
+  for(let x=Math.max(0,Math.floor(x0-3*sw));x<=Math.min(W-1,Math.ceil(x0+3*sw));x++){const d=(x-x0)/sw;amp[x]+=a*Math.exp(-d*d);}
+ }
+ const px=rowImg.data;
+ for(let x=0;x<W;x++){const c=PAL[Math.max(0,Math.min(255,Math.round(255*(20*Math.log10(amp[x])+62)/62)))];
+  for(let y=0;y<RH;y++){const o=4*(y*W+x);px[o]=c[0];px[o+1]=c[1];px[o+2]=c[2];px[o+3]=255;}}
+ cx.putImageData(rowImg,0,0);
+}
+// S-meter: S9 is a full-strength station, an S unit is 5 dB as in the reports the stations give. The needle falls slowly.
+function meter(level){
+ const u=level>0?9+4*Math.log10(level/0.477):0;sShown=Math.max(u,sShown-0.25,0);
+ $('sbar').style.width=(100*Math.max(0,Math.min(1,(sShown-1)/12))).toFixed(1)+'%';$('sbar').className=sShown>=9.5?'hot':'';
+ $('sval').textContent=sShown<0.5?'S0':sShown<9.5?'S'+Math.round(sShown):'S9+'+5*Math.round(sShown-9);
+}
+function panelLoop(t){
+ requestAnimationFrame(panelLoop);
+ if(!bandOn||!$('band').classList.contains('on')||t-wfT<38||typeof A.panel!=='function')return;wfT=t;
+ if(curStatus!=='playing'&&curStatus!=='waiting'){meter(0);return;}
+ let p;try{p=JSON.parse(A.panel());}catch(e){return;}
+ wfRow(p);meter(p.s);
+}
+requestAnimationFrame(panelLoop);
+const fall=$('fall');let fDrag=false;
+function fTune(e){const r=fall.getBoundingClientRect(),v=view();setDial(v[0]+(v[1]-v[0])*(e.clientX-r.left)/r.width-rit/1000);}
+// With the whole band in view you can drag along it; in a zoomed window the picture follows the dial, so a tap jumps once.
+fall.onpointerdown=e=>{fDrag=spanK()>=HIGH-LOW;if(fDrag)fall.setPointerCapture(e.pointerId);fTune(e);};
+fall.onpointermove=e=>{if(fDrag)fTune(e);};fall.onpointerup=fall.onpointercancel=()=>{fDrag=false;};
+
+// Tuning knob: 100 steps of 10 Hz per turn. A fast spin is geared up, and a flick keeps turning for a moment.
+const knob=$('knob'),STEP=2*Math.PI/100;
+let kAng=null,kAcc=0,kVel=0,kT=0,kSpin=0,kTick=0;
+function angle(e){const r=knob.getBoundingClientRect();return Math.atan2(e.clientY-r.top-r.height/2,e.clientX-r.left-r.width/2);}
+function turn(d,ms){
+ const tps=Math.abs(d)/Math.max(ms,1)*1000/(2*Math.PI);
+ kAcc+=d*(tps>2?5:tps>1?2:1);
+ const n=Math.trunc(kAcc/STEP);if(!n)return;
+ kAcc-=n*STEP;const was=dialV;setDial(dialV+n*0.01);
+ // A click in the fingers each time the dial passes a 100 Hz mark.
+ if(Math.floor(was*10+1e-6)!==Math.floor(dialV*10+1e-6)&&typeof A.tick==='function'){const now=Date.now();if(now-kTick>35){kTick=now;A.tick();}}
+}
+function coast(t0){requestAnimationFrame(t=>{if(!kSpin)return;const ms=Math.min(50,t-t0);turn(kSpin*ms/1000,ms);kSpin*=Math.exp(-ms/450);if(Math.abs(kSpin)<0.5||dialV<=LOW||dialV>=HIGH){kSpin=0;return;}coast(t);});}
+knob.onpointerdown=e=>{knob.setPointerCapture(e.pointerId);kSpin=0;kAcc=0;kAng=angle(e);kT=e.timeStamp;kVel=0;};
+knob.onpointermove=e=>{if(kAng===null)return;const a=angle(e);let d=a-kAng;if(d>Math.PI)d-=2*Math.PI;if(d<-Math.PI)d+=2*Math.PI;
+ const ms=e.timeStamp-kT;kAng=a;kT=e.timeStamp;if(ms>0)kVel=0.6*kVel+0.4*d/ms*1000;turn(d,ms);};
+knob.onpointerup=knob.onpointercancel=e=>{if(kAng===null)return;kAng=null;if(e.timeStamp-kT<90&&Math.abs(kVel)>2.5){kSpin=kVel;coast(performance.now());}};
+
 $('dminus').onclick=()=>setDial(dialV-0.1);$('dplus').onclick=()=>setDial(dialV+0.1);$('dminus10').onclick=()=>setDial(dialV-0.01);$('dplus10').onclick=()=>setDial(dialV+0.01);
-$('dnext').onclick=()=>A.nextSignal(1);$('dprev').onclick=()=>A.nextSignal(-1);
+$('dnext').onclick=()=>{A.nextSignal(1);bandTick();};$('dprev').onclick=()=>{A.nextSignal(-1);bandTick();};
+$('rit').oninput=()=>setRit(+$('rit').value);$('rit0').onclick=()=>setRit(0);
+$('span').onclick=()=>{A.set('span',spanK()>=40?4:40);load();paintDial();};
 $('reveal').onclick=()=>{copyShown=!copyShown;bandTick();};
 $('bplay').onclick=()=>A.command('toggle');
-$('scope').onpointerdown=e=>{const r=$('scope').getBoundingClientRect();setDial(7000+40*(e.clientX-r.left)/r.width);};
-load();tick();setInterval(tick,500);
+load();paintDial();tick();setInterval(tick,500);
 </script></body></html>

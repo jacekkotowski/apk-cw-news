@@ -41,6 +41,13 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     /** The band being played, or null; the dial is where the receiver is tuned (kHz). */
     static volatile Band band;
     static volatile double dial = Band.NEWS;
+    /** Receiver incremental tuning in Hz: the receiver listens this far from the dial. */
+    static volatile int rit;
+    /** For the front panel: the receiver's meter, and how much of the time the bulletin was keyed since last read. */
+    static volatile double meter;
+    static final java.util.concurrent.atomic.AtomicInteger newsOn = new java.util.concurrent.atomic.AtomicInteger(), newsAll = new java.util.concurrent.atomic.AtomicInteger();
+    /** Where the receiver actually listens, in kHz. */
+    static double rxKhz() { return dial + rit / 1000.0; }
 
     private final ConcurrentLinkedQueue<Runnable> cmds = new ConcurrentLinkedQueue<>();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -320,14 +327,17 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
                 }
                 if (paused && engine.silent()) {
                     if (trackOn) { track.pause(); trackOn = false; }
+                    meter = 0;
                     status = PAUSED;
                     if (!shown.equals(PAUSED)) { shown = PAUSED; publish(); }
                     Thread.sleep(30);
                     continue;
                 }
                 if (!trackOn) { track.play(); trackOn = true; }
-                engine.dialKhz = dial;
+                engine.dialKhz = rxKhz();
                 engine.render(buf, BLOCK);
+                meter = engine.meter();
+                newsAll.addAndGet(BLOCK); newsOn.addAndGet((int) Math.round(engine.takeNewsDuty() * BLOCK));
                 int off = 0;
                 while (off < buf.length && alive) {
                     int n = track.write(buf, off, buf.length - off, AudioTrack.WRITE_BLOCKING);

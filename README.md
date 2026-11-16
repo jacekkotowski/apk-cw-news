@@ -1,8 +1,8 @@
 # CW News
 
-Offline-friendly Android app that fetches RSS and Atom news and sends the headlines, optionally with summaries, as audible Morse code. A built-in catalogue of 36 feeds (ham radio, world news, science, psychology) is one tap away. Ham abbreviations (AND = ES, THANKS = TNX) can replace plain words. A synthesized receiver band or Cosmic background can play underneath. The Band tab is a made-up slice of the 40 m CW band: a tuning dial, signals that sweep in and out as you tune, and generated contacts between operators with different personalities (a chatty old-timer, a terse contester, a beginner who asks you to slow down, someone on a summit), with rigs, antennas, weather, hobbies, fun facts and sometimes a headline from your feeds. Your news is the bulletin station at 7020 kHz. No account, server, telemetry or ads.
+Offline-friendly Android app that fetches RSS and Atom news and sends the headlines, optionally with summaries, as audible Morse code. A built-in catalogue of 36 feeds (ham radio, world news, science, psychology) is one tap away. Ham abbreviations (AND = ES, THANKS = TNX) can replace plain words. A synthesized receiver band or Cosmic background can play underneath. The Band tab is a made-up slice of the 40 m CW band with a receiver front panel: a waterfall, an S-meter, a tuning knob, three filter widths, AGC and RIT. Signals sweep in and out as you tune, and generated contacts between operators with different personalities (a chatty old-timer, a terse contester, a beginner who asks you to slow down, someone on a summit), with rigs, antennas, weather, hobbies, fun facts and sometimes a headline from your feeds. Your news is the bulletin station at 7020 kHz. No account, server, telemetry or ads.
 
-Current version: 2.2. Android 8.0 (API 26) or newer.
+Current version: 2.3. Android 8.0 (API 26) or newer.
 
 ## Install
 
@@ -37,6 +37,7 @@ GitHub Actions (`.github/workflows/android.yml`) runs the tests and uploads an A
 - `Qso`: makes up one contact from a seeded random source: a ragchew, a sked between friends, a park, summit or contest station working several callers, or a lone CQ. Each operator has a personality that sets speed, length and topics, and a contact is assembled from topic modules, so no two run the same way. Reports follow the signal strength you hear, greetings follow the other station's local time, weather follows season and time of day. To read some: `javac -cp out_test -d out_test tests/QsoDemo.java && java -cp out_test pl.cwnews.QsoDemo 20` after `tests/run.sh`.
 - `Band`: the stations on the dial. Each sends in real time on its own frequency, with its own fist and fading, and sometimes a chirp, hard keying, a rough note or a drifting rig. Pitch comes from the distance to the dial; the receiver filter decides what is heard. The news bulletin is one station and waits, from the current word, while you are tuned outside the filter.
 - `Abbrev`: one table of CW abbreviations, used for the replacement (Off, Light, Full) and for the list in Settings.
+- Front panel (`app/assets/index.html`): the waterfall is drawn from each station's frequency, strength and keying, read about 25 times a second; the S-meter reads the receiver's level after the filter, with S9 as a full-strength station and 5 dB per S unit, the same scale the stations use in their reports. The knob is 1 kHz per turn in 10 Hz steps, geared up when spun fast.
 - `app/assets/catalogue.js`: the built-in feeds.
 - `TextNorm`, `FeedParser`, `Refresher`, `Db`: feeds, cleaning and the offline cache.
 - `CwService`: foreground media service, notification, headset controls and audio focus.
