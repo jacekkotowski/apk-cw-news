@@ -21,18 +21,37 @@ What is built, what comes next, and how each step will be designed and checked. 
 2. Merge the branch to `main`.
 3. Publish release `v2.1` with the APK. Draft notes are in `docs/RELEASE-2.1.md`.
 
-## Step 3 (version 2.2): one receiver chain and individual fists
+## Step 3 (version 2.2): one receiver chain, filter width, fine tuning and individual fists
 
-**What you get:** the band sounds like a receiver instead of tones laid over noise, and you can tell operators apart by the way they key.
+**What you get:** the band sounds like a receiver instead of tones laid over noise, you can widen or narrow the filter and tune finely, and you can tell operators apart by the way they key.
 
-**Today:** `Engine.render` adds three things side by side: the news tone, the stations from `Band.render`, and the noise from `Bed`. The AGC inside `Bed.Receiver` only sees the noise. Stations are scaled by a gain curve (`Band.response`), not passed through a filter. Every station keys with machine-exact timing; only the speed differs.
+**Today:** `Engine.render` adds three things side by side: the news tone, the stations from `Band.render`, and the noise from `Bed`. The AGC inside `Bed.Receiver` only sees the noise. Stations are scaled by a fixed 320 Hz gain curve (`Band.response`), not passed through a filter, and the noise has its own fixed 450 Hz filter. The dial steps 50 Hz. Every station keys with machine-exact timing; only the speed differs.
 
 **Receiver chain**
 - Add a receiver stage in `Engine` (plain Java): noise plus all station tones go through one band-pass at the CW pitch and one AGC, then to the output.
 - The AGC has a fast attack and a release of about 0.3 s, so a strong station pushes the noise down and the noise rushes back in the gaps.
-- `Band.response` stays, but only to skip stations that are far outside the filter.
+- `Band.response` stays, but only to skip stations that are far outside the filter, so it has to follow the chosen width.
 - The Cosmic background and the News-only mode stay outside the chain and sound as they do now.
 - Morse timing must still depend only on sample counts. The existing "timing unchanged" tests guard this.
+
+**Filter width**
+- One setting on the Band tab with three positions. The widths are starting values to be tuned by ear:
+
+| Position | About | What you hear |
+|---|---|---|
+| Wide | 1 to 2 kHz | Several stations at once at different pitches, more hiss, easy to find signals |
+| Normal | 500 Hz | Close to version 2.1 |
+| Narrow | 250 Hz | One station, much less noise, slight ringing, tuning must be exact |
+
+- The filter is the one in the shared chain, so it shapes noise and stations alike.
+- With the wide filter a strong neighbour pumps the AGC and pushes down the station being copied; narrowing the filter removes it.
+- Switching width must not click: the filter changes over a short crossfade.
+- The news bulletin at 7020 kHz is heard through the same filter when the band is on.
+
+**Fine tuning**
+- The dial moves in 10 Hz steps instead of 50 Hz. The buttons become plus and minus 10 Hz and 100 Hz.
+- Dragging the slider stays coarse; a narrow filter needs the buttons or the scope tap to land on a station.
+- "Next signal" still jumps exactly onto a station.
 
 **Fists**
 - New plain-Java class `Fist`, applied when `Keying` turns text into on/off runs.
@@ -56,6 +75,9 @@ What is built, what comes next, and how each step will be designed and checked. 
 **How it is checked**
 - Timing tests unchanged; level and peak bounds unchanged.
 - New test: with a strong signal keyed, the noise between elements drops by a measurable amount and recovers within the release time.
+- New test: for each filter width, a tone at the centre passes at full level and a tone one and a half widths away is down by a set amount; noise power grows with the width.
+- New test: switching width while a tone plays leaves no step in the output.
+- UI test: the width control and the 10 Hz buttons call the bridge with the right values.
 - New test: fist statistics (keyer exact, bug dahs longer than three dits on average, straight key jitter within set limits).
 - The soak test (hours of band audio) still passes.
 - `tests/BandDemo.java` writes a WAV to listen to on a PC before any phone test.
@@ -63,6 +85,8 @@ What is built, what comes next, and how each step will be designed and checked. 
 **Risks and decisions**
 - CPU cost on the phone: measure render time per block in a test and keep a wide margin.
 - AGC pumping can be tiring over a long session. Decision for you: always on, or a setting (Clean / Real).
+- A narrow filter that rings too much is unpleasant to copy through. The amount of ringing is tuned by ear from the WAV demo.
+- This step is larger than first planned. If it grows too far, the fists move to their own version.
 
 ## Step 4 (version 2.3): take part in a contact with typed sending
 
@@ -126,8 +150,7 @@ What is built, what comes next, and how each step will be designed and checked. 
 
 - A scrolling waterfall and an S-meter. The screen polls every 500 ms today, so this needs a faster display path.
 - A large VFO knob with inertia and haptic clicks.
-- Filter width (wide, normal, narrow) and RIT.
-- Finer tuning: 10 Hz steps instead of 50 Hz.
+- RIT.
 
 ## Ideas, not scheduled
 
@@ -137,7 +160,7 @@ What is built, what comes next, and how each step will be designed and checked. 
 
 ## Order, and why
 
-1. Receiver chain and fists first: it is audio only and improves everything heard afterwards.
+1. Receiver chain and fists first: it is mostly audio and improves everything heard afterwards. Filter width and fine tuning ride along because they come almost free once there is one filter, and the narrow filter is unusable without fine tuning.
 2. Typed contacts before hand keying: the partner logic is the hard part, and typing avoids the audio-delay problem.
 3. Hand keying only after a delay measurement on a real phone.
 4. Clock-driven band, recurring stations and the front panel build on the earlier steps and can be reordered.
