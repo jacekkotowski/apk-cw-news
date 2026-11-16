@@ -3,6 +3,8 @@ package pl.cwnews;
 /**
  * The audio mix: CW plus background, sample by sample. It has no Android code, so it can be tested on a PC.
  * Morse position advances only from the CW sample count, so the background cannot change Morse timing.
+ * With a band, the bulletin, the stations and the band noise all go through one receiver (Rx): its filter and AGC
+ * shape them together. Without a band the bulletin plays alone over the chosen background.
  */
 final class Engine {
     static final double CW_PEAK = 0.5;
@@ -15,9 +17,14 @@ final class Engine {
     private double notchFor = -1;
 
     volatile double toneHz = 600, volume = 0.8, bedDb = -24, dialKhz = Band.NEWS;
+    /** Receiver filter width (an Rx constant) and whether its AGC is on. Both only matter with a band. */
+    volatile int width = Rx.NORMAL;
+    volatile boolean agc = true;
     private volatile Band band;
-    private double[] bandBuf;
-    private double bandGate, newsGain = 1;
+    private final Rx rx;
+    private final double[] sig;
+    private double bandGate, noiseFade;
+    private int newsOn, newsAll;
     private volatile int wantBed = Bed.OFF;
     private int bedType = Bed.OFF;
     private Bed bed;
@@ -31,7 +38,8 @@ final class Engine {
     private double gate = 1, phase;
 
     Engine(int rate, long seed, int maxFrames) {
-        this.rate = rate; this.seed = seed; bedBuf = new double[2 * maxFrames];
+        this.rate = rate; this.seed = seed; bedBuf = new double[2 * maxFrames]; sig = new double[2 * maxFrames];
+        rx = new Rx(rate, seed ^ 0x5DEECE66DL);
         for (int c = 0; c < 2; c++) for (int k = 0; k < 2; k++) notch[c][k] = new Dsp.Biquad();
     }
 
@@ -43,7 +51,11 @@ final class Engine {
     int bed() { return wantBed; }
     /** While false, the mix fades to silence. */
     void setAudible(boolean a) { audible = a; }
-    boolean silent() { return !audible && bedFade <= 0 && bandGate <= 0 && (gate <= 0 || keying == null || held); }
+    boolean silent() { return !audible && bedFade <= 0 && noiseFade <= 0 && bandGate <= 0 && (gate <= 0 || keying == null || held); }
+    /** The receiver's meter: signal level in its filter, where the bulletin on tune reads 1. Zero without a band. */
+    double meter() { return band == null ? 0 : rx.level; }
+    /** For a waterfall: the share of the time the bulletin was keyed since the last call. */
+    double takeNewsDuty() { double d = newsAll == 0 ? 0 : newsOn / (double) newsAll; newsOn = newsAll = 0; return d; }
 
     void load(Keying k, int startWord) {
         keying = k; held = false; gate = 1;
@@ -88,8 +100,10 @@ final class Engine {
                     double env = 1;
                     if (pos < ramp) env = 0.5 - 0.5 * Math.cos(Math.PI * (pos + 0.5) / ramp);
                     else if (pos >= r - ramp) env = 0.5 - 0.5 * Math.cos(Math.PI * (r - pos - 0.5) / ramp);
-                    out = env * Math.sin(phase) * newsGain;
+                    out = env * Math.sin(phase);
+                    newsOn++;
                 }
+                newsAll++;
                 if (++pos >= Math.abs(r)) {
                     pos = 0; run++;
                     while (word + 1 < keying.wordStart.length && run >= keying.wordStart[word + 1]) word++;
@@ -97,7 +111,7 @@ final class Engine {
             }
         }
         phase += 2 * Math.PI * pitch / rate;
-        if (phase > 2 * Math.PI) phase -= 2 * Math.PI;
+        if (phase > 2 * Math.PI) phase -= 2 * Math.PI; else if (phase < 0) phase += 2 * Math.PI;
         return out;
     }
 
@@ -105,25 +119,23 @@ final class Engine {
     void render(float[] out, int frames) {
         tuneNotch();
         Band bd = band;
-        double newsTarget = 1;
-        pitch = toneHz;
-        if (bd != null) {
-            double offsetHz = (Band.NEWS - dialKhz) * 1000;
-            newsTarget = Band.response(offsetHz);
-            pitch = toneHz + offsetHz;
+        boolean rxOn = bd != null;
+        pitch = toneHz; off = false;
+        if (rxOn) {
+            double lo = Rx.lo(width, toneHz), hi = Rx.hi(width, toneHz);
+            rx.tune(lo, hi);
+            // The bulletin is one station on the band. Its pitch is its distance from the dial, kept inside what a
+            // sampled tone can be; far outside the filter it waits, from the start of the current word, until you tune back.
+            pitch = Math.max(-rate / 2.2, Math.min(rate / 2.2, toneHz + (Band.NEWS - dialKhz) * 1000));
+            off = Rx.gain(lo, hi, pitch) < 0.03;
+            java.util.Arrays.fill(sig, 0, 2 * frames, 0);
+            if (bandGate > 0 || (!held && audible)) bd.render(sig, frames, dialKhz, toneHz, lo, hi);
         }
-        off = newsTarget < 0.03; // out of the filter: the bulletin waits, from the start of the current word, until you tune back
-        double newsStep = (newsTarget - newsGain) / frames;
-        double[] bb = null;
-        if (bd != null) {
-            if (bandBuf == null || bandBuf.length < 2 * frames) bandBuf = new double[2 * frames];
-            java.util.Arrays.fill(bandBuf, 0, 2 * frames, 0);
-            if (bandGate > 0 || (!held && audible)) bd.render(bandBuf, frames, dialKhz, toneHz);
-            bb = bandBuf;
-        }
-        double bandStep = 1 / (GATE_S * rate);
-        if (bedType != wantBed && (bedFade <= 0 || bed == null)) {
-            bedType = wantBed;
+        // With a band, its noise is made inside the receiver, so the Ionosphere background object is not needed.
+        boolean rxNoise = rxOn && wantBed == Bed.BAND;
+        int target = rxNoise ? Bed.OFF : wantBed;
+        if (bedType != target && (bedFade <= 0 || bed == null)) {
+            bedType = target;
             bed = Bed.create(bedType, rate, seed + seeds++);
             bedFade = 0;
         }
@@ -132,20 +144,27 @@ final class Engine {
         boolean cut = bedOn && bed.notch();
         double bedGain = Math.pow(10, bedDb / 20);
         double gateStep = 1 / (GATE_S * rate), inStep = 1 / (BED_IN_S * rate), outStep = 1 / (BED_OUT_S * rate);
-        boolean bedUp = audible && bedType == wantBed;
-        double scale = CW_PEAK * volume;
+        boolean bedUp = audible && bedType == target;
         for (int i = 0; i < frames; i++) {
             boolean wasStopped = (held || off) && gate <= 0;
-            newsGain += newsStep;
             double cw = cwSample();
             boolean hold = held || off;
             gate = hold ? Math.max(0, gate - gateStep) : Math.min(1, gate + gateStep);
-            bandGate = (held || !audible) ? Math.max(0, bandGate - bandStep) : Math.min(1, bandGate + bandStep);
+            bandGate = (held || !audible) ? Math.max(0, bandGate - gateStep) : Math.min(1, bandGate + gateStep);
             if (!wasStopped && hold && gate <= 0 && keying != null && keying.wordStart.length > 0 && run < keying.runs.length) {
                 run = keying.wordStart[word]; pos = 0;
             }
-            double l = cw * gate, r = l;
-            if (bb != null) { l += bb[2 * i] * bandGate; r += bb[2 * i + 1] * bandGate; }
+            if (rxOn) { sig[2 * i] = sig[2 * i] * bandGate + cw * gate; sig[2 * i + 1] = sig[2 * i + 1] * bandGate + cw * gate; }
+            else sig[2 * i] = sig[2 * i + 1] = cw * gate;
+        }
+        if (rxOn) {
+            double before = noiseFade;
+            noiseFade = audible && rxNoise ? Math.min(1, noiseFade + frames * inStep) : Math.max(0, noiseFade - frames * outStep);
+            rx.process(sig, frames, bedGain * before, bedGain * noiseFade, agc);
+        } else noiseFade = 0;
+        double scale = CW_PEAK * volume;
+        for (int i = 0; i < frames; i++) {
+            double l = sig[2 * i], r = sig[2 * i + 1];
             if (bedOn) {
                 bedFade = bedUp ? Math.min(1, bedFade + inStep) : Math.max(0, bedFade - outStep);
                 double a = bedGain * bedFade;

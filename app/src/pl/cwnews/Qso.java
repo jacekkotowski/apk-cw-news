@@ -12,7 +12,7 @@ import java.util.List;
  * Pure Java, driven by a seeded random source, so a test can repeat any contact.
  */
 final class Qso {
-    static final int RAGCHEW = 0, QUICK = 1, CQ = 2, SKED = 3, KINDS = 4;
+    static final int RAGCHEW = 0, QUICK = 1, CQ = 2, SKED = 3, TUNE = 4, KINDS = 5;
     /** Personalities. */
     static final int CASUAL = 0, CHATTY = 1, TERSE = 2, NOVICE = 3, OUTDOOR = 4;
 
@@ -21,13 +21,18 @@ final class Qso {
         final int who; final String text;
         /** Speed as a factor of the listener's speed setting, and the silence before this transmission in seconds. */
         final double speed, pause;
-        Tx(int who, String text, double speed, double pause) { this.who = who; this.text = text; this.speed = speed; this.pause = pause; }
+        /** Seconds of plain carrier instead of text, from someone tuning up; 0 for a normal transmission. */
+        final double carrier;
+        Tx(int who, String text, double speed, double pause) { this(who, text, speed, pause, 0); }
+        Tx(int who, String text, double speed, double pause, double carrier) { this.who = who; this.text = text; this.speed = speed; this.pause = pause; this.carrier = carrier; }
     }
 
     final int kind;
     final List<Tx> tx = new ArrayList<>();
     /** One entry per operator in the contact. Hours are local, 0 to 23. Loss is dB below a full-strength signal. */
     String[] call; boolean[] qrp, yl; int[] style, hour; double[] lossDb, qsbDb;
+    /** The key each operator uses (a Fist constant) and faults of their signal: chirp, a rough note, drift. */
+    int[] key; boolean[] chirp, rough, drift;
 
     private Qso(int kind) { this.kind = kind; }
 
@@ -124,7 +129,7 @@ final class Qso {
         int id, style, hour, temp, power, age, years;
         Country c;
         String call, name, city, rig, ant, wx, hobby, key, job, site, ref;
-        boolean qrp, yl, storm, snow;
+        boolean qrp, yl, storm, snow, chirp, rough, drift;
         double speed, lossDb, qsbDb;
         final List<Integer> plan = new ArrayList<>();
     }
@@ -156,16 +161,20 @@ final class Qso {
      */
     static Qso generate(Dsp.Rng r, int month, int hourUtc, String headline) {
         double k = r.uniform();
-        Qso q = new Qso(k < 0.5 ? RAGCHEW : k < 0.72 ? QUICK : k < 0.87 ? CQ : SKED);
+        Qso q = new Qso(k < 0.48 ? RAGCHEW : k < 0.69 ? QUICK : k < 0.83 ? CQ : k < 0.95 ? SKED : TUNE);
         Gen g = new Gen(r, month, hourUtc, headline, q.tx);
         if (q.kind == CQ) g.loneCq();
+        else if (q.kind == TUNE) g.tuneUp();
         else if (q.kind == QUICK) g.quick();
         else g.ragchew(q.kind == SKED);
         int n = g.ops.size();
         q.call = new String[n]; q.qrp = new boolean[n]; q.yl = new boolean[n]; q.style = new int[n]; q.hour = new int[n]; q.lossDb = new double[n]; q.qsbDb = new double[n];
+        q.key = new int[n]; q.chirp = new boolean[n]; q.rough = new boolean[n]; q.drift = new boolean[n];
         for (int i = 0; i < n; i++) {
             Op o = g.ops.get(i);
             q.call[i] = o.call; q.qrp[i] = o.qrp; q.yl[i] = o.yl; q.style[i] = o.style; q.hour[i] = o.hour; q.lossDb[i] = o.lossDb; q.qsbDb[i] = o.qsbDb;
+            q.key[i] = o.key.equals("BUG") ? Fist.BUG : o.key.equals("STRAIGHT KEY") ? Fist.STRAIGHT : o.key.equals("SIDESWIPER") ? Fist.SIDESWIPER : Fist.KEYER;
+            q.chirp[i] = o.chirp; q.rough[i] = o.rough; q.drift[i] = o.drift;
         }
         return q;
     }
@@ -221,6 +230,11 @@ final class Qso {
             if (r.chance(qrpOdds)) { o.rig = QRP_RIGS[r.nextInt(QRP_RIGS.length)]; o.power = new int[]{1, 2, 3, 5, 5, 5, 10}[r.nextInt(7)]; }
             else { o.rig = BIG_RIGS[r.nextInt(BIG_RIGS.length)]; o.power = new int[]{20, 50, 100, 100, 100}[r.nextInt(5)]; }
             o.qrp = o.power <= 10;
+            // Simple and home-made rigs are the ones that chirp or have a rough note; old valve rigs drift.
+            boolean simple = o.rig.contains("HOMEBREW") || o.rig.contains("KIT") || o.rig.equals("UBITX") || o.rig.equals("NORCAL 40A") || o.rig.equals("SOFTROCK");
+            o.chirp = r.chance(simple ? 0.35 : 0.04);
+            o.rough = r.chance(simple ? 0.25 : 0.02);
+            o.drift = r.chance(o.rig.equals("HW-101") || o.rig.equals("TS-120S") || simple ? 0.5 : 0.05);
             if (style == OUTDOOR) {
                 o.ant = FIELD_ANTS[r.nextInt(FIELD_ANTS.length)];
                 double u = r.uniform();
@@ -314,6 +328,9 @@ final class Qso {
 
         String report(Op me, Op heard) {
             String s = rst(heard.lossDb + 2 * r.gauss());
+            // The last digit is the tone: 9 is a pure note. C marks chirp.
+            if (heard.rough) s = s.substring(0, 2) + pick("7", "8");
+            if (heard.chirp && r.chance(0.6)) s += "C";
             String q = heard.qsbDb > 9 && r.chance(0.7) ? pick(" WID QSB", " QSB") : heard.lossDb > 24 && r.chance(0.4) ? " WEAK BUT OK" : "";
             if (me.style == TERSE) return "UR " + s + q;
             return pick("UR RST ", "UR ", "RST IS ", "UR RST IS ") + s + " " + s + q;
@@ -486,6 +503,14 @@ final class Qso {
             if (r.chance(0.25)) { send(a, r.chance(0.5) ? "QRL?" : "QRL? DE " + a.call, first); first = 2 + 2 * r.uniform(); }
             String cq = cqText(a);
             for (int i = 0; i < times; i++) send(a, cq, i == 0 ? first : 3 + 4 * r.uniform());
+        }
+
+        /** Someone tunes up on the frequency: a carrier or two, maybe a few test letters, and gone. */
+        void tuneUp() {
+            Op a = op(style());
+            int n = 1 + r.nextInt(3);
+            for (int i = 0; i < n; i++) tx.add(new Tx(a.id, "", spd[a.id], i == 0 ? 0.5 + 2 * r.uniform() : 0.4 + 1.5 * r.uniform(), 1.5 + 3.5 * r.uniform()));
+            if (r.chance(0.35)) send(a, pick("VVV", "VVV VVV", "E E E", "TEST"), 0.5 + r.uniform());
         }
 
         void loneCq() {

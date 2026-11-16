@@ -10,7 +10,16 @@ final class Keying {
 
     private Keying(int[] runs, int[] wordStart, long total) { this.runs = runs; this.wordStart = wordStart; totalSamples = total; }
 
-    static Keying build(String text, Timing t, int rate) {
+    static Keying build(String text, Timing t, int rate) { return build(text, t, rate, null, null); }
+
+    /** A steady carrier of that many seconds, as from someone tuning up. */
+    static Keying carrier(double seconds, int rate) {
+        int n = (int) Math.round(seconds * rate), tail = rate / 10;
+        return new Keying(new int[]{n, -tail}, new int[]{0}, n + tail);
+    }
+
+    /** With a fist, the timing is bent the way that operator's hand does it; without one it is exact. */
+    static Keying build(String text, Timing t, int rate, Fist fist, Dsp.Rng r) {
         List<List<String>> words = Morse.parse(text);
         double[] d = new double[count(words)];
         int[] starts = new int[words.size()];
@@ -20,12 +29,16 @@ final class Keying {
             List<String> chars = words.get(w);
             for (int c = 0; c < chars.size(); c++) {
                 String code = chars.get(c);
+                boolean last = c == chars.size() - 1;
                 for (int e = 0; e < code.length(); e++) {
-                    d[n++] = (code.charAt(e) == '-' ? 3 : 1) * t.dot;
-                    if (e < code.length() - 1) d[n++] = -t.dot;
+                    boolean dah = code.charAt(e) == '-';
+                    double exact = (dah ? 3 : 1) * t.dot;
+                    d[n++] = fist == null ? exact : fist.element(dah, exact, r);
+                    if (e < code.length() - 1) d[n++] = -(fist == null ? t.dot : fist.inner(t.dot, r));
                 }
                 // One gap follows each character, so gaps are never counted twice.
-                d[n++] = -(c < chars.size() - 1 ? t.charGap : t.wordGap);
+                if (fist == null) d[n++] = -(last ? t.wordGap : t.charGap);
+                else d[n++] = -(last ? fist.word(t.wordGap, t.dot, r) : fist.letter(t.charGap, r));
             }
         }
         // Each boundary is rounded from the running time, so rounding never accumulates.

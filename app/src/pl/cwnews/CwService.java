@@ -203,6 +203,8 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         engine.volume = volume * duck;
         engine.bedDb = prefs.getInt("bedDb", -24);
         engine.setBed(prefs.getInt("bed", Bed.BAND));
+        engine.width = prefs.getInt("width", Rx.NORMAL);
+        engine.agc = prefs.getInt("agc", 1) != 0;
         if (prefs.getInt("band", 1) != 0) {
             if (band == null) {
                 band = new Band(RATE, System.nanoTime(), java.util.Calendar.getInstance().get(java.util.Calendar.MONTH), () -> {

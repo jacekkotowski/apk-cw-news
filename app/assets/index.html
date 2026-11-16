@@ -54,14 +54,17 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="freq" id="khz"></div>
   <div class="scope" id="scope"><i id="needle"></i></div>
   <div class="scale"><span>7000</span><span>7010</span><span>7020</span><span>7030</span><span>7040 kHz</span></div>
-  <input type="range" id="dial" min="7000" max="7040" step="0.05" aria-label="Tuning">
-  <div class="row" style="justify-content:center"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button><button class="btn" id="dminus" aria-label="Down 0.1 kHz">&minus; 0.1</button><button class="btn" id="dplus" aria-label="Up 0.1 kHz">+ 0.1</button><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button></div>
+  <input type="range" id="dial" min="7000" max="7040" step="0.01" aria-label="Tuning">
+  <div class="row" style="justify-content:center"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button><button class="btn" id="dminus" aria-label="Down 100 Hz">&minus;100</button><button class="btn" id="dminus10" aria-label="Down 10 Hz">&minus;10</button><button class="btn" id="dplus10" aria-label="Up 10 Hz">+10</button><button class="btn" id="dplus" aria-label="Up 100 Hz">+100</button><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button></div>
   <div class="msg" id="tuned"></div>
   <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button></div>
   <pre id="copy"></pre>
+  <h2>Receiver</h2>
+  <div class="set"><label>Filter</label><div class="seg" data-k="width"><button data-v="0">Wide</button><button data-v="1">Normal</button><button data-v="2">Narrow</button></div></div>
+  <div class="set"><label>AGC</label><div class="seg" data-k="agc"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
   <h2>Band activity</h2>
   <div class="seg" data-k="activity"><button data-v="0">Quiet</button><button data-v="1">Normal</button><button data-v="2">Busy</button></div>
-  <div class="msg" style="color:var(--dim)">Stations are made up: each contact is generated on the spot, in real time. Operators differ: some chat at length, some are brief, beginners send slowly and ask for QRS, some are out on a summit or in a park. The report they give matches how strong you hear them, and the greeting matches the other station's time of day. &lt;HH&gt; is the error sign, &lt;AS&gt; means wait. Your news is the bulletin station at 7020 kHz. Tune a few hundred Hz off a signal and its pitch changes, as on a real receiver.</div>
+  <div class="msg" style="color:var(--dim)">Stations are made up: each contact is generated on the spot, in real time. Operators differ: some chat at length, some are brief, beginners send slowly and ask for QRS, some are out on a summit or in a park. The report they give matches how strong you hear them, and the greeting matches the other station's time of day. &lt;HH&gt; is the error sign, &lt;AS&gt; means wait. Your news is the bulletin station at 7020 kHz. Tune a few hundred Hz off a signal and its pitch changes, as on a real receiver. Everything passes one filter and one AGC: a strong station pushes the noise down, and a narrow filter cuts out the neighbours but needs careful tuning. The band noise follows the Ionosphere background and its level in Settings.</div>
   </div>
 </section>
 <section id="feeds">
@@ -158,10 +161,10 @@ function bandPaint(b){
  if(copyShown)$('copy').textContent=A.bandCopy();else $('copy').textContent='';
  $('bplay').innerHTML=(curStatus==='playing'||curStatus==='waiting')?'&#10074;&#10074; Pause':'&#9654; Play';
 }
-function setDial(v){v=Math.max(7000,Math.min(7040,v));A.setDial(v);}
+function setDial(v){v=Math.max(7000,Math.min(7040,Math.round(v*100)/100));dialV=v;A.setDial(v);}
 function bandTick(){if(!$('band').classList.contains('on'))return;try{bandPaint(JSON.parse(A.band()));}catch(e){}}
 $('dial').oninput=()=>setDial(+$('dial').value);
-$('dminus').onclick=()=>setDial(dialV-0.1);$('dplus').onclick=()=>setDial(dialV+0.1);
+$('dminus').onclick=()=>setDial(dialV-0.1);$('dplus').onclick=()=>setDial(dialV+0.1);$('dminus10').onclick=()=>setDial(dialV-0.01);$('dplus10').onclick=()=>setDial(dialV+0.01);
 $('dnext').onclick=()=>A.nextSignal(1);$('dprev').onclick=()=>A.nextSignal(-1);
 $('reveal').onclick=()=>{copyShown=!copyShown;bandTick();};
 $('bplay').onclick=()=>A.command('toggle');

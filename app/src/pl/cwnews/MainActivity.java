@@ -110,6 +110,7 @@ public class MainActivity extends Activity {
                 o.put("wpm", prefs.getInt("wpm", 20)); o.put("eff", prefs.getInt("eff", 12)); o.put("pitch", prefs.getInt("pitch", 600));
                 o.put("volume", prefs.getInt("volume", 80)); o.put("mode", prefs.getInt("mode", TextNorm.HEADLINE)); o.put("abbr", prefs.getInt("abbr", Abbrev.LIGHT)); o.put("band", prefs.getInt("band", 1)); o.put("activity", prefs.getInt("activity", 1));
                 o.put("bed", prefs.getInt("bed", Bed.BAND)); o.put("bedDb", prefs.getInt("bedDb", -24));
+                o.put("width", prefs.getInt("width", Rx.NORMAL)); o.put("agc", prefs.getInt("agc", 1));
                 o.put("auto", prefs.getBoolean("auto", true) ? 1 : 0); o.put("announce", prefs.getBoolean("announce", true) ? 1 : 0);
                 o.put("age", prefs.getInt("age", 0)); o.put("refresh", prefs.getInt("refresh", 30));
                 return o.toString();

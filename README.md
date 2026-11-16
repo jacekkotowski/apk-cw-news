@@ -2,7 +2,7 @@
 
 Offline-friendly Android app that fetches RSS and Atom news and sends the headlines, optionally with summaries, as audible Morse code. A built-in catalogue of 36 feeds (ham radio, world news, science, psychology) is one tap away. Ham abbreviations (AND = ES, THANKS = TNX) can replace plain words. A synthesized receiver band or Cosmic background can play underneath. The Band tab is a made-up slice of the 40 m CW band: a tuning dial, signals that sweep in and out as you tune, and generated contacts between operators with different personalities (a chatty old-timer, a terse contester, a beginner who asks you to slow down, someone on a summit), with rigs, antennas, weather, hobbies, fun facts and sometimes a headline from your feeds. Your news is the bulletin station at 7020 kHz. No account, server, telemetry or ads.
 
-Current version: 2.1. Android 8.0 (API 26) or newer.
+Current version: 2.2. Android 8.0 (API 26) or newer.
 
 ## Install
 
@@ -24,16 +24,18 @@ GitHub Actions (`.github/workflows/android.yml`) runs the tests and uploads an A
 
 ## Tests
 
-- `bash tests/run.sh`: Morse, timing, text cleaning, RSS/Atom parsing, queue, generated contacts and audio mix, on a PC.
+- `bash tests/run.sh`: Morse, timing, text cleaning, RSS/Atom parsing, queue, generated contacts, fists, the receiver filter and AGC, and the audio mix, on a PC.
 - `python3 tests/ui.py`: the screen in Chromium with a fake Android bridge (Playwright).
 
 ## How it works
 
 - `Morse`, `Timing`, `Keying`: text to sample-exact on/off runs. Farnsworth stretches only the letter and word gaps.
-- `Engine`: CW plus background. Morse position depends only on the CW sample count.
+- `Engine`: CW plus background. Morse position depends only on the CW sample count. With the band on, the bulletin, the stations and the band noise are mixed first and go through one receiver.
+- `Rx`: that receiver. One band-pass filter (Wide, Normal, Narrow) and one AGC with a short look-ahead, plus band noise and static. A strong signal turns the gain down, so the noise drops behind it and comes back in the gaps.
+- `Fist`: how one operator's hand bends the timing. A keyer is exact, a bug makes machine dits and long dahs, a straight key varies everywhere, a sideswiper is short and rushed.
 - `Bed`: the two backgrounds, generated in code with no audio files. Band is a receiver: noise through a narrow filter at the CW pitch, static ticks and an AGC that ducks after each one.
 - `Qso`: makes up one contact from a seeded random source: a ragchew, a sked between friends, a park, summit or contest station working several callers, or a lone CQ. Each operator has a personality that sets speed, length and topics, and a contact is assembled from topic modules, so no two run the same way. Reports follow the signal strength you hear, greetings follow the other station's local time, weather follows season and time of day. To read some: `javac -cp out_test -d out_test tests/QsoDemo.java && java -cp out_test pl.cwnews.QsoDemo 20` after `tests/run.sh`.
-- `Band`: the stations on the dial. Each sends in real time on its own frequency; pitch and loudness come from the distance to the dial through a narrow filter. The news bulletin is one station and waits, from the current word, while you are tuned away.
+- `Band`: the stations on the dial. Each sends in real time on its own frequency, with its own fist and fading, and sometimes a chirp, hard keying, a rough note or a drifting rig. Pitch comes from the distance to the dial; the receiver filter decides what is heard. The news bulletin is one station and waits, from the current word, while you are tuned outside the filter.
 - `Abbrev`: one table of CW abbreviations, used for the replacement (Off, Light, Full) and for the list in Settings.
 - `app/assets/catalogue.js`: the built-in feeds.
 - `TextNorm`, `FeedParser`, `Refresher`, `Db`: feeds, cleaning and the offline cache.

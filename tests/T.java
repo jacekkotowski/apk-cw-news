@@ -171,7 +171,8 @@ public class T {
     }
 
     static void band() {
-        int[] kinds = new int[Qso.KINDS], styles = new int[5];
+        int[] kinds = new int[Qso.KINDS], styles = new int[5], keys = new int[4];
+        int carriers = 0, faults = 0;
         Dsp.Rng rngAll = new Dsp.Rng(12345);
         boolean allSendable = true, hasNews = false, tail = false, fumble = false, wait = false, repeat = false, qrs = false;
         java.util.Set<Integer> lengths = new java.util.HashSet<>();
@@ -183,14 +184,16 @@ public class T {
             kinds[q.kind]++;
             check("has tx " + n, !q.tx.isEmpty());
             for (int i = 0; i < q.call.length; i++) {
-                styles[q.style[i]]++;
+                styles[q.style[i]]++; keys[q.key[i]]++;
+                if (q.chirp[i] || q.rough[i] || q.drift[i]) faults++;
                 check("call looks right " + q.call[i], q.call[i].matches("[A-Z0-9]{3,7}(/P)?"));
                 for (int k = 0; k < i; k++) check("calls differ", !q.call[i].equals(q.call[k]));
             }
             boolean talk = q.kind == Qso.RAGCHEW || q.kind == Qso.SKED, pair = true;
             double[] askedFor = new double[q.call.length];
             for (Qso.Tx t : q.tx) {
-                if (!sendable(t.text) || t.text.trim().isEmpty() || t.text.contains("  ")) { allSendable = false; System.out.println("BAD: " + t.text); }
+                if (t.carrier > 0) { check("a carrier has no text and a sensible length", t.text.isEmpty() && t.carrier < 6 && q.kind == Qso.TUNE); carriers++; }
+                else if (!sendable(t.text) || t.text.trim().isEmpty() || t.text.contains("  ")) { allSendable = false; System.out.println("BAD: " + t.text); }
                 check("speed and pause in range", t.speed >= 0.5 && t.speed <= 1.5 && t.pause > 0 && t.pause < 12);
                 if (q.style[t.who] == Qso.NOVICE) check("a beginner sends slowly: " + t.speed, t.speed <= 0.76);
                 if (t.text.contains("HRD ON NEWS TODAY PARLIAMENT PASSES")) hasNews = true;
@@ -222,7 +225,9 @@ public class T {
         }
         check("every transmission can be keyed", allSendable);
         check("headline is quoted sometimes", hasNews);
-        check("all kinds appear " + java.util.Arrays.toString(kinds), kinds[Qso.RAGCHEW] > 400 && kinds[Qso.QUICK] > 150 && kinds[Qso.CQ] > 100 && kinds[Qso.SKED] > 80);
+        check("all kinds appear " + java.util.Arrays.toString(kinds), kinds[Qso.RAGCHEW] > 400 && kinds[Qso.QUICK] > 150 && kinds[Qso.CQ] > 100 && kinds[Qso.SKED] > 80 && kinds[Qso.TUNE] > 25);
+        for (int k : keys) check("all kinds of key appear " + java.util.Arrays.toString(keys), k > 100);
+        check("someone tunes up, some signals have faults: " + carriers + ", " + faults, carriers > 25 && faults > 100);
         for (int st : styles) check("all personalities appear " + java.util.Arrays.toString(styles), st > 100);
         check("contacts differ in shape: " + lengths.size() + " lengths", lengths.size() >= 10);
         check("tail-ender, error sign, wait, repeat request and QRS all happen", tail && fumble && wait && repeat && qrs);
@@ -235,8 +240,9 @@ public class T {
         eq("report by strength", Qso.rst(2) + " " + Qso.rst(12) + " " + Qso.rst(27) + " " + Qso.rst(32), "599 579 449 339");
         eq("headline cut to nine words", Qso.shortHeadline("one two three four five six seven eight nine ten eleven"), "ONE TWO THREE FOUR FIVE SIX SEVEN EIGHT NINE");
         check("two words is too short", Qso.shortHeadline("Hi there") == null);
-        near("filter at centre", Band.response(0), 1, 1e-9);
-        check("filter drops off", Band.response(320) < 0.4 && Band.response(900) < 0.001 && Band.response(1400) == 0);
+        double nlo = Rx.lo(Rx.NORMAL, 600), nhi = Rx.hi(Rx.NORMAL, 600);
+        near("filter at centre", Rx.gain(nlo, nhi, 600), 1, 0.01);
+        check("filter drops off", Rx.gain(nlo, nhi, 900) < 0.15 && Rx.gain(nlo, nhi, 1500) < 0.001 && Rx.gain(nlo, nhi, 100) < 0.001 && Rx.gain(nlo, nhi, -50) == 0);
 
         // Render a minute of the band: bounded, repeatable, and only audible near a station.
         for (int tries = 0; tries < 2; tries++) {
@@ -286,6 +292,173 @@ public class T {
         en.dialKhz = Band.NEWS;
         for (int i = 0; i < 400; i++) en.render(fb, 480);
         check("bulletin resumes when tuned back", en.word() > w1);
+    }
+
+    /** Lengths of the tone runs of a keyed text, in dots. */
+    static double[] tones(Keying k, double dot) { java.util.List<Double> a = new java.util.ArrayList<>(); for (int r : k.runs) if (r > 0) a.add(r / (dot * R)); double[] d = new double[a.size()]; for (int i = 0; i < d.length; i++) d[i] = a.get(i); return d; }
+    static double mean(double[] a, boolean dahs) { double s = 0; int n = 0; for (double v : a) if (v > 2 == dahs) { s += v; n++; } return s / n; }
+    static double spread(double[] a, boolean dahs) { double m = mean(a, dahs), s = 0; int n = 0; for (double v : a) if (v > 2 == dahs) { s += (v - m) * (v - m); n++; } return Math.sqrt(s / n) / m; }
+
+    static void fists() {
+        Timing t = new Timing(20, 20);
+        String text = "CQ CQ DE SP9ABC SP9ABC PSE K THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG 599 TNX FER CALL";
+        Keying exact = Keying.build(text, t, R);
+        Dsp.Rng r = new Dsp.Rng(4);
+        double keyer = 0, bug = 0, bugDit = 0, straight = 0, swiper = 0;
+        for (int i = 0; i < 40; i++) {
+            Keying k = Keying.build(text, t, R, Fist.of(Fist.KEYER, false, r), r);
+            eq("a keyer makes the same number of runs", k.runs.length, exact.runs.length);
+            for (int j = 0; j < k.runs.length; j++) if (k.runs[j] > 0) keyer = Math.max(keyer, Math.abs(k.runs[j] - exact.runs[j]));
+            double[] b = tones(Keying.build(text, t, R, Fist.of(Fist.BUG, false, r), r), t.dot);
+            bug += mean(b, true) / 40; bugDit = Math.max(bugDit, spread(b, false));
+            double[] st = tones(Keying.build(text, t, R, Fist.of(Fist.STRAIGHT, false, r), r), t.dot);
+            straight += spread(st, false) / 40;
+            check("straight key stays readable: dah " + mean(st, true) + " dit " + mean(st, false), mean(st, true) > 2.2 * mean(st, false));
+            double[] sw = tones(Keying.build(text, t, R, Fist.of(Fist.SIDESWIPER, false, r), r), t.dot);
+            swiper += mean(sw, true) / mean(sw, false) / 40;
+            Keying nov = Keying.build(text, t, R, Fist.of(Fist.STRAIGHT, true, r), r);
+            check("a fist changes the length by less than half: " + seconds(nov) / seconds(exact), Math.abs(seconds(nov) / seconds(exact) - 1) < 0.5);
+            eq("words still line up", nov.wordStart.length, exact.wordStart.length);
+        }
+        check("a keyer's elements are exact: off by " + keyer + " samples", keyer <= 1);
+        check("a bug makes long dahs: " + bug + " dots", bug > 3.3 && bug < 4.6);
+        check("a bug's dits are machine made: spread " + bugDit, bugDit < 0.04);
+        check("a straight key is uneven: spread " + straight, straight > 0.04 && straight < 0.2);
+        check("a sideswiper's dahs are short: ratio " + swiper, swiper < 2.75);
+        Keying c = Keying.carrier(2.5, R);
+        eq("carrier is one long tone", c.runs[0], (int) (2.5 * R));
+        check("no fist is the old exact timing", java.util.Arrays.equals(Keying.build(text, t, R, null, null).runs, exact.runs));
+    }
+
+    /** Runs a steady tone through a receiver and returns the level it settles at. */
+    static double through(Rx rx, double hz, double amp, boolean agc) {
+        double[] b = new double[960];
+        double peak = 0, ph = 0;
+        for (int blk = 0; blk < 60; blk++) {
+            for (int i = 0; i < 480; i++) { b[2 * i] = b[2 * i + 1] = amp * Math.sin(ph); ph += 2 * Math.PI * hz / R; }
+            rx.process(b, 480, 0, 0, agc);
+            if (blk >= 40) for (double v : b) peak = Math.max(peak, Math.abs(v));
+        }
+        return peak;
+    }
+    static double noiseRms(Rx rx, double noise, boolean agc, int blocks) {
+        double[] b = new double[960]; double sq = 0; long n = 0;
+        for (int blk = 0; blk < blocks + 50; blk++) {
+            java.util.Arrays.fill(b, 0);
+            rx.process(b, 480, noise, noise, agc);
+            if (blk >= 50) for (double v : b) { sq += v * v; n++; }
+        }
+        return Math.sqrt(sq / n);
+    }
+    static double db(double ratio) { return 20 * Math.log10(ratio); }
+
+    static void receiver() {
+        double[] rms = new double[3];
+        for (int w : new int[]{Rx.WIDE, Rx.NORMAL, Rx.NARROW}) {
+            double lo = Rx.lo(w, 600), hi = Rx.hi(w, 600), span = hi - lo;
+            Rx rx = new Rx(R, 21); rx.tune(lo, hi);
+            near("width " + w + ": the pitch passes at full level", through(rx, 600, 1, false), 1, 0.06);
+            double far = through(rx, hi + 1.5 * span, 1, false), edge = through(rx, hi, 1, false), low = through(rx, lo, 1, false);
+            check("width " + w + ": far above the filter is gone: " + db(far) + " dB", db(far) < -60);
+            double next = through(rx, 900, 1, false);
+            if (w != Rx.WIDE) check("width " + w + ": a station 300 Hz up is well down: " + db(next) + " dB", db(next) < (w == Rx.NARROW ? -40 : -18));
+            near("width " + w + ": upper edge is 3 dB down", db(edge), -3, 1.5);
+            near("width " + w + ": lower edge is 3 dB down", db(low), -3, 1.5);
+            near("width " + w + ": the formula matches the filter", db(through(rx, hi * 1.08, 1, false)), db(Rx.gain(lo, hi, hi * 1.08)), 2);
+            Rx quiet = new Rx(R, 22); quiet.tune(lo, hi);
+            rms[w] = noiseRms(quiet, 0.1, false, 600);
+        }
+        System.out.printf("receiver noise: wide %.1f dB, normal %.1f dB, narrow %.1f dB re the setting%n", db(rms[0] / 0.1), db(rms[1] / 0.1), db(rms[2] / 0.1));
+        near("normal filter: noise is at the level set", db(rms[Rx.NORMAL] / 0.1), 0, 1.5);
+        check("a wider filter lets in more noise", db(rms[Rx.WIDE] / rms[Rx.NORMAL]) > 4 && db(rms[Rx.NORMAL] / rms[Rx.NARROW]) > 1);
+        Rx a = new Rx(R, 23);
+        near("with AGC the noise in the gaps is still at the level set", db(noiseRms(a, 0.05, true, 600) / 0.05), 0, 1.5);
+        near("with AGC the bulletin still comes out at 1", through(new Rx(R, 24), 600, 1, true), 1, 0.08);
+        check("the AGC compresses: a signal 12 dB weaker comes out less than 6 dB weaker", db(through(new Rx(R, 25), 600, 0.25, true)) > -6);
+
+        // A strong signal turns the gain down: the noise right after it is quieter, then comes back.
+        Rx g = new Rx(R, 26);
+        double[] b = new double[960]; double ph = 0;
+        double[] after = new double[40];
+        for (int blk = 0; blk < 100 + after.length; blk++) {
+            boolean tone = blk >= 40 && blk < 100;
+            for (int i = 0; i < 480; i++) { b[2 * i] = b[2 * i + 1] = tone ? Math.sin(ph) : 0; ph += 2 * Math.PI * 600 / R; }
+            g.process(b, 480, 0.05, 0.05, true);
+            if (blk == 99) near("meter shows the bulletin as 1", g.level, 1, 0.15);
+            if (blk >= 100) { double sq = 0; for (double v : b) sq += v * v; after[blk - 100] = Math.sqrt(sq / 960); }
+        }
+        double early = (after[2] + after[3] + after[4] + after[5]) / 4, late = 0;
+        for (int i = 30; i < 40; i++) late += after[i] / 10;
+        System.out.printf("AGC: noise just after a strong signal %.1f dB, 0.3 s later %.1f dB re the setting%n", db(early / 0.05), db(late / 0.05));
+        check("noise is pushed down behind a strong signal: " + db(early / 0.05) + " dB", db(early / 0.05) < -4);
+        check("and comes back within half a second: " + db(late / 0.05) + " dB", db(late / 0.05) > -3);
+        Rx flat = new Rx(R, 26);
+        double steady = noiseRms(flat, 0.05, false, 100);
+        near("without AGC nothing pumps", db(steady / 0.05), 0, 1.5);
+
+        // Changing the width while a tone plays must not click.
+        Rx sw = new Rx(R, 27); sw.tune(Rx.lo(Rx.NORMAL, 600), Rx.hi(Rx.NORMAL, 600));
+        double prev = 0, jump = 0, least = 9, gap = 9; ph = 0;
+        for (int blk = 0; blk < 60; blk++) {
+            if (blk == 30) sw.tune(Rx.lo(Rx.NARROW, 600), Rx.hi(Rx.NARROW, 600));
+            if (blk == 45) sw.tune(Rx.lo(Rx.WIDE, 600), Rx.hi(Rx.WIDE, 600));
+            for (int i = 0; i < 480; i++) { b[2 * i] = b[2 * i + 1] = Math.sin(ph); ph += 2 * Math.PI * 600 / R; }
+            sw.process(b, 480, 0, 0, false);
+            double top = 0;
+            for (int i = 0; i < 960; i += 2) { if (blk > 20) jump = Math.max(jump, Math.abs(b[i] - prev)); prev = b[i]; top = Math.max(top, Math.abs(b[i])); }
+            if (blk == 29 || blk == 44 || blk == 59) least = Math.min(least, top);
+            if (blk > 20) gap = Math.min(gap, top);
+        }
+        check("the switch is a short gap, not a crossfade: " + gap, gap < 0.5);
+        check("switching width does not click: largest step " + jump, jump < 0.1);
+        check("the tone is back after each switch: " + least, least > 0.9);
+
+        // The whole engine with a band: same Morse timing, bulletin at full level, never full scale.
+        double[] plain = {0}, onBand = {0};
+        renderCw(Bed.OFF, -24, 480, plain);
+        for (boolean agc : new boolean[]{true, false}) for (int w = 0; w < 3; w++) {
+            Engine e = new Engine(R, 7, 480);
+            Band quiet = new Band(R, 5, 5, null);
+            e.setBand(quiet); e.setBed(Bed.OFF); e.volume = 1; e.agc = agc; e.width = w; e.setAudible(true);
+            Keying k = Keying.build("PARIS PARIS", new Timing(20, 12), R);
+            e.load(k, 0);
+            float[] fb = new float[960]; int n = 0; double when = -1, peak = 0;
+            while (n < k.totalSamples + 2 * R) {
+                e.render(fb, 480); n += 480;
+                if (when < 0 && e.storyDone()) when = n;
+                if (n < R) for (float v : fb) peak = Math.max(peak, Math.abs(v));   // before any station can start
+            }
+            eq("timing unchanged on the band, width " + w, when, plain[0]);
+            // A narrow filter rings a little on each element, so allow it some overshoot.
+            near("bulletin level on the band, width " + w + ", agc " + agc, peak, Engine.CW_PEAK, w == Rx.NARROW ? 0.07 : 0.05);
+        }
+        long t0 = System.nanoTime();
+        double max = 0; int seconds = 180;
+        for (int w = 0; w < 6; w++) {
+            Engine e = new Engine(R, 31 + w, 480);
+            Band busy = new Band(R, 9 + w, 6, () -> "Parliament passes the new energy law after long debate");
+            busy.setActivity(2); busy.setSpeed(30, 30);
+            e.setBand(busy); e.setBed(Bed.BAND); e.bedDb = -12; e.volume = 1; e.width = w % 3; e.agc = w < 3; e.setAudible(true);
+            e.load(Keying.build("TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST", new Timing(30, 30), R), 0);
+            float[] fb = new float[960];
+            Dsp.Rng r = new Dsp.Rng(w + 1);
+            for (int blk = 0; blk < seconds * R / 480; blk++) {
+                if (blk % 400 == 0) e.dialKhz = blk % 1200 == 0 ? Band.NEWS : busy.next(7000 + 40 * r.uniform(), 1);
+                e.render(fb, 480);
+                for (float v : fb) max = Math.max(max, Math.abs(v));
+            }
+            check("meter is a sane number: " + e.meter(), e.meter() >= 0 && e.meter() < 20);
+        }
+        double cost = (System.nanoTime() - t0) / 1e9 / (6 * seconds);
+        System.out.printf("busy band through the receiver: %.1f%% of real time on this machine, peak %.2f%n", 100 * cost, max);
+        check("busy band stays clear of full scale, with or without AGC: " + max, max < 0.9);
+        check("rendering is far faster than real time: " + cost, cost < 0.3);
+        Engine e1 = new Engine(R, 3, 480), e2 = new Engine(R, 3, 480);
+        e1.setBand(new Band(R, 3, 5, null)); e2.setBand(new Band(R, 3, 5, null));
+        float[] x1 = new float[960], x2 = new float[960]; boolean same = true;
+        for (Engine e : new Engine[]{e1, e2}) { e.setBed(Bed.BAND); e.setAudible(true); }
+        for (int i = 0; i < 3000; i++) { e1.render(x1, 480); e2.render(x2, 480); same &= java.util.Arrays.equals(x1, x2); }
+        check("the band is repeatable from its seeds", same);
     }
 
     static void audio() {
@@ -371,7 +544,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); feeds(); queue(); if (a.length == 0) audio();
+        morse(); timing(); text(); abbrev(); band(); feeds(); queue(); fists(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

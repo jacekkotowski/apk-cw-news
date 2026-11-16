@@ -26,6 +26,9 @@ final class Dsp {
     static final class Biquad {
         private double b0 = 1, b1, b2, a1, a2, x1, x2, y1, y2;
 
+        /** Sets the coefficients directly; a0 is taken as 1. */
+        Biquad set(double b0, double b1, double b2, double a1, double a2) { this.b0 = b0; this.b1 = b1; this.b2 = b2; this.a1 = a1; this.a2 = a2; return this; }
+        void reset() { x1 = x2 = y1 = y2 = 0; }
         Biquad lowpass(double f, double q, int rate) {
             double w = 2 * Math.PI * f / rate, c = Math.cos(w), alpha = Math.sin(w) / (2 * q), a0 = 1 + alpha;
             b0 = (1 - c) / 2 / a0; b1 = (1 - c) / a0; b2 = b0; a1 = -2 * c / a0; a2 = (1 - alpha) / a0;
