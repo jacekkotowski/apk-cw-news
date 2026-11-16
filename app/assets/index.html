@@ -22,7 +22,7 @@ h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)
 .btn{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 14px;font:inherit}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .story{padding:10px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.story small{color:var(--dim);display:block}.story.heard{color:var(--dim)}.story.cur{color:var(--gold)}
-input[type=text],input[type=url]{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:11px;font:inherit;margin-bottom:8px}
+input[type=text],input[type=url],select{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:11px;font:inherit;margin-bottom:8px}
 .feed{background:var(--panel);border-radius:8px;padding:12px;margin:10px 0;overflow-wrap:anywhere}.feed small{color:var(--dim);display:block}
 .feed .row{margin-top:8px}.feed .btn{padding:6px 10px;font-size:14px;background:var(--bg)}
 .chip{color:var(--gold);background:none;border:1px solid var(--line);border-radius:16px;padding:5px 11px;font-size:14px}
@@ -74,6 +74,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   </div>
   <div class="set"><label>RIT<b id="v-rit"></b></label><div class="ritrow"><input type="range" id="rit" min="-500" max="500" step="10" aria-label="Receiver incremental tuning"><button class="btn" id="rit0">Clear</button></div></div>
   <div class="msg" id="tuned"></div>
+  <div class="msg" id="contest" style="color:var(--gold)"></div>
   <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button><button class="btn" id="span" aria-label="Waterfall span">Span 40 kHz</button></div>
   <pre id="copy"></pre>
   <h2>Receiver</h2>
@@ -81,7 +82,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="set"><label>AGC</label><div class="seg" data-k="agc"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
   <h2>Band activity</h2>
   <div class="seg" data-k="activity"><button data-v="0">Quiet</button><button data-v="1">Normal</button><button data-v="2">Busy</button></div>
-  <div class="msg" style="color:var(--dim)">Stations are made up: each contact is generated on the spot, in real time. Operators differ: some chat at length, some are brief, beginners send slowly and ask for QRS, some are out on a summit or in a park. The report they give matches how strong you hear them, and the greeting matches the other station's time of day. &lt;HH&gt; is the error sign, &lt;AS&gt; means wait. Your news is the bulletin station at 7020 kHz. Tune a few hundred Hz off a signal and its pitch changes, as on a real receiver. Everything passes one filter and one AGC: a strong station pushes the noise down, and a narrow filter cuts out the neighbours but needs careful tuning. The band noise follows the Ionosphere background and its level in Settings. The waterfall shows the band scrolling down: each station is a line that breaks up with its keying. Tap it to tune, or turn the knob; one turn is 1 kHz and a fast spin goes further. RIT moves only the receiver, up to 500 Hz either side of the dial.</div>
+  <div class="msg" style="color:var(--dim)">Stations are made up: each contact is generated on the spot, in real time. Operators differ: some chat at length, some are brief, beginners send slowly and ask for QRS, some are out on a summit or in a park. The report they give is how well the two stations hear each other, which is often close to what you hear, and the greeting matches the other station's time of day. Sometimes you hear only one side of a contact: the other station is too far, or too near and inside the skip zone. &lt;HH&gt; is the error sign, &lt;AS&gt; means wait. Your news is the bulletin station at 7020 kHz. Tune a few hundred Hz off a signal and its pitch changes, as on a real receiver. Everything passes one filter and one AGC: a strong station pushes the noise down, and a narrow filter cuts out the neighbours but needs careful tuning. The band noise follows the Ionosphere background and its level in Settings. The waterfall shows the band scrolling down: each station is a line that breaks up with its keying. Tap it to tune, or turn the knob; one turn is 1 kHz and a fast spin goes further. RIT moves only the receiver, up to 500 Hz either side of the dial.</div>
   </div>
 </section>
 <section id="feeds">
@@ -101,6 +102,9 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <h2>Calming background</h2>
   <div class="seg" data-k="bed"><button data-v="1">Ionosphere</button><button data-v="2">Cosmic</button><button data-v="0">Off</button></div>
   <div class="set"><label>Background level<b id="v-bedDb"></b></label><input type="range" id="bedDb" min="-40" max="-12"></div>
+  <h2>Band</h2>
+  <div class="set"><label for="region">Your region</label><select id="region" aria-label="Your region"></select></div>
+  <div class="msg" style="color:var(--dim)">The Band tab follows the clock from where you are: nearby stations by day, distant ones after dark, and nearby ones drop into the skip zone at night. Evenings and weekends are busier, and on the big contest weekends the band fills with contest stations.</div>
   <h2>News</h2>
   <div class="set"><label>Send</label><div class="seg" data-k="mode"><button data-v="0">Headline</button><button data-v="1">Headline + summary</button></div></div>
   <div class="set"><label>Ham abbreviations in the news (AND = ES, THANKS = TNX)</label><div class="seg" data-k="abbr"><button data-v="0">Off</button><button data-v="1">Light</button><button data-v="2">Full</button></div></div>
@@ -126,7 +130,9 @@ $('refresh').onclick=()=>A.refresh();
 function unit(k,v){return k==='pitch'?v+' Hz':k==='volume'?v+' %':k==='bedDb'?v+' dB':v+' WPM'}
 function paint(){for(const k of ['wpm','eff','pitch','volume','bedDb']){$(k).value=S[k];$('v-'+k).textContent=unit(k,S[k]);}
  document.querySelectorAll('.seg').forEach(g=>g.querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S[g.dataset.k])));
- $('bedDb').disabled=S.bed===0;}
+ $('bedDb').disabled=S.bed===0;
+ const rg=$('region');if(!rg.options.length&&typeof A.regions==='function')JSON.parse(A.regions()).forEach((n,i)=>{const o=el('option','',n);o.value=i;rg.append(o);});
+ rg.value=S.region||0;}
 function load(){S=JSON.parse(A.settings());paint();}
 for(const k of ['wpm','eff','pitch','volume','bedDb']){
  $(k).oninput=()=>{let v=+$(k).value;if(k==='eff')v=Math.min(v,S.wpm);if(k==='eff')$(k).value=v;$('v-'+k).textContent=unit(k,v);};
@@ -186,6 +192,7 @@ function bandPaint(b){
  const heard=k=>{const hz=(k-rxk())*1000;return hz>=passLo-50&&hz<=passHi+50;};
  const near=b.act.some(a=>heard(a.k)),atNews=heard(b.news);
  $('tuned').textContent=!b.on?'Press play to start the band.':atNews?'Tuned to your news bulletin.':near?'A station is on this frequency.':'Nothing here. Use Signal to jump to the next one.';
+ $('contest').textContent=b.contest?'Contest weekend: '+b.contest+'. Most stations are in the contest.':'';
  $('reveal').textContent=copyShown?'Hide':'Show what they send';
  if(copyShown)$('copy').textContent=A.bandCopy();else $('copy').textContent='';
  $('bplay').innerHTML=(curStatus==='playing'||curStatus==='waiting')?'&#10074;&#10074; Pause':'&#9654; Play';
@@ -263,6 +270,7 @@ knob.onpointerup=knob.onpointercancel=e=>{if(kAng===null)return;kAng=null;if(e.t
 $('dminus').onclick=()=>setDial(dialV-0.1);$('dplus').onclick=()=>setDial(dialV+0.1);$('dminus10').onclick=()=>setDial(dialV-0.01);$('dplus10').onclick=()=>setDial(dialV+0.01);
 $('dnext').onclick=()=>{A.nextSignal(1);bandTick();};$('dprev').onclick=()=>{A.nextSignal(-1);bandTick();};
 $('rit').oninput=()=>setRit(+$('rit').value);$('rit0').onclick=()=>setRit(0);
+$('region').onchange=()=>{A.set('region',+$('region').value);load();};
 $('span').onclick=()=>{A.set('span',spanK()>=40?4:40);load();paintDial();};
 $('reveal').onclick=()=>{copyShown=!copyShown;bandTick();};
 $('bplay').onclick=()=>A.command('toggle');

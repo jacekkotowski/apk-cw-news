@@ -15,6 +15,8 @@ final class Band {
     static final double LOW = 7000, HIGH = 7040, NEWS = 7020;
     private static final double MIN_GAP_KHZ = 0.3, RAMP_S = 0.005, HARD_RAMP_S = 0.0007, PEAK = 0.6, CHIRP_S = 0.012, CLICK_REACH_HZ = 1500;
     private static final int LOG_CHARS = 700;
+    /** Below this strength (about 40 dB under a full signal) a station cannot be copied. */
+    private static final double UNHEARD = PEAK * 0.01;
 
     interface Headlines { String next(); }
 
@@ -45,6 +47,10 @@ final class Band {
     private int month;
     private double hourUtc = 12;
     private long sinceClock;
+    // Where the listener is, and what kind of day it is. Without a place there is no propagation.
+    private boolean placed, weekend;
+    private double lat, lon;
+    private String contest;
     private final List<Station> slots = new ArrayList<>();
     private double wpm = 20, eff = 12, tone = 600, lo = Rx.lo(Rx.NORMAL, 600), hi = Rx.hi(Rx.NORMAL, 600);
     private int blocks;
@@ -65,11 +71,35 @@ final class Band {
 
     /** Sets the date and time the stations live in: month 0 to 11 and the UTC hour. The hour then runs on with the audio. */
     synchronized void setClock(int month, double hourUtc) { this.month = month; this.hourUtc = hourUtc; sinceClock = 0; }
+    /** As above with the date: day of the month and day of the week (0 Sunday to 6 Saturday), for weekends and contests. */
+    synchronized void setClock(int month, int day, int dow, double hourUtc) {
+        setClock(month, hourUtc);
+        weekend = dow == 0 || dow == 6;
+        contest = Prop.contest(month, day, dow);
+    }
+    /** Puts the listener somewhere on Earth: from then on, who is heard and how strongly follows propagation. */
+    synchronized void setPlace(double lat, double lon) { placed = true; this.lat = lat; this.lon = lon; }
+    /** The contest that fills the band today, or null. */
+    synchronized String contest() { return contest; }
     private int hourNow() { return (int) ((hourUtc + sinceClock / (double) rate / 3600) % 24); }
 
-    private double freeFrequency() {
+    /** How many of the slots are in use at this time of day: evenings and weekends are busier. */
+    private int active() {
+        if (!placed) return slots.size();
+        double f = Prop.activity(hourNow() + lon / 15, weekend, contest != null);
+        return Math.max(2, Math.min(slots.size() + (contest != null ? 2 : 0), (int) Math.round(slots.size() * f)));
+    }
+
+    /** The part of the band, in kHz, where that kind of contact gathers. */
+    static double[] zoneRange(int zone) {
+        return zone == Qso.FAST_END ? new double[]{LOW + 0.3, 7012} : zone == Qso.QRP_CORNER ? new double[]{7027, 7034} : zone == Qso.SLOW_END ? new double[]{7033, HIGH - 0.3} : new double[]{LOW + 0.3, HIGH - 0.3};
+    }
+
+    private double freeFrequency(int zone) {
         for (int tries = 0; tries < 30; tries++) {
-            double f = LOW + 0.3 + (HIGH - LOW - 0.6) * rng.uniform();
+            // Most stations go where their kind gathers; some do not care, and a full corner spills over.
+            double[] z = zoneRange(tries < 12 && rng.chance(0.85) ? zone : Qso.ANYWHERE);
+            double f = z[0] + (z[1] - z[0]) * rng.uniform();
             boolean ok = Math.abs(f - NEWS) > 0.4;
             for (Station s : slots) if (s.qso != null && Math.abs(s.khz - f) < MIN_GAP_KHZ) ok = false;
             if (ok) return f;
@@ -79,8 +109,9 @@ final class Band {
 
     private void spawn(Station s) {
         String h = headlines == null ? null : headlines.next();
-        Qso q = s.qso = Qso.generate(rng, month, hourNow(), h == null ? null : Qso.shortHeadline(h));
-        s.khz = freeFrequency();
+        Qso.Scene scene = placed ? new Qso.Scene(month, hourNow(), lat, lon, weekend, contest != null) : new Qso.Scene(month, hourNow());
+        Qso q = s.qso = Qso.generate(rng, scene, h == null ? null : Qso.shortHeadline(h));
+        s.khz = freeFrequency(q.zone);
         s.next = 0; s.who = 0; s.key = null; s.log.setLength(0);
         // The generator decides how strong each operator is, so the reports they exchange match what is heard.
         s.op = new Op[q.call.length];
@@ -120,8 +151,14 @@ final class Band {
             s.log.append("\n(someone tuning up) ");
         } else {
             s.key = Keying.build(t.text, new Timing(wpm * t.speed, eff * t.speed), rate, o.fist, rng);
-            s.words = t.text.trim().split("\\s+");
-            s.log.append('\n').append(s.qso.call[t.who]).append(": ");
+            if (o.strength < UNHEARD) {
+                // The other half of a contact, beyond the skip or too far away: nothing to copy here.
+                s.words = new String[0];
+                s.log.append("\n(the other station, not heard here) ");
+            } else {
+                s.words = t.text.trim().split("\\s+");
+                s.log.append('\n').append(s.qso.call[t.who]).append(": ");
+            }
         }
         advanceWords(s);
         if (s.log.length() > 2 * LOG_CHARS) s.log.delete(0, s.log.length() - LOG_CHARS);
@@ -156,10 +193,12 @@ final class Band {
         sinceClock += frames;
         tone = toneHz; lo = loHz; hi = hiHz;
         double dt = frames / (double) rate, chirpKeep = Math.exp(-1 / (CHIRP_S * rate));
+        int active = active(), index = 0;
         for (Station s : slots) {
+            index++;
             if (s.qso == null) {
                 s.wait -= frames;
-                if (s.wait <= 0) spawn(s);
+                if (s.wait <= 0) { if (index <= active) spawn(s); else s.wait = 20 * rate; }
                 continue;
             }
             for (Op o : s.op) {
@@ -270,11 +309,14 @@ final class Band {
         return t.length() > LOG_CHARS ? t.substring(t.length() - LOG_CHARS) : t;
     }
 
+    /** Whether at least one side of the contact can be copied here. */
+    private static boolean heard(Station s) { for (Op o : s.op) if (o.strength >= UNHEARD) return true; return false; }
+
     /** The frequency of the next busy station above (dir 1) or below (dir -1) the dial, wrapping round. News counts as a station. */
     synchronized double next(double dialKhz, int dir) {
         List<Double> f = new ArrayList<>();
         f.add(NEWS);
-        for (Station s : slots) if (s.qso != null) f.add(s.khz);
+        for (Station s : slots) if (s.qso != null && heard(s)) f.add(s.khz);
         double best = Double.NaN, wrap = Double.NaN;
         for (double x : f) {
             if (dir > 0 ? x > dialKhz + 0.05 : x < dialKhz - 0.05) {

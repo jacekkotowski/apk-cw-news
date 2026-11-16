@@ -94,8 +94,11 @@ public class MainActivity extends Activity {
             return "{\"on\":" + (b != null) + ",\"dial\":" + String.format(java.util.Locale.ROOT, "%.2f", CwService.dial) + ",\"rit\":" + CwService.rit
                 + ",\"passLo\":" + Math.round(Rx.lo(width, tone) - tone) + ",\"passHi\":" + Math.round(Rx.hi(width, tone) - tone)
                 + ",\"low\":" + Band.LOW + ",\"high\":" + Band.HIGH + ",\"news\":" + Band.NEWS
+                + ",\"contest\":\"" + (b == null || b.contest() == null ? "" : b.contest()) + "\""
                 + ",\"act\":" + (b == null ? "[]" : b.activityJson()) + "}";
         }
+        /** The regions the listener can be in, as a JSON list of names; the region setting is an index into it. */
+        @JavascriptInterface public String regions() { return new org.json.JSONArray(java.util.Arrays.asList(Prop.REGION_NAME)).toString(); }
         /** For the waterfall and the S-meter, read many times a second: {"s": meter, "n": bulletin keyed share, "w": stations}. */
         @JavascriptInterface public String panel() {
             Band b = CwService.band;
@@ -129,7 +132,7 @@ public class MainActivity extends Activity {
                 o.put("wpm", prefs.getInt("wpm", 20)); o.put("eff", prefs.getInt("eff", 12)); o.put("pitch", prefs.getInt("pitch", 600));
                 o.put("volume", prefs.getInt("volume", 80)); o.put("mode", prefs.getInt("mode", TextNorm.HEADLINE)); o.put("abbr", prefs.getInt("abbr", Abbrev.LIGHT)); o.put("band", prefs.getInt("band", 1)); o.put("activity", prefs.getInt("activity", 1));
                 o.put("bed", prefs.getInt("bed", Bed.BAND)); o.put("bedDb", prefs.getInt("bedDb", -24));
-                o.put("width", prefs.getInt("width", Rx.NORMAL)); o.put("agc", prefs.getInt("agc", 1)); o.put("span", prefs.getInt("span", 40));
+                o.put("width", prefs.getInt("width", Rx.NORMAL)); o.put("agc", prefs.getInt("agc", 1)); o.put("span", prefs.getInt("span", 40)); o.put("region", prefs.getInt("region", 0));
                 o.put("auto", prefs.getBoolean("auto", true) ? 1 : 0); o.put("announce", prefs.getBoolean("announce", true) ? 1 : 0);
                 o.put("age", prefs.getInt("age", 0)); o.put("refresh", prefs.getInt("refresh", 30));
                 return o.toString();

@@ -27,28 +27,53 @@ final class Qso {
         Tx(int who, String text, double speed, double pause, double carrier) { this.who = who; this.text = text; this.speed = speed; this.pause = pause; this.carrier = carrier; }
     }
 
+    /** When and where the band is being heard. Without a place there is no propagation: every station is equally likely. */
+    static final class Scene {
+        final int month, hourUtc; final boolean here, weekend, contest; final double lat, lon;
+        Scene(int month, int hourUtc) { this(month, hourUtc, false, 0, 0, false, false); }
+        Scene(int month, int hourUtc, double lat, double lon, boolean weekend, boolean contest) { this(month, hourUtc, true, lat, lon, weekend, contest); }
+        private Scene(int month, int hourUtc, boolean here, double lat, double lon, boolean weekend, boolean contest) {
+            this.month = month; this.hourUtc = hourUtc; this.here = here; this.lat = lat; this.lon = lon; this.weekend = weekend; this.contest = contest;
+        }
+    }
+    /** Parts of the band where kinds of stations gather: anywhere, the fast and DX end, the QRP corner, the slow end. */
+    static final int ANYWHERE = 0, FAST_END = 1, QRP_CORNER = 2, SLOW_END = 3;
+
     final int kind;
+    /** Where on the band this contact belongs (one of the constants above). */
+    int zone;
     final List<Tx> tx = new ArrayList<>();
     /** One entry per operator in the contact. Hours are local, 0 to 23. Loss is dB below a full-strength signal. */
     String[] call; boolean[] qrp, yl; int[] style, hour; double[] lossDb, qsbDb;
+    /** Each operator's place, and the part of the loss that is theirs alone (power, antenna), without the path. */
+    double[] lat, lon, baseDb;
     /** The key each operator uses (a Fist constant) and faults of their signal: chirp, a rough note, drift. */
     int[] key; boolean[] chirp, rough, drift;
 
     private Qso(int kind) { this.kind = kind; }
 
     private static final class Country {
-        final String[] prefix, city, sota, om, yl; final int[] utc; final int digits, warm; final boolean us, south; final String pota;
-        /** Cities may carry their own UTC offset as NAME@-5. warm shifts the seasonal temperature in degrees C. Names are "men|women". */
-        Country(String prefixes, int digits, int utc, int warm, String cities, String names, String pota, String sota, boolean south) {
+        final String[] prefix, city, sota, om, yl; final int[] utc; final double[] lat, lon; final int digits, warm; final boolean us, south; final String pota;
+        /** How many operators it has on the air, roughly, against a middling country as 1. */
+        final double hams;
+        /**
+         * Cities may carry their own UTC offset and place as NAME@-5@42@-71. warm shifts the seasonal temperature in
+         * degrees C. Names are "men|women". The place string is "latitude,longitude,hams".
+         */
+        Country(String prefixes, int digits, int utc, int warm, String cities, String names, String pota, String sota, boolean south, String place) {
+            String[] at0 = place.split(",");
+            hams = Double.parseDouble(at0[2]);
             prefix = prefixes.split(","); this.digits = digits; this.warm = warm; this.pota = pota; this.south = south;
             om = names.substring(0, names.indexOf('|')).split(","); yl = names.substring(names.indexOf('|') + 1).split(",");
             us = pota.equals("US");
             this.sota = sota == null ? new String[0] : sota.split(",");
-            city = cities.split(","); this.utc = new int[city.length];
+            city = cities.split(","); this.utc = new int[city.length]; lat = new double[city.length]; lon = new double[city.length];
             for (int i = 0; i < city.length; i++) {
-                int at = city[i].indexOf('@');
-                this.utc[i] = at < 0 ? utc : Integer.parseInt(city[i].substring(at + 1));
-                if (at >= 0) city[i] = city[i].substring(0, at);
+                String[] part = city[i].split("@");
+                city[i] = part[0];
+                this.utc[i] = part.length > 1 ? Integer.parseInt(part[1]) : utc;
+                lat[i] = Double.parseDouble(part.length > 3 ? part[2] : at0[0]);
+                lon[i] = Double.parseDouble(part.length > 3 ? part[3] : at0[1]);
             }
         }
     }
@@ -61,33 +86,33 @@ final class Qso {
         GR = "NIKOS,KOSTAS,YANNIS,GEORGE|MARIA,ELENI", JP = "HIRO,TAKA,KEN,YOSHI,KAZU,AKI|YUKI,KEIKO";
 
     private static final Country[] COUNTRIES = {
-        new Country("W,K,N,KB,WA,AA,KD", 10, -6, 2, "BOSTON@-5,DENVER@-7,AUSTIN,OMAHA,TAMPA@-5,SEATTLE@-8,BOISE@-7,DAYTON@-5,ALBANY@-5,TULSA,RENO@-8,PORTLAND@-8,MADISON", EN, "US", "W7W/KG,W4C/WM,W2/GC,W0C/FR,W6/CT", false),
-        new Country("DL,DJ,DK,DF,DH", 9, 1, 0, "BERLIN,HAMBURG,MUNICH,KOELN,BREMEN,LEIPZIG,DRESDEN,KIEL,ESSEN", DE, "DE", "DL/AL,DM/BW,DM/TH", false),
-        new Country("G,M", 9, 0, 0, "LONDON,LEEDS,BRISTOL,YORK,DERBY,DOVER,EXETER,OXFORD,CARDIFF", EN, "GB", "G/LD,G/SP,G/NP", false),
-        new Country("SP,SQ,SO", 9, 1, -1, "WARSAW,KRAKOW,GDANSK,LODZ,POZNAN,WROCLAW,LUBLIN,SZCZECIN,KATOWICE,BIALYSTOK", PL, "PL", "SP/BZ,SP/BW", false),
-        new Country("F", 9, 1, 2, "PARIS,LYON,NANTES,LILLE,NICE,BREST,TOULOUSE", FR, "FR", "F/AM,F/PO", false),
-        new Country("I,IK", 8, 1, 4, "ROME,MILAN,TURIN,BARI,GENOA,NAPLES,VERONA", IT, "IT", "I/LO,I/AA,I/PM", false),
-        new Country("EA", 9, 1, 6, "MADRID,SEVILLE,VALENCIA,BILBAO,MALAGA", ES, "ES", "EA1/LE,EA2/NV,EA4/MD", false),
-        new Country("OK", 9, 1, -1, "PRAGUE,BRNO,OSTRAVA,PLZEN", CZ, "CZ", "OK/LI,OK/JM", false),
-        new Country("OH", 9, 2, -6, "HELSINKI,TURKU,OULU,TAMPERE", FI, "FI", null, false),
-        new Country("SM", 8, 1, -4, "STOCKHOLM,MALMO,UMEA,GOTEBORG", NORDIC, "SE", null, false),
-        new Country("LA", 9, 1, -4, "OSLO,BERGEN,TROMSO", NORDIC, "NO", "LA/TM,LA/HL", false),
-        new Country("OZ", 9, 1, -1, "COPENHAGEN,AARHUS,ODENSE", NORDIC, "DK", null, false),
-        new Country("PA", 9, 1, 0, "AMSTERDAM,UTRECHT,DELFT,GRONINGEN", NL, "NL", "PA/PA", false),
-        new Country("ON", 9, 1, 0, "BRUSSELS,GHENT,LEUVEN", FR, "BE", "ON/ON", false),
-        new Country("HB", 9, 1, -1, "ZURICH,BERN,BASEL,LUGANO", DE, "CH", "HB/GR,HB/BE,HB/VS", false),
-        new Country("OE", 9, 1, -1, "VIENNA,GRAZ,LINZ,SALZBURG", DE, "AT", "OE/TI,OE/ST,OE/SB,OE/KT", false),
-        new Country("HA", 9, 1, 1, "BUDAPEST,GYOR,DEBRECEN", HU, "HU", "HA/KD", false),
-        new Country("YO", 9, 2, 1, "BUCHAREST,CLUJ,IASI", RO, "RO", "YO/EC,YO/MC", false),
-        new Country("LZ", 9, 2, 2, "SOFIA,PLOVDIV,VARNA", BG, "BG", "LZ/RO", false),
-        new Country("SV", 9, 2, 6, "ATHENS,PATRAS,VOLOS", GR, "GR", "SV/AT", false),
-        new Country("JA", 10, 9, 3, "TOKYO,OSAKA,NAGOYA,SAPPORO,KYOTO", JP, "JP", "JA/NN,JA/ST", false),
-        new Country("VE", 8, -5, -5, "TORONTO,OTTAWA,CALGARY@-7,MONTREAL", EN, "CA", "VE2/LR,VE7/GV", false),
-        new Country("VK", 8, 10, 6, "SYDNEY,PERTH@8,HOBART,ADELAIDE@9", EN, "AU", "VK3/VC,VK2/BM,VK1/AC", true),
-        new Country("ZL", 4, 12, 2, "AUCKLAND,WELLINGTON,DUNEDIN", EN, "NZ", "ZL1/AK,ZL3/CB", true),
-        new Country("ZS", 6, 2, 6, "CAPE TOWN,DURBAN,PRETORIA", EN, "ZA", "ZS/WC", true),
-        new Country("PY", 8, -3, 10, "SAO PAULO,CURITIBA,RECIFE", PT, "BR", null, true),
-        new Country("LU", 8, -3, 5, "BUENOS AIRES,CORDOBA,ROSARIO", ES, "AR", null, true),
+        new Country("W,K,N,KB,WA,AA,KD", 10, -6, 2, "BOSTON@-5@42@-71,DENVER@-7@40@-105,AUSTIN@-6@30@-98,OMAHA@-6@41@-96,TAMPA@-5@28@-82,SEATTLE@-8@48@-122,BOISE@-7@44@-116,DAYTON@-5@40@-84,ALBANY@-5@43@-74,TULSA@-6@36@-96,RENO@-8@40@-120,PORTLAND@-8@46@-123,MADISON@-6@43@-89", EN, "US", "W7W/KG,W4C/WM,W2/GC,W0C/FR,W6/CT", false, "39,-95,3"),
+        new Country("DL,DJ,DK,DF,DH", 9, 1, 0, "BERLIN,HAMBURG,MUNICH,KOELN,BREMEN,LEIPZIG,DRESDEN,KIEL,ESSEN", DE, "DE", "DL/AL,DM/BW,DM/TH", false, "51,10,2"),
+        new Country("G,M", 9, 0, 0, "LONDON,LEEDS,BRISTOL,YORK,DERBY,DOVER,EXETER,OXFORD,CARDIFF", EN, "GB", "G/LD,G/SP,G/NP", false, "53,-2,1.5"),
+        new Country("SP,SQ,SO", 9, 1, -1, "WARSAW,KRAKOW,GDANSK,LODZ,POZNAN,WROCLAW,LUBLIN,SZCZECIN,KATOWICE,BIALYSTOK", PL, "PL", "SP/BZ,SP/BW", false, "52,19,1.2"),
+        new Country("F", 9, 1, 2, "PARIS,LYON,NANTES,LILLE,NICE,BREST,TOULOUSE", FR, "FR", "F/AM,F/PO", false, "47,2,1"),
+        new Country("I,IK", 8, 1, 4, "ROME,MILAN,TURIN,BARI,GENOA,NAPLES,VERONA", IT, "IT", "I/LO,I/AA,I/PM", false, "43,12,1.2"),
+        new Country("EA", 9, 1, 6, "MADRID,SEVILLE,VALENCIA,BILBAO,MALAGA", ES, "ES", "EA1/LE,EA2/NV,EA4/MD", false, "40,-4,1"),
+        new Country("OK", 9, 1, -1, "PRAGUE,BRNO,OSTRAVA,PLZEN", CZ, "CZ", "OK/LI,OK/JM", false, "50,15,0.8"),
+        new Country("OH", 9, 2, -6, "HELSINKI,TURKU,OULU,TAMPERE", FI, "FI", null, false, "62,25,0.7"),
+        new Country("SM", 8, 1, -4, "STOCKHOLM,MALMO,UMEA,GOTEBORG", NORDIC, "SE", null, false, "60,16,0.7"),
+        new Country("LA", 9, 1, -4, "OSLO,BERGEN,TROMSO", NORDIC, "NO", "LA/TM,LA/HL", false, "61,9,0.6"),
+        new Country("OZ", 9, 1, -1, "COPENHAGEN,AARHUS,ODENSE", NORDIC, "DK", null, false, "56,10,0.6"),
+        new Country("PA", 9, 1, 0, "AMSTERDAM,UTRECHT,DELFT,GRONINGEN", NL, "NL", "PA/PA", false, "52,5,0.8"),
+        new Country("ON", 9, 1, 0, "BRUSSELS,GHENT,LEUVEN", FR, "BE", "ON/ON", false, "51,4,0.6"),
+        new Country("HB", 9, 1, -1, "ZURICH,BERN,BASEL,LUGANO", DE, "CH", "HB/GR,HB/BE,HB/VS", false, "47,8,0.6"),
+        new Country("OE", 9, 1, -1, "VIENNA,GRAZ,LINZ,SALZBURG", DE, "AT", "OE/TI,OE/ST,OE/SB,OE/KT", false, "47.5,14,0.6"),
+        new Country("HA", 9, 1, 1, "BUDAPEST,GYOR,DEBRECEN", HU, "HU", "HA/KD", false, "47,19,0.6"),
+        new Country("YO", 9, 2, 1, "BUCHAREST,CLUJ,IASI", RO, "RO", "YO/EC,YO/MC", false, "46,25,0.6"),
+        new Country("LZ", 9, 2, 2, "SOFIA,PLOVDIV,VARNA", BG, "BG", "LZ/RO", false, "43,25,0.6"),
+        new Country("SV", 9, 2, 6, "ATHENS,PATRAS,VOLOS", GR, "GR", "SV/AT", false, "39,22,0.5"),
+        new Country("JA", 10, 9, 3, "TOKYO,OSAKA,NAGOYA,SAPPORO,KYOTO", JP, "JP", "JA/NN,JA/ST", false, "36,138,2"),
+        new Country("VE", 8, -5, -5, "TORONTO@-5@44@-79,OTTAWA@-5@45@-76,CALGARY@-7@51@-114,MONTREAL@-5@46@-74", EN, "CA", "VE2/LR,VE7/GV", false, "45,-76,0.8"),
+        new Country("VK", 8, 10, 6, "SYDNEY@10@-34@151,PERTH@8@-32@116,HOBART@10@-43@147,ADELAIDE@9@-35@139", EN, "AU", "VK3/VC,VK2/BM,VK1/AC", true, "-34,147,0.6"),
+        new Country("ZL", 4, 12, 2, "AUCKLAND,WELLINGTON,DUNEDIN", EN, "NZ", "ZL1/AK,ZL3/CB", true, "-41,174,0.3"),
+        new Country("ZS", 6, 2, 6, "CAPE TOWN,DURBAN,PRETORIA", EN, "ZA", "ZS/WC", true, "-29,26,0.3"),
+        new Country("PY", 8, -3, 10, "SAO PAULO,CURITIBA,RECIFE", PT, "BR", null, true, "-22,-46,0.6"),
+        new Country("LU", 8, -3, 5, "BUENOS AIRES,CORDOBA,ROSARIO", ES, "AR", null, true, "-34,-60,0.5"),
     };
 
     private static final String[] QRP_RIGS = {"KX3", "KX2", "K1", "FT-817", "FT-818", "IC-705", "IC-703", "MCHF", "TRUSDX", "UBITX", "QCX MINI", "MTR-3B", "NORCAL 40A", "SOFTROCK", "HOMEBREW 2 TRANSISTOR RIG", "RS-918 KIT", "QMX"};
@@ -130,7 +155,7 @@ final class Qso {
         Country c;
         String call, name, city, rig, ant, wx, hobby, key, job, site, ref;
         boolean qrp, yl, storm, snow, chirp, rough, drift;
-        double speed, lossDb, qsbDb;
+        double speed, lossDb, qsbDb, lat, lon, baseDb;
         final List<Integer> plan = new ArrayList<>();
     }
 
@@ -159,37 +184,47 @@ final class Qso {
      * @param hourUtc 0 to 23, so greetings and weather fit each station's time of day
      * @param headline a short headline to mention, or null
      */
-    static Qso generate(Dsp.Rng r, int month, int hourUtc, String headline) {
+    static Qso generate(Dsp.Rng r, int month, int hourUtc, String headline) { return generate(r, new Scene(month, hourUtc), headline); }
+
+    /** @param scene when and where the band is heard; with a place, who is on and how strong follows propagation */
+    static Qso generate(Dsp.Rng r, Scene scene, String headline) {
         double k = r.uniform();
-        Qso q = new Qso(k < 0.48 ? RAGCHEW : k < 0.69 ? QUICK : k < 0.83 ? CQ : k < 0.95 ? SKED : TUNE);
-        Gen g = new Gen(r, month, hourUtc, headline, q.tx);
+        // On a contest weekend most of the band is contest stations.
+        int kind = scene.contest ? (k < 0.7 ? QUICK : k < 0.82 ? RAGCHEW : k < 0.92 ? CQ : k < 0.96 ? SKED : TUNE)
+            : k < 0.48 ? RAGCHEW : k < 0.69 ? QUICK : k < 0.83 ? CQ : k < 0.95 ? SKED : TUNE;
+        Qso q = new Qso(kind);
+        Gen g = new Gen(r, scene, headline, q.tx);
         if (q.kind == CQ) g.loneCq();
         else if (q.kind == TUNE) g.tuneUp();
         else if (q.kind == QUICK) g.quick();
         else g.ragchew(q.kind == SKED);
+        q.zone = g.zone;
         int n = g.ops.size();
         q.call = new String[n]; q.qrp = new boolean[n]; q.yl = new boolean[n]; q.style = new int[n]; q.hour = new int[n]; q.lossDb = new double[n]; q.qsbDb = new double[n];
         q.key = new int[n]; q.chirp = new boolean[n]; q.rough = new boolean[n]; q.drift = new boolean[n];
+        q.lat = new double[n]; q.lon = new double[n]; q.baseDb = new double[n];
         for (int i = 0; i < n; i++) {
             Op o = g.ops.get(i);
             q.call[i] = o.call; q.qrp[i] = o.qrp; q.yl[i] = o.yl; q.style[i] = o.style; q.hour[i] = o.hour; q.lossDb[i] = o.lossDb; q.qsbDb[i] = o.qsbDb;
             q.key[i] = o.key.equals("BUG") ? Fist.BUG : o.key.equals("STRAIGHT KEY") ? Fist.STRAIGHT : o.key.equals("SIDESWIPER") ? Fist.SIDESWIPER : Fist.KEYER;
             q.chirp[i] = o.chirp; q.rough[i] = o.rough; q.drift[i] = o.drift;
+            q.lat[i] = o.lat; q.lon[i] = o.lon; q.baseDb[i] = o.baseDb;
         }
         return q;
     }
 
     /** Builds one contact. */
     private static final class Gen {
-        final Dsp.Rng r; final int month, hourUtc; final List<Tx> tx;
+        final Dsp.Rng r; final Scene scene; final int month, hourUtc; final List<Tx> tx;
         String headline;
+        int zone;
         final List<Op> ops = new ArrayList<>();
         final double[] temp = new double[COUNTRIES.length];
         /** Current sending speed of each operator, and a slower speed they were asked for (0 if none). */
         final double[] spd = new double[8], want = new double[8];
 
-        Gen(Dsp.Rng r, int month, int hourUtc, String headline, List<Tx> tx) {
-            this.r = r; this.month = month; this.hourUtc = hourUtc; this.headline = headline; this.tx = tx;
+        Gen(Dsp.Rng r, Scene scene, String headline, List<Tx> tx) {
+            this.r = r; this.scene = scene; this.month = scene.month; this.hourUtc = scene.hourUtc; this.headline = headline; this.tx = tx;
             Arrays.fill(temp, Double.NaN);
         }
 
@@ -212,9 +247,43 @@ final class Qso {
             return b.toString();
         }
 
-        Op op(int style) {
+        /** Path loss between two operators right now, or 0 when the scene has no place. */
+        double path(Op a, Op b) { return scene.here ? Prop.pathLossDb(a.lat, a.lon, b.lat, b.lon, month, hourUtc) : 0; }
+        /** How many dB down one operator's signal is at the other's station. */
+        double between(Op heard, Op me) { return Math.min(60, heard.baseDb + path(heard, me)); }
+
+        /**
+         * Picks a country and city for a new operator. With a place in the scene the choice follows propagation: the
+         * first operator is one the listener can hear, later ones are stations the given operator can hear. Big
+         * countries and places where it is not the middle of the night come up more often.
+         */
+        int[] place(Op near) {
+            if (!scene.here) { int ci = r.nextInt(COUNTRIES.length); return new int[]{ci, r.nextInt(COUNTRIES[ci].city.length)}; }
+            double fromLat = near == null ? scene.lat : near.lat, fromLon = near == null ? scene.lon : near.lon, total = 0;
+            double[][] w = new double[COUNTRIES.length][];
+            for (int i = 0; i < w.length; i++) {
+                Country c = COUNTRIES[i];
+                w[i] = new double[c.city.length];
+                for (int k = 0; k < w[i].length; k++) {
+                    // Cities of one country share its place unless they carry their own, so work those out once.
+                    if (k > 0 && c.lat[k] == c.lat[0] && c.lon[k] == c.lon[0] && c.utc[k] == c.utc[0]) { w[i][k] = w[i][0]; }
+                    else {
+                        double loss = Prop.pathLossDb(fromLat, fromLon, c.lat[k], c.lon[k], month, hourUtc);
+                        w[i][k] = c.hams / w[i].length * Prop.awake(hourUtc + c.utc[k], scene.weekend) * Math.max(0.004, Math.pow(10, -loss / 12));
+                    }
+                    total += w[i][k];
+                }
+            }
+            double u = r.uniform() * total;
+            for (int i = 0; i < w.length; i++) for (int k = 0; k < w[i].length; k++) { u -= w[i][k]; if (u <= 0) return new int[]{i, k}; }
+            return new int[]{0, 0};
+        }
+
+        Op op(int style) { return op(style, null); }
+        Op op(int style, Op near) {
             Op o = new Op();
-            int ci = r.nextInt(COUNTRIES.length);
+            int[] where = place(near);
+            int ci = where[0];
             Country c = COUNTRIES[ci];
             o.id = ops.size(); o.style = style; o.c = c;
             do {
@@ -222,8 +291,8 @@ final class Qso {
             } while (taken(o.call));
             o.yl = r.chance(0.15);
             o.name = o.yl ? c.yl[r.nextInt(c.yl.length)] : c.om[r.nextInt(c.om.length)];
-            int city = r.nextInt(c.city.length);
-            o.city = c.city[city];
+            int city = where[1];
+            o.city = c.city[city]; o.lat = c.lat[city]; o.lon = c.lon[city];
             o.hour = ((hourUtc + c.utc[city]) % 24 + 24) % 24;
 
             double qrpOdds = style == OUTDOOR ? 0.9 : style == TERSE ? 0.15 : 0.42;
@@ -272,7 +341,9 @@ final class Qso {
             o.speed = style == TERSE ? 1.15 + 0.25 * r.uniform() : style == NOVICE ? 0.6 + 0.15 * r.uniform()
                 : style == CHATTY ? 0.85 + 0.25 * r.uniform() : style == OUTDOOR ? 0.9 + 0.25 * r.uniform() : 0.9 + 0.3 * r.uniform();
             double u = r.uniform();
-            o.lossDb = Math.min(32, 2 + 28 * u * u + (o.qrp ? 5 : 0));
+            o.baseDb = Math.min(32, 2 + 28 * u * u + (o.qrp ? 5 : 0));
+            // What the listener hears: the station's own strength less the path to the listener.
+            o.lossDb = Math.min(60, o.baseDb + (scene.here ? Prop.pathLossDb(scene.lat, scene.lon, o.lat, o.lon, month, hourUtc) : 0));
             o.qsbDb = 2 + 12 * r.uniform();
             spd[o.id] = o.speed;
             ops.add(o);
@@ -327,11 +398,11 @@ final class Qso {
         // ---- phrases ----
 
         String report(Op me, Op heard) {
-            String s = rst(heard.lossDb + 2 * r.gauss());
+            String s = rst(between(heard, me) + 2 * r.gauss());
             // The last digit is the tone: 9 is a pure note. C marks chirp.
             if (heard.rough) s = s.substring(0, 2) + pick("7", "8");
             if (heard.chirp && r.chance(0.6)) s += "C";
-            String q = heard.qsbDb > 9 && r.chance(0.7) ? pick(" WID QSB", " QSB") : heard.lossDb > 24 && r.chance(0.4) ? " WEAK BUT OK" : "";
+            String q = heard.qsbDb > 9 && r.chance(0.7) ? pick(" WID QSB", " QSB") : between(heard, me) > 24 && r.chance(0.4) ? " WEAK BUT OK" : "";
             if (me.style == TERSE) return "UR " + s + q;
             return pick("UR RST ", "UR ", "RST IS ", "UR RST IS ") + s + " " + s + q;
         }
@@ -422,7 +493,7 @@ final class Qso {
         String react(int t, Op me, Op ot) {
             switch (t) {
                 case RIG:
-                    if (ot.qrp) return ot.lossDb < 15 ? pick("ONLY " + ot.power + " W WOW", ot.power + " W DOING FB JOB", "FB QRP SIG") : pick(ot.power + " W BUT OK CPY", "QRP WORKS HI");
+                    if (ot.qrp) return between(ot, me) < 15 ? pick("ONLY " + ot.power + " W WOW", ot.power + " W DOING FB JOB", "FB QRP SIG") : pick(ot.power + " W BUT OK CPY", "QRP WORKS HI");
                     return ot.rig.equals(me.rig) ? "SAME RIG HR HI" : r.chance(0.5) ? pick("FB RIG", "NICE RIG") : null;
                 case ANT: return r.chance(0.5) ? pick("UR ANT WORKS WELL", "FB ANT") : null;
                 case WX:
@@ -513,22 +584,36 @@ final class Qso {
             if (r.chance(0.35)) send(a, pick("VVV", "VVV VVV", "E E E", "TEST"), 0.5 + r.uniform());
         }
 
+        /** The part of the band an operator would pick for a CQ. */
+        int home(Op a) {
+            if (a.style == NOVICE || a.speed < 0.8) return SLOW_END;
+            if (a.site != null || (a.qrp && r.chance(0.7))) return QRP_CORNER;
+            if (a.style == TERSE) return FAST_END;
+            return ANYWHERE;
+        }
+
         void loneCq() {
-            callCq(op(style()), 2 + r.nextInt(5));
+            Op a = op(style());
+            zone = home(a);
+            callCq(a, 2 + r.nextInt(5));
         }
 
         /** One side asks for a repeat of something lost in the noise; the other sends it again, three times over. */
         void fill(Op asker, Op giver) {
-            String cause = giver.qsbDb > 9 ? "QSB" : giver.lossDb > 20 ? pick("UR SIG WEAK", "QRN") : pick("QRM", "QRN", "QRM HR");
+            String cause = giver.qsbDb > 9 ? "QSB" : between(giver, asker) > 20 ? pick("UR SIG WEAK", "QRN") : pick("QRM", "QRN", "QRM HR");
             int what = r.nextInt(3);
             String n = giver.name, c = giver.city;
             send(asker, giver.call + " DE " + asker.call + " SRI " + cause + " <BT> PSE RPT " + (what == 0 ? "NAME" : what == 1 ? "QTH" : "NAME ES QTH") + " " + pick("BK", "<KN>"));
             send(giver, pick("BK ", "R ") + (what != 1 ? "NAME " + n + " " + n + " " + n : "") + (what == 2 ? " <BT> " : "") + (what != 0 ? "QTH " + c + " " + c + " " + c : "") + " " + pick("BK", "OK? BK"));
         }
-        boolean lost(Op giver) { return r.chance(0.05 + (giver.qsbDb > 9 ? 0.12 : 0) + (giver.lossDb > 20 ? 0.15 : 0)); }
+        boolean lost(Op giver, Op asker) { return r.chance(0.05 + (giver.qsbDb > 9 ? 0.12 : 0) + (between(giver, asker) > 20 ? 0.15 : 0)); }
 
         void ragchew(boolean friends) {
-            Op a = op(friends ? pick3(CASUAL, CHATTY, CASUAL) : style()), b = op(friends ? pick3(CASUAL, CHATTY, CHATTY) : style());
+            int sa = friends ? pick3(CASUAL, CHATTY, CASUAL) : style(), sb = friends ? pick3(CASUAL, CHATTY, CHATTY) : style();
+            Op a, b;
+            // Usually the listener can hear the station that calls; sometimes only the one that answers.
+            if (!scene.here || r.chance(0.75)) { a = op(sa); b = op(sb, a); } else { b = op(sb); a = op(sa, b); }
+            if (!friends) zone = home(a);
             String A = a.call, B = b.call;
             plan(a, friends); plan(b, friends);
             if (spd[b.id] > spd[a.id] * 1.15 && r.chance(0.8)) spd[b.id] = spd[a.id] * 1.1;   // a good operator answers at the caller's speed
@@ -536,24 +621,24 @@ final class Qso {
             if (friends) {
                 send(a, B + " " + B + " DE " + A + " " + A + " K", 0.5 + 2 * r.uniform());
                 if (r.chance(0.3)) send(a, B + " " + B + " DE " + A + " " + A + " K", 4 + 3 * r.uniform());
-                send(b, A + " DE " + B + " " + greeting(a.hour) + " " + a.name + " <BT> " + pick("ON TIME AS ALWAYS HI", "GUD TO HR U AGN", "NICE TO HR U") + " <BT> UR " + rst(a.lossDb + 2 * r.gauss())
+                send(b, A + " DE " + B + " " + greeting(a.hour) + " " + a.name + " <BT> " + pick("ON TIME AS ALWAYS HI", "GUD TO HR U AGN", "NICE TO HR U") + " <BT> UR " + rst(between(a, b) + 2 * r.gauss())
                     + " HR <BT> HW? " + A + " DE " + B + " <KN>");
                 lead = new ArrayList<>();
                 lead.add(greeting(b.hour) + " " + b.name + pick(" OLD FRIEND", " MY FRIEND", ""));
-                lead.add("UR " + rst(b.lossDb + 2 * r.gauss()) + (b.qsbDb > 9 ? " WID QSB" : ""));
+                lead.add("UR " + rst(between(b, a) + 2 * r.gauss()) + (b.qsbDb > 9 ? " WID QSB" : ""));
             } else {
                 callCq(a, r.chance(0.25) ? 2 : 1);
                 send(b, r.chance(0.7) ? A + " DE " + B + " " + B + " K" : B + " " + B);
-                if (r.chance(0.1 + (b.lossDb > 20 ? 0.2 : 0))) {
+                if (r.chance(0.1 + (between(b, a) > 20 ? 0.2 : 0))) {
                     send(a, r.chance(0.5) ? "QRZ? DE " + A + " K" : B.substring(0, 2 + r.nextInt(2)) + "? DE " + A + " K");
                     send(b, "DE " + B + " " + B + " " + B + " K");
                 }
                 if (spd[a.id] > spd[b.id] * 1.15 && r.chance(0.6)) spd[a.id] = spd[b.id] * 1.1;
                 send(a, B + " DE " + A + " <BT> " + basics(a, b, true) + " <BT> HW? " + B + " DE " + A + " <KN>");
-                if (lost(a)) fill(b, a);
+                if (lost(a, b)) fill(b, a);
                 String sl = basics(b, a, false);
                 send(b, A + " DE " + B + " <BT> " + sl + " <BT> HW? " + A + " DE " + B + " <KN>");
-                if (lost(b) && r.chance(0.6)) fill(a, b);
+                if (lost(b, a) && r.chance(0.6)) fill(a, b);
             }
             chat(a, b, lead, friends);
             if (!friends && r.chance(0.15)) tailEnd(a);
@@ -640,18 +725,20 @@ final class Qso {
 
         /** A third station was listening and calls one of the two as soon as they finish. */
         void tailEnd(Op a) {
-            Op c = op(pick3(CASUAL, TERSE, CASUAL));
+            Op c = op(pick3(CASUAL, TERSE, CASUAL), a);
             if (spd[c.id] > spd[a.id] * 1.15) spd[c.id] = spd[a.id] * 1.1;
             send(c, a.call + " DE " + c.call + " " + c.call + " K", 1 + 1.5 * r.uniform());
-            send(a, c.call + " DE " + a.call + " " + greeting(c.hour) + " UR " + rst(c.lossDb + 2 * r.gauss()) + " <BT> NAME " + a.name + " BK");
-            send(c, "BK R TNX " + a.name + " UR " + rst(a.lossDb + 2 * r.gauss()) + " <BT> NAME " + c.name + " " + c.name + " QTH " + c.city + " <BT> 73 TU");
+            send(a, c.call + " DE " + a.call + " " + greeting(c.hour) + " UR " + rst(between(c, a) + 2 * r.gauss()) + " <BT> NAME " + a.name + " BK");
+            send(c, "BK R TNX " + a.name + " UR " + rst(between(a, c) + 2 * r.gauss()) + " <BT> NAME " + c.name + " " + c.name + " QTH " + c.city + " <BT> 73 TU");
             send(a, "R TNX " + c.name + " 73 <SK> E E");
         }
 
         /** An activator in a park or on a summit, or a contest station, working a few callers one after another. */
         void quick() {
-            double u = r.uniform();
-            String what = u < 0.4 ? "POTA" : u < 0.6 ? "SOTA" : "TEST";
+            // Contest stations fill the band on the big weekends, turn up on other weekends and are rare in the week.
+            double u = r.uniform(), test = scene.contest ? 1 : !scene.here ? 0.4 : scene.weekend ? 0.3 : 0.08;
+            String what = u < test ? "TEST" : u < test + (1 - test) * 0.65 ? "POTA" : "SOTA";
+            zone = what.equals("TEST") ? FAST_END : QRP_CORNER;
             Op a;
             if (what.equals("TEST")) a = op(TERSE);
             else {
@@ -663,7 +750,7 @@ final class Qso {
             String cq = what.equals("TEST") ? pick("CQ TEST " + A + " " + A + " TEST", "TEST " + A + " " + A, "CQ TEST DE " + A + " " + A) : "CQ " + what + " CQ " + what + " DE " + A + " " + A + " K";
             send(a, cq, 0.5 + 2 * r.uniform());
             for (int i = 0; i < callers; i++) {
-                Op c = op(pick3(CASUAL, TERSE, CASUAL));
+                Op c = op(pick3(CASUAL, TERSE, CASUAL), a);
                 String C = c.call;
                 spd[c.id] = Math.min(Math.max(spd[c.id], 0.95), spd[a.id] * 1.1);
                 double quickly = 0.3 + 0.6 * r.uniform();
@@ -676,7 +763,7 @@ final class Qso {
                     send(a, "TU " + A + (r.chance(0.5) ? " TEST" : ""), quickly);
                     nr++;
                 } else {
-                    String mine = rst(c.lossDb + 2 * r.gauss()), theirs = rst(a.lossDb + 2 * r.gauss());
+                    String mine = rst(between(c, a) + 2 * r.gauss()), theirs = rst(between(a, c) + 2 * r.gauss());
                     boolean ref = !refGiven || r.chance(0.3);
                     refGiven = true;
                     send(a, C + " " + greeting(c.hour) + " UR " + mine + " " + mine + (ref ? " <BT> REF " + a.ref + " " + a.ref : "") + " BK");

@@ -294,6 +294,90 @@ public class T {
         check("bulletin resumes when tuned back", en.word() > w1);
     }
 
+    static void propagation() {
+        double eu = Prop.REGION[0][0], euLon = Prop.REGION[0][1];
+        check("June noon sun is high in Europe", Prop.sunElevation(50, 15, 5, 11) > 55);
+        check("June midnight sun is down", Prop.sunElevation(50, 15, 5, 23) < 0);
+        near("January noon sun is low", Prop.sunElevation(50, 15, 0, 11), 18, 4);
+        near("Warsaw to Berlin", Prop.distanceKm(52.2, 21, 52.5, 13.4), 520, 30);
+        check("a day path of 1000 km is open", Prop.pathLossDb(50, 15, 47, 2, 6, 12) < 1);
+        check("Japan is not heard from Europe at noon", Prop.pathLossDb(50, 15, 36, 138, 6, 12) > 30);
+        check("Japan gets through on a winter night: " + Prop.pathLossDb(50, 15, 36, 138, 0, 20), Prop.pathLossDb(50, 15, 36, 138, 0, 20) < 16);
+        check("the next country is in the skip zone at night", Prop.pathLossDb(50, 15, 51, 10, 0, 0) >= 12);
+        check("and loud by day", Prop.pathLossDb(50, 15, 51, 10, 0, 12) <= 2);
+        near("a path is the same both ways", Prop.pathLossDb(50, 15, 40, -77, 0, 3), Prop.pathLossDb(40, -77, 50, 15, 0, 3), 1e-9);
+        eq("CQ WW CW on the last full weekend of November", "" + Prop.contest(10, 28, 6) + Prop.contest(10, 29, 0), "CQ WW CWCQ WW CW");
+        check("no contest a week earlier, or on a weekday", Prop.contest(10, 21, 6) == null && Prop.contest(10, 30, 1) == null && Prop.contest(10, 26, 4) == null);
+        eq("ARRL DX CW in February", Prop.contest(1, 20, 6), "ARRL DX CW");
+        check("evenings and weekends are busier", Prop.activity(20, false, false) > Prop.activity(3, false, false) && Prop.activity(10, true, false) > Prop.activity(10, false, false));
+        check("people sleep at night", Prop.awake(3, false) < Prop.awake(20, false));
+
+        java.util.regex.Pattern report = java.util.regex.Pattern.compile("(?:UR|RST)(?: RST)?(?: IS)? ([345])([3-9])9\\b");
+        Dsp.Rng r = new Dsp.Rng(77);
+        int dayFar = 0, nightFar = 0, nightHeard = 0, oneSided = 0, silent = 0, reports = 0, corner = 0, parks = 0, slowCq = 0, novices = 0;
+        for (int n = 0; n < 3000; n++) {
+            boolean day = n % 2 == 0;
+            Qso.Scene sc = day ? new Qso.Scene(6, 12, eu, euLon, false, false) : new Qso.Scene(0, 0, eu, euLon, false, false);
+            Qso q = Qso.generate(r, sc, null);
+            boolean any = false, all = true;
+            for (int i = 0; i < q.call.length; i++) {
+                double path = Prop.pathLossDb(eu, euLon, q.lat[i], q.lon[i], sc.month, sc.hourUtc), km = Prop.distanceKm(eu, euLon, q.lat[i], q.lon[i]);
+                near("what is heard is the station's strength less the path", q.lossDb[i], Math.min(60, q.baseDb[i] + path), 1e-9);
+                boolean heard = q.lossDb[i] < 40;
+                any |= heard; all &= heard;
+                if (heard && km > 4000) { if (day) dayFar++; else nightFar++; }
+                if (heard && !day) nightHeard++;
+            }
+            if (!any) silent++;
+            if (q.kind == Qso.RAGCHEW && any && !all) oneSided++;
+            if (q.kind == Qso.QUICK && q.tx.get(0).text.contains("POTA")) { parks++; if (q.zone == Qso.QRP_CORNER) corner++; }
+            if (q.kind == Qso.CQ && q.style[0] == Qso.NOVICE) { novices++; if (q.zone == Qso.SLOW_END) slowCq++; }
+            if (q.kind != Qso.RAGCHEW && q.kind != Qso.SKED) continue;
+            for (Qso.Tx t : q.tx) {
+                if (t.who >= 2) break;
+                int to = 1 - t.who;
+                double between = Math.min(60, q.baseDb[to] + Prop.pathLossDb(q.lat[0], q.lon[0], q.lat[1], q.lon[1], sc.month, sc.hourUtc));
+                java.util.regex.Matcher m = report.matcher(t.text);
+                while (m.find()) { reports++; check("a report is about the path between the two stations", Math.abs(m.group(2).charAt(0) - Qso.rst(between).charAt(1)) <= 2); }
+            }
+        }
+        eq("no DX from Europe at a summer noon", dayFar, 0);
+        check("some DX on a winter night, but mostly Europe: " + nightFar + " of " + nightHeard, nightFar > 40 && nightFar < 0.4 * nightHeard);
+        check("some contacts are heard from one side only: " + oneSided, oneSided > 10);
+        check("hardly any contact is wholly out of reach: " + silent, silent < 60);
+        check("reports were checked: " + reports, reports > 2000);
+        check("park stations gather in the QRP corner: " + corner + " of " + parks, parks > 50 && corner == parks);
+        check("a beginner calls CQ at the slow end: " + slowCq + " of " + novices, novices > 20 && slowCq == novices);
+        int tests = 0, quick = 0, fast = 0;
+        for (int n = 0; n < 800; n++) {
+            Qso q = Qso.generate(r, new Qso.Scene(10, 14, eu, euLon, true, true), null);
+            if (q.kind == Qso.QUICK) { quick++; if (q.tx.get(0).text.contains("TEST")) { tests++; if (q.zone == Qso.FAST_END) fast++; } }
+        }
+        check("a contest weekend is mostly contest stations at the fast end: " + tests + " of 800", tests > 480 && tests == quick && fast == tests);
+        int weekday = 0;
+        for (int n = 0; n < 800; n++) { Qso q = Qso.generate(r, new Qso.Scene(10, 14, eu, euLon, false, false), null); if (q.kind == Qso.QUICK && q.tx.get(0).text.contains("TEST")) weekday++; }
+        check("few contest stations in the week: " + weekday, weekday < 40);
+        for (int z = 0; z < 4; z++) { double[] zr = Band.zoneRange(z); check("zone " + z + " is inside the band", zr[0] >= Band.LOW && zr[1] <= Band.HIGH && zr[1] - zr[0] > 5); }
+        check("the QRP corner is around 7030", Band.zoneRange(Qso.QRP_CORNER)[0] < 7030 && Band.zoneRange(Qso.QRP_CORNER)[1] > 7030);
+
+        // A band with a place and a date: quieter at night than in the evening, and it knows the contest.
+        int[] busyAt = new int[2];
+        for (int k = 0; k < 2; k++) {
+            Band b = new Band(R, 40 + k, 10, null);
+            b.setActivity(2); b.setPlace(eu, euLon); b.setClock(10, 18, 3, k == 0 ? 2.0 : 19.0);
+            check("no contest on a Wednesday", b.contest() == null);
+            double[] buf = new double[960];
+            for (int blk = 0; blk < 8 * 60 * R / 480; blk++) {
+                b.render(buf, 480, Band.NEWS, 600);
+                if (blk % 200 == 0) { String act = b.activityJson(); busyAt[k] += act.length() - act.replace("\"k\"", "").length(); }
+            }
+        }
+        check("the band is busier in the evening than at night: " + busyAt[1] + " vs " + busyAt[0], busyAt[1] > busyAt[0] * 1.3);
+        Band cw = new Band(R, 5, 10, null);
+        cw.setPlace(eu, euLon); cw.setClock(10, 28, 6, 15.0);
+        eq("the band knows the contest", cw.contest(), "CQ WW CW");
+    }
+
     /** Lengths of the tone runs of a keyed text, in dots. */
     static double[] tones(Keying k, double dot) { java.util.List<Double> a = new java.util.ArrayList<>(); for (int r : k.runs) if (r > 0) a.add(r / (dot * R)); double[] d = new double[a.size()]; for (int i = 0; i < d.length; i++) d[i] = a.get(i); return d; }
     static double mean(double[] a, boolean dahs) { double s = 0; int n = 0; for (double v : a) if (v > 2 == dahs) { s += v; n++; } return s / n; }
@@ -544,7 +628,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); feeds(); queue(); fists(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

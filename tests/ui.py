@@ -3,12 +3,13 @@ import json, pathlib
 from playwright.sync_api import sync_playwright
 FAKE = """
 window.calls=[];window.fake={status:'stopped',title:'',source:'',word:0,words:0,error:'',id:'-1',refreshing:false,news:{state:'no_feeds',failed:0}};
-window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,auto:1,announce:1,age:0,refresh:30};
+window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,region:0,auto:1,announce:1,age:0,refresh:30};
 window.Android={state:()=>JSON.stringify(fake),settings:()=>JSON.stringify(st),feeds:()=>JSON.stringify(fs),
 recent:()=>JSON.stringify([{id:'5',title:'<b>Not markup</b>',source:'HN',heard:false}]),
 set:(k,v)=>{calls.push(['set',k,v]);st[k]=v;if(k==='wpm'&&st.eff>v)st.eff=v;},command:c=>calls.push([c]),playStory:i=>calls.push(['story',i]),
 addFeed:(u,n)=>{if(!u.startsWith('https://'))return 'The address must start with https://';fs.push({id:'1',url:u,name:'',custom:false,enabled:true,lastOk:0,error:'HTTP 500',count:0});return '';},
-editFeed:()=>'',setFeedEnabled:(i,o)=>{calls.push(['en',i,o]);fs[0].enabled=o;},removeFeed:i=>{calls.push(['rm',i]);fs.length=0;},refresh:()=>calls.push(['refresh']),band:()=>JSON.stringify({on:true,dial:window.dialV||7020,rit:window.ritV||0,passLo:-200,passHi:200,low:7000,high:7040,news:7020,act:[{k:7012.3,l:.8,on:true},{k:7031.1,l:.3,on:false}]}),
+editFeed:()=>'',setFeedEnabled:(i,o)=>{calls.push(['en',i,o]);fs[0].enabled=o;},removeFeed:i=>{calls.push(['rm',i]);fs.length=0;},refresh:()=>calls.push(['refresh']),regions:()=>JSON.stringify(['Europe','North America, east']),
+band:()=>JSON.stringify({on:true,dial:window.dialV||7020,rit:window.ritV||0,passLo:-200,passHi:200,low:7000,high:7040,news:7020,contest:'CQ WW CW',act:[{k:7012.3,l:.8,on:true},{k:7031.1,l:.3,on:false}]}),
 panel:()=>JSON.stringify({s:0.3,n:1,w:[[7012.3,.8,1],[7031.1,.3,0]]}),setRit:v=>{window.ritV=v;calls.push(['rit',v]);},tick:()=>calls.push(['tick']),bandCopy:()=>'DL1ABC: CQ CQ',setDial:v=>{window.dialV=v;calls.push(['dial',v]);},nextSignal:d=>{calls.push(['next',d]);return 7012.3;},abbrevs:()=>JSON.stringify([{a:'ES',m:'and',l:1},{a:'CQ',m:'calling any station',l:0}])};
 """
 page_url = pathlib.Path('app/assets/index.html').resolve().as_uri()
@@ -43,7 +44,9 @@ with sync_playwright() as p:
     g.click('#dplus10'); assert abs(calls()[-1][1] - calls()[-2][1] - 0.01) < 1e-6, calls()[-2:]
     g.click('.seg[data-k=width] button[data-v="2"]'); assert calls()[-1] == ['set','width',2]
     g.click('.seg[data-k=agc] button[data-v="0"]'); assert calls()[-1] == ['set','agc',0]
+    assert 'CQ WW CW' in g.inner_text('#contest')
     g.click('nav button[data-t=settings]'); g.click('.seg[data-k=bed] button[data-v="2"]'); assert calls()[-1] == ['set','bed',2]
+    g.select_option('#region', '1'); assert calls()[-1] == ['set','region',1]
     g.evaluate("(()=>{const e=document.getElementById('wpm');e.value=10;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))})()")
     assert g.inner_text('#v-eff') == '10 WPM', g.inner_text('#v-eff')
     g.click('.seg[data-k=abbr] button[data-v="2"]'); assert calls()[-1] == ['set','abbr',2]

@@ -221,6 +221,8 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
                 loadTitles();
                 setBandClock();
             }
+            int region = Math.max(0, Math.min(Prop.REGION.length - 1, prefs.getInt("region", 0)));
+            band.setPlace(Prop.REGION[region][0], Prop.REGION[region][1]);
             band.setActivity(prefs.getInt("activity", 1));
             band.setSpeed(wpm, eff);
             engine.setBand(band);
@@ -235,7 +237,8 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         Band b = band;
         if (b == null) return;
         java.util.Calendar c = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"));
-        b.setClock(c.get(java.util.Calendar.MONTH), c.get(java.util.Calendar.HOUR_OF_DAY) + c.get(java.util.Calendar.MINUTE) / 60.0);
+        b.setClock(c.get(java.util.Calendar.MONTH), c.get(java.util.Calendar.DAY_OF_MONTH), c.get(java.util.Calendar.DAY_OF_WEEK) - java.util.Calendar.SUNDAY,
+            c.get(java.util.Calendar.HOUR_OF_DAY) + c.get(java.util.Calendar.MINUTE) / 60.0);
     }
 
     private void loadTitles() {
