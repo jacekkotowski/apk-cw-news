@@ -1,50 +1,159 @@
 # CW News: plan
 
-Working plan for the Band tab (the made-up 40 m CW band) and the contacts on it. Status is updated when each step ships.
+What is built, what comes next, and how each step will be designed and checked. Updated whenever a step ships.
 
-## Done
+## Where things stand
 
-- **2.0:** Band tab with a tuning dial, signals that sweep in and out, generated contacts, news as the bulletin station at 7020 kHz.
-- **2.1:** Modular contacts with operator personalities (casual, chatty, terse, beginner, outdoor), skeds, park/summit/contest stations with several callers, repeat requests, QRS requests that are honoured, interruptions and error signs. Reports follow the signal the listener hears; greetings follow the other station's local time; weather follows season and time of day; POTA references use the current country prefixes.
+| Version | What it added | State |
+|---|---|---|
+| 1.0, 1.1 | News as Morse, feed catalogue, receiver background, ham abbreviations | Released |
+| 2.0 | Band tab: tuning dial, signals that sweep in and out, generated contacts, news as the bulletin station at 7020 kHz | Released as `v2.0` |
+| 2.1 | Contacts built from topic modules by operators with personalities; reports, greetings, names and weather that agree with what you hear and when | Built by CI on branch `ccr-e3a1d112-4kb7si`. Not on `main`, not released, not tested on a phone |
 
-## Next
+## To finish 2.1
 
-### 1. One receiver chain and individual fists (audio only)
+1. Install the CI build on a phone and listen for ten minutes on the Band tab. Things to check:
+   - Stations differ in speed, and a beginner is clearly slower.
+   - After `PSE QRS` the other station slows down.
+   - A weak station gets a weak report and a strong one a strong report.
+   - The greeting (GM, GA, GE) fits the time of day.
+   - No crackle, dropouts or stuck tones when several stations are in the filter.
+2. Merge the branch to `main`.
+3. Publish release `v2.1` with the APK. Draft notes are in `docs/RELEASE-2.1.md`.
 
-Makes everything else sound more like a real radio.
+## Step 3 (version 2.2): one receiver chain and individual fists
 
-- Noise and signals pass through the same filter and AGC. A strong station pushes the noise down, and it rushes back in the gaps.
-- Each operator gets a fist: bug-style long dahs, straight-key jitter, hesitations, and errors that are corrected with eight dots.
-- Signal character: a little chirp, key clicks, slow drift, rough notes from homebrew rigs, faster and deeper fading on polar paths.
-- Measure before tuning: the renderer must stay within the existing bounds, and the soak test must still pass for hours of audio.
+**What you get:** the band sounds like a receiver instead of tones laid over noise, and you can tell operators apart by the way they key.
 
-### 2. Answer a CQ with typed sending and a reactive partner
+**Today:** `Engine.render` adds three things side by side: the news tone, the stations from `Band.render`, and the noise from `Bed`. The AGC inside `Bed.Receiver` only sees the noise. Stations are scaled by a gain curve (`Band.response`), not passed through a filter. Every station keys with machine-exact timing; only the speed differs.
 
-The first step where you take part in a contact.
+**Receiver chain**
+- Add a receiver stage in `Engine` (plain Java): noise plus all station tones go through one band-pass at the CW pitch and one AGC, then to the output.
+- The AGC has a fast attack and a release of about 0.3 s, so a strong station pushes the noise down and the noise rushes back in the gaps.
+- `Band.response` stays, but only to skip stations that are far outside the filter.
+- The Cosmic background and the News-only mode stay outside the chain and sound as they do now.
+- Morse timing must still depend only on sample counts. The existing "timing unchanged" tests guard this.
 
-- Settings hold your callsign, name, QTH and rig.
-- Tap a CQ, or type a reply. The app keys what you type as sidetone; the partner answers in real time.
-- A rule-based partner matches your speed, sends `AGN` or `?` when it misses you, slows down on `QRS`, and answers `NAME?`, `QTH?` and `RIG?`. No AI is needed.
-- Open questions: sidetone latency on Android (measure first); whether a missed call costs the contact.
+**Fists**
+- New plain-Java class `Fist`, applied when `Keying` turns text into on/off runs.
+- Each operator already has a key type in `Qso` (straight key, bug, paddle, sideswiper). The fist follows it:
 
-### 3. Later, roughly in order
+| Key | Dits | Dahs | Spacing |
+|---|---|---|---|
+| Paddle and keyer | Exact | Exact | Slightly uneven between letters |
+| Bug | Exact, machine-made | Long and varying | Uneven |
+| Straight key | Varying | Varying | Varying, with hesitations before unusual words |
+| Sideswiper | Varying | Varying, short | Rushed |
 
-- Propagation: nearby Europe by day, DX at night, busier evenings and contest weekends.
-- Band geography: fast DX ops near 7000 to 7010, QRP around 7030, slower ops higher.
-- Recurring stations: the same operator returns with the same rig and QTH and remembers you once you have worked them.
-- A logbook you fill in after listening, scored against what was sent.
-- Pile-up mode: you are the POTA activator and stations call you, scored on rate and accuracy.
-- Receiver controls: filter width, RIT, and finer tuning (the dial now steps 50 Hz, coarse for a 320 Hz filter).
-- Display: a scrolling waterfall and an S-meter. The UI polls every 500 ms, so this needs a faster path.
+- The news bulletin stays machine-perfect.
+
+**Signal character** (per operator, in `Band`)
+- A slight chirp on some signals, key clicks on a few, slow drift.
+- A rough note for homebrew rigs.
+- Fading with several rhythms (seconds to tens of seconds) instead of the current slow random steps; flutter on long paths.
+- Now and then a station tuning up with a carrier of a few seconds.
+
+**How it is checked**
+- Timing tests unchanged; level and peak bounds unchanged.
+- New test: with a strong signal keyed, the noise between elements drops by a measurable amount and recovers within the release time.
+- New test: fist statistics (keyer exact, bug dahs longer than three dits on average, straight key jitter within set limits).
+- The soak test (hours of band audio) still passes.
+- `tests/BandDemo.java` writes a WAV to listen to on a PC before any phone test.
+
+**Risks and decisions**
+- CPU cost on the phone: measure render time per block in a test and keep a wide margin.
+- AGC pumping can be tiring over a long session. Decision for you: always on, or a setting (Clean / Real).
+
+## Step 4 (version 2.3): take part in a contact with typed sending
+
+**What you get:** you answer a CQ, or call CQ yourself, and a station works you in real time.
+
+**Settings**
+- Your callsign, name, QTH, rig and power. The bridge only stores numbers today (`set(String, int)`), so it needs a text setter.
+- Decision for you: your real callsign or a made-up one.
+
+**Band tab**
+- An **Answer** button appears when you are tuned to a station calling CQ. **Call CQ** appears on a clear frequency.
+- A text line plus macro buttons: your call, report with name and QTH, rig and antenna and weather, `AGN?`, `QRS`, `73`.
+- What you send is keyed as sidetone at your speed. The receiver mutes while you send, as on a real rig with semi break-in.
+
+**Partner** (new plain-Java class `Partner`)
+- A small state machine: waiting for a call, exchange, chat, goodbye.
+- It reads what you typed for callsigns, a report, `NAME`, `QTH`, `RIG`, `ANT`, `WX`, questions (`NAME?`, `QTH?`, `HW?`), `QRS`, `AGN` and `73`.
+- It answers with the same phrase modules the generated contacts use, so `Qso` is reworked to produce one side's overs on demand.
+- Whether it hears you depends on how close you are to its frequency, your power and its noise. A partial copy gives `SP9?` or `AGN`; far off frequency gives no answer.
+- It matches your speed, and slows down when asked.
+- Text it does not understand gets `R FB` and its own next topic.
+
+**Logbook, first version**
+- Each completed contact is stored (call, name, QTH, reports both ways, time) and listed.
+
+**How it is checked**
+- `Partner` runs on a PC against scripted input: a full contact, a missing callsign, `QRS`, off frequency, you going silent (it calls again, then gives up).
+
+**Risks**
+- Audio delay: the output buffer is at least 150 ms. That is fine for typed sending and too slow for hand keying, which is why hand keying is a separate step.
+
+## Step 5 (version 2.4): hand keying
+
+**What you get:** you send with your own fist, on the screen or with a real key.
+
+- Start with a test screen that measures tap-to-tone delay on your phone. Go ahead only if it is under about 40 ms.
+- A second, low-latency audio output just for the sidetone.
+- Touch straight key and iambic paddle as a native view, not in the WebView.
+- A decoder with adaptive timing turns your keying into text for `Partner`. Sloppy spacing is copied as sent, so the partner may ask `?`.
+- External keys: a paddle or straight key through a USB or Bluetooth keyboard or mouse adapter.
+- After each over the app can show what it copied from you, as sending practice.
+
+## Step 6 (version 2.5): a band that follows the clock
+
+**What you get:** the band changes through the day, and where you tune matters.
+
+- Setting: your own QTH, as a region.
+- Propagation: nearby stations by day, DX at night and around sunrise and sunset. Distance and time set each operator's strength, using the per-operator strength that already exists.
+- One-sided contacts: the other operator is in the skip zone and you hear only half.
+- Band geography: fast DX operators near 7000 to 7010, QRP around 7030, slower operators higher up.
+- Activity: busier evenings and weekends, contest weekends from a small calendar.
+
+## Step 7 (version 2.6): reasons to come back
+
+- Recurring stations: the same operator returns on later days with the same rig and QTH, and greets you by name once you have worked them.
+- Copy practice: after listening to a contact, fill in call, name, QTH and report; the app scores it against what was sent.
+- Awards from the logbook: countries, QRP contacts, summits and parks.
+- Pile-up mode: you are the park activator, stations call you, and the score is rate and accuracy.
+
+## Step 8 (version 2.7): the front panel
+
+- A scrolling waterfall and an S-meter. The screen polls every 500 ms today, so this needs a faster display path.
+- A large VFO knob with inertia and haptic clicks.
+- Filter width (wide, normal, narrow) and RIT.
+- Finer tuning: 10 Hz steps instead of 50 Hz.
+
+## Ideas, not scheduled
+
+- Nets and round tables with three or more stations.
+- A DX station working split with a pile-up.
+- Real solar data and real weather for the operators' towns. Both need the network, so they must stay optional.
+
+## Order, and why
+
+1. Receiver chain and fists first: it is audio only and improves everything heard afterwards.
+2. Typed contacts before hand keying: the partner logic is the hard part, and typing avoids the audio-delay problem.
+3. Hand keying only after a delay measurement on a real phone.
+4. Clock-driven band, recurring stations and the front panel build on the earlier steps and can be reordered.
+
+## How every step is finished
+
+1. `bash tests/run.sh` passes on a PC.
+2. GitHub Actions builds `CWNews-apk` from the pushed commit.
+3. Version code and name are raised.
+4. You install it and listen on a phone. A step is not done before that.
+5. This plan and the README are updated.
 
 ## Known gaps
 
-- Not yet tested on a phone. The 2.1 APK was built by GitHub Actions and has not been installed or listened to.
-- `tests/ui.py` needs the Python Playwright module, which is not installed in this environment.
+- 2.1 has not been tested on a phone.
+- `tests/ui.py` needs the Python Playwright module, which is missing in the cloud session.
 - SOTA region codes are plausible but unchecked against the real summit lists.
-- Other countries' POTA prefixes follow the ISO scheme by inference; only the US change is confirmed.
-- No propagation model: a Danish station can still chat with Argentina at noon.
-
-## How to check a step
-
-Each step ends with `bash tests/run.sh` passing and a CI build producing `CWNews-apk`. Install and listen on a phone before calling a step done.
+- POTA prefixes outside the US follow the ISO country scheme by inference; only the US change (`K-` to `US-`) is confirmed.
+- There is no propagation model yet: a Danish station can chat with Argentina at noon.
