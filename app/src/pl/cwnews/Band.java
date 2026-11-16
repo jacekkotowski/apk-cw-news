@@ -23,13 +23,13 @@ final class Band {
     }
 
     private static final class Op {
-        double offsetKhz, wpmFactor, strength, depthDb, fade = 1, fadeTarget = 1, phase;
+        double offsetKhz, strength, depthDb, fade = 1, fadeTarget = 1, phase;
     }
 
     private static final class Station {
         double khz;
         Qso qso;
-        final Op[] op = {new Op(), new Op()};
+        Op[] op = new Op[0];
         int next, who, wait, run, pos, wordIdx;
         Keying key;
         String[] words = new String[0];
@@ -39,7 +39,9 @@ final class Band {
     private final int rate;
     private final Dsp.Rng rng;
     private final Headlines headlines;
-    private final int month;
+    private int month;
+    private double hourUtc = 12;
+    private long sinceClock;
     private final List<Station> slots = new ArrayList<>();
     private double wpm = 20, eff = 12;
     private int blocks;
@@ -58,6 +60,10 @@ final class Band {
 
     synchronized void setSpeed(double wpm, double eff) { this.wpm = wpm; this.eff = Math.min(eff, wpm); }
 
+    /** Sets the date and time the stations live in: month 0 to 11 and the UTC hour. The hour then runs on with the audio. */
+    synchronized void setClock(int month, double hourUtc) { this.month = month; this.hourUtc = hourUtc; sinceClock = 0; }
+    private int hourNow() { return (int) ((hourUtc + sinceClock / (double) rate / 3600) % 24); }
+
     private double freeFrequency() {
         for (int tries = 0; tries < 30; tries++) {
             double f = LOW + 0.3 + (HIGH - LOW - 0.6) * rng.uniform();
@@ -70,26 +76,25 @@ final class Band {
 
     private void spawn(Station s) {
         String h = headlines == null ? null : headlines.next();
-        s.qso = Qso.generate(rng, month, h == null ? null : Qso.shortHeadline(h));
+        s.qso = Qso.generate(rng, month, hourNow(), h == null ? null : Qso.shortHeadline(h));
         s.khz = freeFrequency();
-        s.next = 0; s.key = null; s.log.setLength(0);
-        for (int i = 0; i < 2; i++) {
-            Op o = s.op[i];
+        s.next = 0; s.who = 0; s.key = null; s.log.setLength(0);
+        // The generator decides how strong each operator is, so the reports they exchange match what is heard.
+        s.op = new Op[s.qso.call.length];
+        for (int i = 0; i < s.op.length; i++) {
+            Op o = s.op[i] = new Op();
             o.offsetKhz = i == 0 ? 0 : rng.gauss() * 0.04;
-            o.wpmFactor = 0.8 + 0.55 * rng.uniform();
-            double u = rng.uniform();
-            o.strength = PEAK * Math.pow(10, -(2 + 28 * u * u) / 20);
-            o.depthDb = 2 + 12 * rng.uniform();
-            o.fade = 1; o.fadeTarget = 1;
+            o.strength = PEAK * Math.pow(10, -s.qso.lossDb[i] / 20);
+            o.depthDb = s.qso.qsbDb[i];
         }
-        s.wait = (int) ((0.5 + 2 * rng.uniform()) * rate);
+        s.wait = (int) (s.qso.tx.get(0).pause * rate);
     }
 
     private void startTx(Station s) {
         Qso.Tx t = s.qso.tx.get(s.next);
         Op o = s.op[t.who];
         s.who = t.who;
-        double f = o.wpmFactor;
+        double f = t.speed;
         s.key = Keying.build(t.text, new Timing(wpm * f, eff * f), rate);
         s.words = t.text.trim().split("\\s+");
         s.run = 0; s.pos = 0; s.wordIdx = -1;
@@ -110,14 +115,14 @@ final class Band {
             s.qso = null;
             s.wait = (int) ((6 + 34 * rng.uniform()) * rate);
         } else {
-            double gap = s.qso.kind == Qso.CQ ? 3 + 4 * rng.uniform() : 0.6 + 2 * rng.uniform();
-            s.wait = (int) (gap * rate);
+            s.wait = (int) (s.qso.tx.get(s.next).pause * rate);
         }
     }
 
     /** Adds all stations to the stereo buffer (interleaved), as heard with the receiver set to dialKhz and a pitch of toneHz. */
     synchronized void render(double[] lr, int frames, double dialKhz, double toneHz) {
         boolean slow = ++blocks % 50 == 0;
+        sinceClock += frames;
         for (Station s : slots) {
             if (s.qso == null) {
                 s.wait -= frames;

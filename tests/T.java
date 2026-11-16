@@ -19,6 +19,8 @@ public class T {
         eq("punct", codes("?,."), "..--.. --..-- .-.-.- /");
         eq("prosign is one token", codes("<BT>"), "-...- /");
         eq("unknown prosign dropped", codes("A <ZZ> B"), ".- / -... /");
+        eq("error sign is eight dots", codes("<HH>"), "........ /");
+        eq("wait sign", codes("<AS>"), ".-... /");
     }
 
     static double seconds(Keying k) { return k.totalSamples / (double) R; }
@@ -163,31 +165,74 @@ public class T {
     }
 
     static boolean sendable(String text) {
-        String t = text.replaceAll("<(BT|AR|SK|KN)>", " ");
+        String t = text.replaceAll("<(BT|AR|SK|KN|AS|HH)>", " ");
         for (int i = 0; i < t.length(); i++) { char c = t.charAt(i); if (c != ' ' && !Morse.supported(c)) return false; }
         return true;
     }
 
     static void band() {
-        int total = 0, kinds[] = new int[3];
+        int[] kinds = new int[Qso.KINDS], styles = new int[5];
         Dsp.Rng rngAll = new Dsp.Rng(12345);
-        boolean allSendable = true, hasNews = false, rag = false;
-        for (int n = 0; n < 400; n++) {
-            Qso q = Qso.generate(rngAll, n % 12, n % 2 == 0 ? Qso.shortHeadline("Parliament passes the new energy law after long debate") : null);
+        boolean allSendable = true, hasNews = false, tail = false, fumble = false, wait = false, repeat = false, qrs = false;
+        java.util.Set<Integer> lengths = new java.util.HashSet<>();
+        java.util.regex.Pattern report = java.util.regex.Pattern.compile("(?:UR|RST)(?: RST)?(?: IS)? ([345])([3-9])9\\b");
+        java.util.regex.Pattern park = java.util.regex.Pattern.compile("(?:POTA PARK|REF) ([A-Z0-9/-]+)");
+        double strong = 0, weak = 0; int strongN = 0, weakN = 0;
+        for (int n = 0; n < 1200; n++) {
+            Qso q = Qso.generate(rngAll, n % 12, n % 24, n % 2 == 0 ? Qso.shortHeadline("Parliament passes the new energy law after long debate") : null);
             kinds[q.kind]++;
             check("has tx " + n, !q.tx.isEmpty());
-            for (Qso.Tx t : q.tx) {
-                total++;
-                if (!sendable(t.text) || t.text.trim().isEmpty() || t.text.contains("  ")) { allSendable = false; System.out.println("BAD: " + t.text); }
-                if (t.text.contains("HRD ON NEWS TODAY PARLIAMENT PASSES")) hasNews = true;
+            for (int i = 0; i < q.call.length; i++) {
+                styles[q.style[i]]++;
+                check("call looks right " + q.call[i], q.call[i].matches("[A-Z0-9]{3,7}(/P)?"));
+                for (int k = 0; k < i; k++) check("calls differ", !q.call[i].equals(q.call[k]));
             }
-            if (q.kind == Qso.RAGCHEW) { rag = true; check("ragchew is long", q.tx.size() >= 9); check("calls differ", !q.call[0].equals(q.call[1])); }
-            check("call looks right " + q.call[0], q.call[0].matches("[A-Z0-9]{3,8}"));
+            boolean talk = q.kind == Qso.RAGCHEW || q.kind == Qso.SKED, pair = true;
+            double[] askedFor = new double[q.call.length];
+            for (Qso.Tx t : q.tx) {
+                if (!sendable(t.text) || t.text.trim().isEmpty() || t.text.contains("  ")) { allSendable = false; System.out.println("BAD: " + t.text); }
+                check("speed and pause in range", t.speed >= 0.5 && t.speed <= 1.5 && t.pause > 0 && t.pause < 12);
+                if (q.style[t.who] == Qso.NOVICE) check("a beginner sends slowly: " + t.speed, t.speed <= 0.76);
+                if (t.text.contains("HRD ON NEWS TODAY PARLIAMENT PASSES")) hasNews = true;
+                if (t.text.contains("<HH>")) fumble = true;
+                if (t.text.contains("<AS>")) wait = true;
+                if (t.text.contains("PSE RPT")) repeat = true;
+                java.util.regex.Matcher p = park.matcher(t.text);
+                while (p.find()) check("park or summit reference " + p.group(1), p.group(1).matches("[A-Z]{2}-\\d{4}|[A-Z0-9]{1,3}/[A-Z]{2}-\\d{3}"));
+                if (t.who >= 2) pair = false;
+                if (!talk || !pair) continue;
+                // From here on it is two operators talking to each other, so each transmission is about the other one.
+                int to = 1 - t.who;
+                java.util.List<String> w = java.util.Arrays.asList(t.text.split(" "));
+                for (String g : new String[]{"GM", "GA", "GE"}) if (w.contains(g)) eq("greeting fits the other station's clock, " + q.hour[to] + " h", g, Qso.greeting(q.hour[to]));
+                if (q.yl[to]) check("a YL is not called OM: " + t.text, !w.contains("OM"));
+                if (q.yl[t.who]) check("a YL has no XYL: " + t.text, !w.contains("XYL"));
+                if (askedFor[t.who] > 0) { qrs = true; check("slows down when asked: " + t.speed + " > " + askedFor[t.who], t.speed <= askedFor[t.who] * 1.06); }
+                if (t.text.contains("PSE QRS") || t.text.contains("QRS PSE")) askedFor[to] = t.speed;
+                java.util.regex.Matcher m = report.matcher(t.text);
+                while (m.find()) {
+                    int s = m.group(2).charAt(0) - '0', fair = Qso.rst(q.lossDb[to]).charAt(1) - '0';
+                    check("report follows the signal: S" + s + " for " + q.lossDb[to] + " dB down", Math.abs(s - fair) <= 2);
+                    if (q.lossDb[to] < 8) { strong += s; strongN++; } else if (q.lossDb[to] > 22) { weak += s; weakN++; }
+                }
+            }
+            if (q.kind == Qso.RAGCHEW) { lengths.add(q.tx.size()); check("ragchew is long", q.tx.size() >= 8); if (q.call.length == 3) tail = true; }
+            if (q.kind == Qso.CQ) for (Qso.Tx t : q.tx) eq("a lone CQ has one voice", t.who, 0);
+            if (q.kind == Qso.QUICK) check("someone answers the activator", q.call.length >= 2);
         }
         check("every transmission can be keyed", allSendable);
         check("headline is quoted sometimes", hasNews);
-        check("all kinds appear " + java.util.Arrays.toString(kinds), kinds[0] > 100 && kinds[1] > 40 && kinds[2] > 20 && rag);
-        eq("same seed same contact", Qso.generate(new Dsp.Rng(5), 3, null).tx.get(2).text, Qso.generate(new Dsp.Rng(5), 3, null).tx.get(2).text);
+        check("all kinds appear " + java.util.Arrays.toString(kinds), kinds[Qso.RAGCHEW] > 400 && kinds[Qso.QUICK] > 150 && kinds[Qso.CQ] > 100 && kinds[Qso.SKED] > 80);
+        for (int st : styles) check("all personalities appear " + java.util.Arrays.toString(styles), st > 100);
+        check("contacts differ in shape: " + lengths.size() + " lengths", lengths.size() >= 10);
+        check("tail-ender, error sign, wait, repeat request and QRS all happen", tail && fumble && wait && repeat && qrs);
+        check("strong stations get better reports: " + strong / strongN + " vs " + weak / weakN, strongN > 50 && weakN > 50 && strong / strongN > weak / weakN + 3);
+        StringBuilder one = new StringBuilder(), two = new StringBuilder();
+        for (Qso.Tx t : Qso.generate(new Dsp.Rng(5), 3, 20, "A B C").tx) one.append(t.text).append(t.speed).append(t.pause);
+        for (Qso.Tx t : Qso.generate(new Dsp.Rng(5), 3, 20, "A B C").tx) two.append(t.text).append(t.speed).append(t.pause);
+        eq("same seed same contact", one.toString(), two.toString());
+        eq("greeting by hour", Qso.greeting(8) + Qso.greeting(14) + Qso.greeting(20) + Qso.greeting(2), "GMGAGEGE");
+        eq("report by strength", Qso.rst(2) + " " + Qso.rst(12) + " " + Qso.rst(27) + " " + Qso.rst(32), "599 579 449 339");
         eq("headline cut to nine words", Qso.shortHeadline("one two three four five six seven eight nine ten eleven"), "ONE TWO THREE FOUR FIVE SIX SEVEN EIGHT NINE");
         check("two words is too short", Qso.shortHeadline("Hi there") == null);
         near("filter at centre", Band.response(0), 1, 1e-9);
@@ -196,7 +241,7 @@ public class T {
         // Render a minute of the band: bounded, repeatable, and only audible near a station.
         for (int tries = 0; tries < 2; tries++) {
             Band b = new Band(R, 7, 5, null);
-            b.setActivity(2);
+            b.setActivity(2); b.setClock(5, 19.5);
             double[] buf = new double[2 * 480];
             double peak = 0; int blocksWithSignal = 0; boolean sawStation = false;
             for (int blk = 0; blk < 60 * R / 480 * 3; blk++) {

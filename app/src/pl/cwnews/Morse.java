@@ -20,6 +20,8 @@ final class Morse {
         PROSIGN.put("AR", ".-.-.");
         PROSIGN.put("SK", "...-.-");
         PROSIGN.put("KN", "-.--.");
+        PROSIGN.put("AS", ".-...");
+        PROSIGN.put("HH", "........");
     }
 
     static boolean supported(char c) { return CODE.containsKey(c); }

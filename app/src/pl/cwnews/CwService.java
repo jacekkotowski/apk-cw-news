@@ -210,6 +210,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
                     return t.isEmpty() ? null : t.get(titleAt++ % t.size());
                 });
                 loadTitles();
+                setBandClock();
             }
             band.setActivity(prefs.getInt("activity", 1));
             band.setSpeed(wpm, eff);
@@ -218,6 +219,14 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         if ((timingChanged || textChanged) && engine.hasStory() && storyId != PlaybackQueue.NONE) {
             load(storyId, textChanged ? 0 : engine.word());
         }
+    }
+
+    /** Tells the band the month and UTC hour, so greetings and weather on it fit the time of day. */
+    private void setBandClock() {
+        Band b = band;
+        if (b == null) return;
+        java.util.Calendar c = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"));
+        b.setClock(c.get(java.util.Calendar.MONTH), c.get(java.util.Calendar.HOUR_OF_DAY) + c.get(java.util.Calendar.MINUTE) / 60.0);
     }
 
     private void loadTitles() {
@@ -328,7 +337,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
                 status = now;
                 if (!shown.equals(now)) { shown = now; publish(); }
                 long t = System.currentTimeMillis();
-                if (band != null && t - lastTitles > 300000) loadTitles();
+                if (band != null && t - lastTitles > 300000) { loadTitles(); setBandClock(); }
                 if (t - lastSave > SAVE_EVERY_S * 1000L) savePosition();
                 if (refreshMin > 0 && t - lastRefresh > refreshMin * 60000L) {
                     lastRefresh = t;

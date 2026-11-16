@@ -6,7 +6,7 @@ public class BandDemo {
         int rate = 48000, block = 480, secs = 180;
         Engine e = new Engine(rate, 42, block);
         Band b = new Band(rate, 7, 10, () -> "Parliament passes the new energy law after long debate");
-        b.setActivity(2); b.setSpeed(20, 14);
+        b.setActivity(2); b.setSpeed(20, 14); b.setClock(10, 19);
         e.setBand(b); e.setBed(Bed.BAND); e.bedDb = -26; e.volume = 1; e.setAudible(true);
         e.load(Keying.build(TextNorm.story("Hacker News (HN)", "Morse code news is back on the air tonight", "", TextNorm.HEADLINE, true, Abbrev.LIGHT) + " " + TextNorm.story("DW", "Good weather ahead for the weekend in central Europe", "", TextNorm.HEADLINE, false, Abbrev.LIGHT), new Timing(20, 14), rate), 0);
         float[] buf = new float[2 * block];
