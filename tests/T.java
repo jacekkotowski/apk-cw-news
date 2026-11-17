@@ -343,6 +343,62 @@ public class T {
         check("follow stays when the band is empty (" + idle + " idle bands)", never && idle >= 20);
     }
 
+    static double goertzel(double[] x, double f) {
+        double w = 2 * Math.PI * f / R, c = 2 * Math.cos(w), s1 = 0, s2 = 0;
+        for (int i = 0; i < x.length; i += 2) { double s = x[i] + c * s1 - s2; s2 = s1; s1 = s; }
+        return s1 * s1 + s2 * s2 - c * s1 * s2;
+    }
+
+    static void sideband() {
+        // A station 300 Hz above the dial sounds at tone + 300 in CW and at tone - 300 in CW-R.
+        for (int sign = 1; sign >= -1; sign -= 2) {
+            Band b = new Band(R, 5, 5, null);
+            b.setClock(5, 19.5);
+            double[] buf = new double[960], all = new double[2 * 48000 * 3];
+            double khz = Double.NaN; int at = 0, tries = 0;
+            while (Double.isNaN(khz) && tries++ < 100 * 120) {
+                java.util.Arrays.fill(buf, 0); b.render(buf, 480, 7010, 600, 100, 3000, sign);
+                String a = b.activityJson();
+                if (a.contains("\"on\":true")) khz = Double.parseDouble(a.substring(a.indexOf("\"k\":") + 4, a.indexOf(',')));
+            }
+            check("sideband: found a station", !Double.isNaN(khz));
+            double dial = khz - 0.3;
+            for (int i = 0; i < all.length / 960; i++) { java.util.Arrays.fill(buf, 0); b.render(buf, 480, dial, 600, 100, 3000, sign); System.arraycopy(buf, 0, all, i * 960, 960); }
+            double up = goertzel(all, 900), down = goertzel(all, 300);
+            check("sideband " + sign + ": station at " + (sign > 0 ? "tone + 300" : "tone - 300") + ": up " + up + " down " + down, sign > 0 ? up > 10 * down : down > 10 * up);
+        }
+        // The bulletin waits when tuned outside the filter, on either side.
+        for (int side = 0; side <= 1; side++) {
+            Engine en = new Engine(R, 1, 480);
+            en.setBand(new Band(R, 3, 5, null));
+            en.volume = 1; en.setAudible(true); en.side = side;
+            en.load(Keying.build("TEST TEST TEST TEST TEST TEST TEST TEST", new Timing(20, 20), R), 0);
+            float[] fb = new float[960];
+            for (int i = 0; i < 20; i++) en.render(fb, 480);
+            int w0 = en.word();
+            en.dialKhz = Band.NEWS + 8;
+            for (int i = 0; i < 400; i++) en.render(fb, 480);
+            int w1 = en.word();
+            eq("bulletin waits while off frequency, side " + side, w1, w0);
+            en.dialKhz = Band.NEWS;
+            for (int i = 0; i < 400; i++) en.render(fb, 480);
+            check("bulletin resumes when tuned back, side " + side, en.word() > w1);
+        }
+        // Rx.heard for both signs and all widths.
+        for (int w = 0; w < 3; w++) {
+            double[] cw = Rx.heard(w, 600, 1), r = Rx.heard(w, 600, -1);
+            near("heard CW low, width " + w, cw[0], Rx.lo(w, 600) - 600, 1e-9);
+            near("heard CW high, width " + w, cw[1], Rx.hi(w, 600) - 600, 1e-9);
+            near("heard CW-R low, width " + w, r[0], 600 - Rx.hi(w, 600), 1e-9);
+            near("heard CW-R high, width " + w, r[1], 600 - Rx.lo(w, 600), 1e-9);
+        }
+        near("Wide filter reaches 1200 Hz above and 400 below", Rx.heard(Rx.WIDE, 600, 1)[1], 1200, 1e-9);
+        // With the Wide filter a station 500 Hz above the wanted one is heard in CW and is 20 dB or more down in CW-R.
+        double lo = Rx.lo(Rx.WIDE, 600), hi = Rx.hi(Rx.WIDE, 600);
+        double cwGain = Rx.gain(lo, hi, 600 + 500), rGain = Rx.gain(lo, hi, 600 - 500);
+        check("CW-R puts the neighbour 20 dB down: " + 20 * Math.log10(rGain / cwGain), 20 * Math.log10(rGain / cwGain) < -20);
+    }
+
     static void propagation() {
         double eu = Prop.REGION[0][0], euLon = Prop.REGION[0][1];
         check("June noon sun is high in Europe", Prop.sunElevation(50, 15, 5, 11) > 55);
@@ -677,7 +733,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

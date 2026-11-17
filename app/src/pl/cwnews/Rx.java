@@ -20,6 +20,14 @@ final class Rx {
     /** The passband edges in Hz of audio pitch, for a width setting and the CW pitch. */
     static double lo(int width, double tone) { return width == WIDE ? Math.max(150, tone - 400) : width == NARROW ? Math.max(100, tone - 125) : Math.max(120, tone - NORMAL_HZ / 2); }
     static double hi(int width, double tone) { return width == WIDE ? tone + 1200 : width == NARROW ? tone + 125 : tone + NORMAL_HZ / 2; }
+    /**
+     * The range of station frequencies that are heard, in Hz relative to where the receiver listens. sign +1 is CW
+     * (stations above the dial sound higher), -1 is CW-R (they sound lower, so the passband lies below the dial).
+     */
+    static double[] heard(int width, double tone, int sign) {
+        double l = lo(width, tone), h = hi(width, tone);
+        return sign < 0 ? new double[]{tone - h, tone - l} : new double[]{l - tone, h - tone};
+    }
     /** How much of a steady tone at that pitch gets through a filter with those edges, 0 to 1. */
     static double gain(double lo, double hi, double hz) {
         if (hz <= 0) return 0;

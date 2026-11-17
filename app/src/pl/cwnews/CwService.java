@@ -216,6 +216,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         engine.setBed(prefs.getInt("bed", Bed.BAND));
         engine.width = prefs.getInt("width", Rx.NORMAL);
         engine.agc = prefs.getInt("agc", 1) != 0;
+        engine.side = prefs.getInt("side", 0);
         follow = prefs.getInt("follow", 0);
         sleepAt = prefs.getLong("sleepAt", 0);
         if (prefs.getInt("band", 1) != 0) {

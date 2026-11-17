@@ -20,6 +20,8 @@ final class Engine {
     /** Receiver filter width (an Rx constant) and whether its AGC is on. Both only matter with a band. */
     volatile int width = Rx.NORMAL;
     volatile boolean agc = true;
+    /** 0 for CW (listening on the upper side of a signal), 1 for CW-R (the lower side). */
+    volatile int side;
     private volatile Band band;
     private final Rx rx;
     private final double[] sig;
@@ -128,10 +130,11 @@ final class Engine {
             rx.tune(lo, hi);
             // The bulletin is one station on the band. Its pitch is its distance from the dial, kept inside what a
             // sampled tone can be; far outside the filter it waits, from the start of the current word, until you tune back.
-            pitch = Math.max(-rate / 2.2, Math.min(rate / 2.2, toneHz + (Band.NEWS - dialKhz) * 1000));
+            int sign = side == 1 ? -1 : 1;
+            pitch = Math.max(-rate / 2.2, Math.min(rate / 2.2, toneHz + sign * (Band.NEWS - dialKhz) * 1000));
             off = Rx.gain(lo, hi, pitch) < 0.03;
             java.util.Arrays.fill(sig, 0, 2 * frames, 0);
-            if (bandGate > 0 || (!held && audible)) bd.render(sig, frames, dialKhz, toneHz, lo, hi);
+            if (bandGate > 0 || (!held && audible)) bd.render(sig, frames, dialKhz, toneHz, lo, hi, sign);
         }
         // With a band, its noise is made inside the receiver, so the Ionosphere background object is not needed.
         boolean rxNoise = rxOn && wantBed == Bed.BAND;

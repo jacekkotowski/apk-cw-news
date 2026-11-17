@@ -54,6 +54,8 @@ final class Band {
     private final List<Station> slots = new ArrayList<>();
     private double wpm = 20, eff = 12, tone = 600, lo = Rx.lo(Rx.NORMAL, 600), hi = Rx.hi(Rx.NORMAL, 600);
     private int blocks;
+    /** +1 when stations above the dial sound higher (CW), -1 when they sound lower (CW-R). */
+    private int sign = 1;
     /** For follow(): frames since a station was last keyed inside the filter, and whether a contact is audible in it now. */
     private long quietFrames;
     private boolean busyHere;
@@ -186,12 +188,17 @@ final class Band {
     /** As {@link #render(double[], int, double, double, double, double)} with the normal filter. */
     void render(double[] lr, int frames, double dialKhz, double toneHz) { render(lr, frames, dialKhz, toneHz, Rx.lo(Rx.NORMAL, toneHz), Rx.hi(Rx.NORMAL, toneHz)); }
 
+    /** As {@link #render(double[], int, double, double, double, double, int)} on the upper side (CW). */
+    void render(double[] lr, int frames, double dialKhz, double toneHz, double loHz, double hiHz) { render(lr, frames, dialKhz, toneHz, loHz, hiHz, 1); }
+
     /**
      * Adds all stations to the stereo buffer (interleaved), as they reach a receiver set to dialKhz with a CW pitch of
      * toneHz. The tones are not filtered here; loHz and hiHz are the receiver's passband and only decide which
-     * stations are worth rendering.
+     * stations are worth rendering. With sign -1 (CW-R) a station above the dial sounds below the pitch instead of above it.
      */
-    synchronized void render(double[] lr, int frames, double dialKhz, double toneHz, double loHz, double hiHz) {
+    synchronized void render(double[] lr, int frames, double dialKhz, double toneHz, double loHz, double hiHz, int sign) {
+        this.sign = sign < 0 ? -1 : 1;
+        sign = this.sign;
         boolean slow = ++blocks % 50 == 0;
         sinceClock += frames;
         tone = toneHz; lo = loHz; hi = hiHz;
@@ -227,7 +234,7 @@ final class Band {
                 }
                 if (o == null) {
                     o = s.op[s.who];
-                    hz = toneHz + (s.khz + o.offsetKhz + o.drifted - dialKhz) * 1000;
+                    hz = toneHz + sign * (s.khz + o.offsetKhz + o.drifted - dialKhz) * 1000;
                     // Hard keying splatters, so such a station is rendered even when its tone is outside the filter.
                     boolean inFilter = Math.max(o.g0, o.g1) * Rx.gain(loHz, hiHz, hz) > 0.0008;
                     audible = hz > 30 && hz < 6000 && (inFilter || (o.ramp < 0.002 && Math.abs(hz - toneHz) < CLICK_REACH_HZ));
@@ -258,7 +265,7 @@ final class Band {
             }
             if (s.qso != null) {
                 Op cur = s.op[s.who];
-                boolean inPass = Rx.gain(loHz, hiHz, toneHz + (s.khz + cur.offsetKhz + cur.drifted - dialKhz) * 1000) > 0.25;
+                boolean inPass = Rx.gain(loHz, hiHz, toneHz + sign * (s.khz + cur.offsetKhz + cur.drifted - dialKhz) * 1000) > 0.25;
                 if (inPass && heard(s)) contactHere = true;
                 if (inPass && cur.strength >= UNHEARD && s.onFrames > on0) keyedHere = true;
             }
@@ -309,7 +316,7 @@ final class Band {
         for (Station s : slots) {
             if (s.qso == null) continue;
             double away = Math.abs(s.khz - dialKhz);
-            if (away < bestKhz && Rx.gain(lo, hi, tone + (s.khz - dialKhz) * 1000) > 0.1) { bestKhz = away; best = s; }
+            if (away < bestKhz && Rx.gain(lo, hi, tone + sign * (s.khz - dialKhz) * 1000) > 0.1) { bestKhz = away; best = s; }
         }
         return best;
     }

@@ -93,8 +93,9 @@ public class MainActivity extends Activity {
             Band b = CwService.band;
             // passLo and passHi are the receiver's passband in Hz around the frequency it listens on.
             int tone = prefs.getInt("pitch", 600), width = prefs.getInt("width", Rx.NORMAL);
+            double[] heard = Rx.heard(width, tone, prefs.getInt("side", 0) == 1 ? -1 : 1);
             return "{\"on\":" + (b != null) + ",\"dial\":" + String.format(java.util.Locale.ROOT, "%.2f", CwService.dial) + ",\"rit\":" + CwService.rit
-                + ",\"passLo\":" + Math.round(Rx.lo(width, tone) - tone) + ",\"passHi\":" + Math.round(Rx.hi(width, tone) - tone)
+                + ",\"passLo\":" + Math.round(heard[0]) + ",\"passHi\":" + Math.round(heard[1])
                 + ",\"low\":" + Band.LOW + ",\"high\":" + Band.HIGH + ",\"news\":" + Band.NEWS
                 + ",\"contest\":\"" + (b == null || b.contest() == null ? "" : b.contest()) + "\""
                 + ",\"act\":" + (b == null ? "[]" : b.activityJson()) + "}";
@@ -136,7 +137,7 @@ public class MainActivity extends Activity {
                 o.put("wpm", prefs.getInt("wpm", 20)); o.put("eff", prefs.getInt("eff", 12)); o.put("pitch", prefs.getInt("pitch", 600));
                 o.put("volume", prefs.getInt("volume", 80)); o.put("mode", prefs.getInt("mode", TextNorm.HEADLINE)); o.put("abbr", prefs.getInt("abbr", Abbrev.LIGHT)); o.put("band", prefs.getInt("band", 1)); o.put("activity", prefs.getInt("activity", 1));
                 o.put("bed", prefs.getInt("bed", Bed.BAND)); o.put("bedDb", prefs.getInt("bedDb", -24));
-                o.put("width", prefs.getInt("width", Rx.NORMAL)); o.put("agc", prefs.getInt("agc", 1)); o.put("span", prefs.getInt("span", 40)); o.put("region", prefs.getInt("region", 0));
+                o.put("width", prefs.getInt("width", Rx.NORMAL)); o.put("agc", prefs.getInt("agc", 1)); o.put("side", prefs.getInt("side", 0)); o.put("span", prefs.getInt("span", 40)); o.put("region", prefs.getInt("region", 0));
                 o.put("auto", prefs.getBoolean("auto", true) ? 1 : 0); o.put("announce", prefs.getBoolean("announce", true) ? 1 : 0);
                 o.put("follow", prefs.getInt("follow", 0)); o.put("sleep", prefs.getInt("sleep", 0));
                 o.put("age", prefs.getInt("age", 0)); o.put("refresh", prefs.getInt("refresh", 30));
