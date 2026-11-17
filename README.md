@@ -1,8 +1,8 @@
 # CW News
 
-Offline-friendly Android app that fetches RSS and Atom news and sends the headlines, optionally with summaries, as audible Morse code. A built-in catalogue of 36 feeds (ham radio, world news, science, psychology) is one tap away. Ham abbreviations (AND = ES, THANKS = TNX) can replace plain words. A synthesized receiver band or Cosmic background can play underneath. The Band tab is a made-up slice of the 40 m CW band with a receiver front panel: a waterfall, an S-meter, a tuning knob, three filter widths, AGC, RIT and a CW / CW-R sideband switch. Signals sweep in and out as you tune, and generated contacts between operators with different personalities (a chatty old-timer, a terse contester, a beginner who asks you to slow down, someone on a summit), with rigs, antennas, weather, hobbies, fun facts and sometimes a headline from your feeds. Your news is the bulletin station at 7020 kHz. No account, server, telemetry or ads.
+Offline-friendly Android app that fetches RSS and Atom news and sends the headlines, optionally with summaries, as audible Morse code. A built-in catalogue of 36 feeds (ham radio, world news, science, psychology) is one tap away. Ham abbreviations (AND = ES, THANKS = TNX) can replace plain words. A synthesized receiver band or Cosmic background can play underneath. The Band tab is a made-up slice of the 40 m CW band with a receiver front panel: a waterfall, an S-meter, a tuning knob, three filter widths, AGC, RIT and a CW / CW-R sideband switch. Signals sweep in and out as you tune, and generated contacts between operators with different personalities (a chatty old-timer, a terse contester, a beginner who asks you to slow down, someone on a summit), with rigs, antennas, weather, hobbies, fun facts and sometimes a headline from your feeds. Your news is the bulletin station at 7020 kHz. No account, server, telemetry or ads. The app contacts only your feeds, and, if you switch on "Use real space weather" in Settings (off by default), `services.swpc.noaa.gov` for NOAA's public K index, once per refresh; nothing about you is sent.
 
-Current version: 2.5. Android 8.0 (API 26) or newer.
+Current version: 2.5.1. Android 8.0 (API 26) or newer.
 
 ## Install
 
@@ -42,6 +42,7 @@ GitHub Actions (`.github/workflows/android.yml`) runs the tests and uploads an A
 - CW and CW-R: "Sideband" decides which side of a signal the receiver listens on. In CW-R a station above the dial sounds below the pitch, so the pitch moves the other way as you tune and the passband shaded on the waterfall lies on the other side of the needle. The waterfall itself does not flip.
 - Receiver controls: "Shift" moves the passband up or down by up to 300 Hz without changing the pitch; the peak filter lifts a narrow band at the pitch by 6 dB; the noise blanker replaces a sample that stands out from both neighbours (a static tick) by their average; AGC is Off, Slow (0.5 s release) or Fast (0.12 s). A change of any of these uses the same fade, swap and fade-in as the filter width, so it does not click.
 - `Sky`: the weather on the band. Auto follows the season, the time of day and chance: summer afternoons and evenings bring thunderstorm static, a storm can come close for 5 to 25 minutes (loud crashes that swell the noise, which the blanker cannot take out), and rarely an aurora makes signals on northern paths flutter and weaken, or a solar flare fades out every path through daylight. Settings has Calm, Summer static, Storm nearby, Aurora and Solar flare to hold one state. The Band tab says what is going on, and operators sometimes mention it.
+- `SpaceWx`: reads the latest planetary K index from NOAA's JSON text. `Refresher` fetches it after the feeds, over HTTPS, only when real space weather is on, and stores it; a value over six hours old is ignored. With a K of 5 or more, Auto weather uses an aurora of level (K − 4) / 5 instead of chance. A failed fetch changes nothing.
 - Front panel (`app/assets/index.html`): the waterfall is drawn from each station's frequency, strength and keying, read about 25 times a second; the S-meter reads the receiver's level after the filter, with S9 as a full-strength station and 5 dB per S unit, the same scale the stations use in their reports. The knob is 1 kHz per turn in 10 Hz steps, geared up when spun fast.
 - `app/assets/catalogue.js`: the built-in feeds.
 - `TextNorm`, `FeedParser`, `Refresher`, `Db`: feeds, cleaning and the offline cache.
@@ -52,7 +53,7 @@ GitHub Actions (`.github/workflows/android.yml`) runs the tests and uploads an A
 
 | Permission | Why |
 |---|---|
-| INTERNET, ACCESS_NETWORK_STATE | Fetch feeds and tell offline from a failed fetch |
+| INTERNET, ACCESS_NETWORK_STATE | Fetch feeds, tell offline from a failed fetch, and (only if you switch it on) read NOAA's K index |
 | FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK, WAKE_LOCK | Keep playing with the screen off |
 | POST_NOTIFICATIONS | Show the playback controls |
 | RECEIVE_BOOT_COMPLETED | Keep the periodic refresh after a restart |

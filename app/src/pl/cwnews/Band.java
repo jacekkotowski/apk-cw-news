@@ -85,6 +85,9 @@ final class Band {
     /** One line about the weather for the Band tab, or an empty string. */
     synchronized String sky() { return sky.label(); }
 
+    /** The latest real K index, or NaN for none. */
+    synchronized void setKp(double kp) { sky.setKp(kp); }
+
     synchronized void setSpeed(double wpm, double eff) { this.wpm = wpm; this.eff = Math.min(eff, wpm); }
 
     /** Sets the date and time the stations live in: month 0 to 11 and the UTC hour. The hour then runs on with the audio. */

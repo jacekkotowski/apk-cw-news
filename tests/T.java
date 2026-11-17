@@ -582,6 +582,33 @@ public class T {
         check("busy band in a storm stays clear of full scale: " + max, max < 0.9);
     }
 
+    static String file(String name) throws java.io.IOException { return new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get("tests/data/" + name)), StandardCharsets.UTF_8); }
+
+    static void spaceWeather() throws java.io.IOException {
+        near("K index from NOAA's current layout", SpaceWx.latestKp(file("kp-sample.json")), 0.33, 1e-9);
+        near("K index from the older layout", SpaceWx.latestKp(file("kp-sample-old.json")), 0.33, 1e-9);
+        near("a storm is read", SpaceWx.latestKp(file("kp-storm.json")), 6.67, 1e-9);
+        check("an empty list has no K", Double.isNaN(SpaceWx.latestKp(file("kp-empty.json"))));
+        check("an error page with a cut-off list has no K", Double.isNaN(SpaceWx.latestKp(file("kp-bad.json"))));
+        check("nothing has no K", Double.isNaN(SpaceWx.latestKp("")) && Double.isNaN(SpaceWx.latestKp(null)));
+        check("a K outside 0 to 9 is refused", Double.isNaN(SpaceWx.latestKp("[{\"Kp\":42.0}]")));
+        check("a K that is not a number is refused", Double.isNaN(SpaceWx.latestKp("[{\"Kp\":\"high\"}]")));
+        // With a K of 5 or more, Auto uses it for the aurora; below 5 it leaves the aurora to chance.
+        Sky k = new Sky(77); k.setKp(7);
+        for (int i = 0; i < 6000; i++) k.advance(0.01, 0, 3, 50, Sky.AUTO);
+        near("K 7 gives an aurora of 0.6", k.aurora(), 0.6, 0.01);
+        Sky q = new Sky(77); q.setKp(3);
+        for (int i = 0; i < 6000; i++) q.advance(0.01, 0, 3, 50, Sky.AUTO);
+        near("K 3 gives no aurora of its own", q.aurora(), 0, 1e-9);
+        Sky top = new Sky(78); top.setKp(9);
+        for (int i = 0; i < 6000; i++) top.advance(0.01, 0, 3, 50, Sky.AUTO);
+        near("K 9 is capped at 1", top.aurora(), 1, 0.01);
+        Sky off = new Sky(79); off.setKp(Double.NaN);
+        for (int i = 0; i < 6000; i++) off.advance(0.01, 0, 3, 50, Sky.AUTO);
+        check("no K leaves the chance aurora in charge", off.aurora() >= 0);
+        eq("the address is HTTPS", SpaceWx.URL.startsWith("https://"), true);
+    }
+
     static void propagation() {
         double eu = Prop.REGION[0][0], euLon = Prop.REGION[0][1];
         check("June noon sun is high in Europe", Prop.sunElevation(50, 15, 5, 11) > 55);
@@ -916,7 +943,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

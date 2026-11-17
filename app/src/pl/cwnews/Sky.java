@@ -18,6 +18,8 @@ final class Sky {
     private double flareAge = -1, flareHold;
     private double ticks = 2.5, crash = 40, crashGain = 1, aurora, flare;
     private int lastMode = -1;
+    /** The latest real K index, or NaN. From 5 up, Auto uses it for the aurora instead of chance. */
+    private double kp = Double.NaN;
 
     Sky(long seed) {
         // Small seeds make a xorshift source start with tiny numbers, which would trigger every event at once.
@@ -36,6 +38,8 @@ final class Sky {
 
     private double perHour(double chancePerHour, double seconds) { return rng.uniform() < chancePerHour * seconds / 3600 ? 1 : 0; }
 
+    void setKp(double kp) { this.kp = kp; }
+
     /** Moves time on. month 0-11, localHour 0-24 at the listener, latitude in degrees. */
     void advance(double seconds, int month, double localHour, double latitude, int mode) {
         if (mode != lastMode) { lastMode = mode; if (mode != AUTO) hold(mode); else { thunder = T_CALM; auroraAge = flareAge = -1; } }
@@ -52,12 +56,13 @@ final class Sky {
                     else if (perHour(0.3, seconds) > 0) { thunder = T_STORM; thunderLeft = (5 + 20 * rng.uniform()) * 60; }
                 } else if (thunderLeft <= 0) { thunder = T_STATIC; thunderLeft = (20 + 70 * rng.uniform()) * 60; }
             }
-            if (auroraAge < 0) { if (perHour(0.004, seconds) > 0) { auroraAge = 0; auroraLen = (2 + 4 * rng.uniform()) * 3600; } }
+            if (kp >= 5) auroraAge = -1;
+            else if (auroraAge < 0) { if (perHour(0.004, seconds) > 0) { auroraAge = 0; auroraLen = (2 + 4 * rng.uniform()) * 3600; } }
             else { auroraAge += seconds; if (auroraAge > auroraLen) auroraAge = -1; }
             if (flareAge < 0) { if (h >= 7 && h <= 17 && perHour(0.003, seconds) > 0) { flareAge = 0; flareHold = (5 + 10 * rng.uniform()) * 60; } }
             else { flareAge += seconds; if (flareAge > 180 + flareHold + 1800) flareAge = -1; }
         } else if (mode == STORM && thunder != T_STORM || mode == STATIC && thunder != T_STATIC) hold(mode);
-        tAurora = mode == AURORA ? 1 : auroraAge < 0 ? 0 : Math.min(1, Math.min(auroraAge, auroraLen - auroraAge) / 1800);
+        tAurora = mode == AURORA ? 1 : mode == AUTO && kp >= 5 ? Math.min(1, (kp - 4) / 5) : auroraAge < 0 ? 0 : Math.min(1, Math.min(auroraAge, auroraLen - auroraAge) / 1800);
         tFlare = mode == FLARE ? 1 : flareAge < 0 ? 0 : flareAge < 180 ? flareAge / 180 : flareAge < 180 + flareHold ? 1 : Math.max(0, 1 - (flareAge - 180 - flareHold) / 1800);
         tTicks = thunder == T_STORM ? 40 : thunder == T_STATIC ? 25 : 2.5;
         tCrash = thunder == T_STORM ? 1.5 : thunder == T_STATIC ? 6 : 40;

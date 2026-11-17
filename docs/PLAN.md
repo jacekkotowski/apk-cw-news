@@ -70,9 +70,9 @@ Three releases. The exact specification of every package is in `docs/WORK-PACKAG
 |---|---|---|---|---|
 | **2.5 Listen better** | P1 | Jump to the strongest signal when a contact ends; a sleep timer | Sonnet | Built in 2.5 |
 | | P2 | CW and CW-R: choose which side of the signal you listen on | Sonnet | Built in 2.5 |
-| | P3 | Passband shift, peak filter, noise blanker, AGC Slow or Fast | Sonnet, with care | Skipped: two listed tests contradict each other (see below) |
-| | P4 | Weather on the band: thunderstorm static, a storm nearby, aurora, solar flare fade-out | Sonnet | Skipped: its blanker test needs P3 |
-| | P5 | Real space weather from NOAA (optional, off by default) | Sonnet | Skipped: needs P4 |
+| | P3 | Passband shift, peak filter, noise blanker, AGC Slow or Fast | Sonnet, with care | Built in 2.5.1 |
+| | P4 | Weather on the band: thunderstorm static, a storm nearby, aurora, solar flare fade-out | Sonnet | Built in 2.5.1 |
+| | P5 | Real space weather from NOAA (optional, off by default) | Sonnet | Built in 2.5.1 |
 | **2.6 Your first contacts** | P6 | The forgiving partner: the conversation logic, live stations, your transmitter | **Fable** | Not started |
 | | P7 | Your station (call, name, QTH, rig) and a logbook | Sonnet | Not started |
 | | P8 | Taking part by typing, with hints and ready-made phrases | Sonnet | Not started |
@@ -81,7 +81,12 @@ Three releases. The exact specification of every package is in `docs/WORK-PACKAG
 | | P11 | Kind feedback on your sending | Sonnet | Not started |
 | After each release | | Version, README, release notes, plan status | Haiku | |
 
-**Release 2.5 outcome.** P1 and P2 are built. P3 was stopped on the rule "do not weaken a test": the existing `receiver()` test needs the noise back within 3 dB about 0.3 s after a strong signal, while the new test needs Slow AGC to take more than 0.4 s. Slow release times of 0.5, 0.42 and 0.35 s each failed one of the two (0.45, 0.30 and 0.30 s measured). Separately, the noise blanker as specified (replace a sample that differs from its neighbours' average by more than 4.5 times the usual amount) removed only about 30% of the static spikes, not 70%: the likely cause (not verified) is that the sample before a spike has the spike as a neighbour and is replaced too, which spreads the spike instead of removing it. A stronger model should choose which test gives way and judge each sample by its difference from the nearer neighbour only. P4 and P5 were not started because P4's blanker test and P5's dependency need P3.
+**Release 2.5 outcome.** P1 and P2 were built first (2.5). P3 stopped there because two listed tests contradicted each other: the existing `receiver()` test needed the noise back within 3 dB about 0.3 s after a strong signal, while the new test needed Slow AGC to take more than 0.4 s, and the blanker as specified removed only about 30% of the spikes. The owner then asked for reasonable values, and P3 to P5 were built in 2.5.1 with these decisions, which a later reader should know about:
+- The existing recovery test now runs in Fast mode with its assertions unchanged; Slow (0.5 s release) is timed by its own new test (0.45 s measured).
+- The blanker judges a sample by its nearer neighbour: a sample is a spike only if it stands out from both neighbours in the same direction by more than 5 times the usual distance. The specified formula spread a spike into the sample before it. 89% of spikes are removed.
+- The "when it goes quiet" jump waits 2.5 s (the owner's choice), not 6 s. A contact that can still be heard in the filter keeps the receiver where it is, because one side of a contact is often silent for longer than that.
+- The storm's crash swell (noise deviation times 1 + 3 x gain x envelope) applies only above a crash gain of 1, so calm and static weather sound as before. The storm test measures noise at 0.05, close to the app's default background level of -24 dB; at 0.1 the receiver's output ceiling flattens the crashes.
+- The K index format was checked on a live sample, fetched through a web scraper because this session's network blocks the NOAA host. The app's own fetch has therefore not been run from here. The parser accepts the current layout (a list of objects) and the older one (a list of lists).
 
 Nine of the eleven packages are for Sonnet. Fable is needed for two.
 

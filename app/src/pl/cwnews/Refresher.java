@@ -24,7 +24,18 @@ final class Refresher {
         try {
             Db db = Db.get(c);
             for (long id : db.feedIds(true)) one(db, id);
+            spaceWeather(c);
         } finally { BUSY.set(false); }
+    }
+
+    /** With "Use real space weather" on, stores the latest K index. Fails silently: the band just keeps its own weather. */
+    private static void spaceWeather(Context c) {
+        SharedPreferences p = c.getSharedPreferences("cw", Context.MODE_PRIVATE);
+        if (p.getInt("realwx", 0) == 0) return;
+        try {
+            double kp = SpaceWx.latestKp(new String(fetch(SpaceWx.URL), java.nio.charset.StandardCharsets.UTF_8));
+            if (!Double.isNaN(kp)) p.edit().putFloat("kp", (float) kp).putLong("kpAt", System.currentTimeMillis()).apply();
+        } catch (IOException | RuntimeException ignored) { }
     }
 
     static void single(Context c, long id) {

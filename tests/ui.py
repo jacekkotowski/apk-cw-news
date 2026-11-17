@@ -3,7 +3,7 @@ import json, pathlib
 from playwright.sync_api import sync_playwright
 FAKE = """
 window.calls=[];window.fake={status:'stopped',title:'',source:'',word:0,words:0,error:'',id:'-1',refreshing:false,news:{state:'no_feeds',failed:0}};
-window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,region:0,auto:1,announce:1,age:0,refresh:30,follow:0,sleep:0,side:0,shift:0,apf:0,nb:0,weather:0};
+window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,region:0,auto:1,announce:1,age:0,refresh:30,follow:0,sleep:0,side:0,shift:0,apf:0,nb:0,weather:0,realwx:0};
 window.Android={state:()=>JSON.stringify(fake),settings:()=>JSON.stringify(st),feeds:()=>JSON.stringify(fs),
 recent:()=>JSON.stringify([{id:'5',title:'<b>Not markup</b>',source:'HN',heard:false}]),
 set:(k,v)=>{calls.push(['set',k,v]);st[k]=v;if(k==='wpm'&&st.eff>v)st.eff=v;},command:c=>calls.push([c]),playStory:i=>calls.push(['story',i]),
@@ -55,6 +55,7 @@ with sync_playwright() as p:
     g.click('nav button[data-t=settings]'); g.click('.seg[data-k=bed] button[data-v="2"]'); assert calls()[-1] == ['set','bed',2]
     g.click('.seg[data-k=sleep] button[data-v="30"]'); assert calls()[-1] == ['set','sleep',30]
     g.select_option('#weather', '3'); assert calls()[-1] == ['set','weather',3]
+    g.click('.seg[data-k=realwx] button[data-v="1"]'); assert calls()[-1] == ['set','realwx',1]
     g.select_option('#region', '1'); assert calls()[-1] == ['set','region',1]
     g.evaluate("(()=>{const e=document.getElementById('wpm');e.value=10;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))})()")
     assert g.inner_text('#v-eff') == '10 WPM', g.inner_text('#v-eff')

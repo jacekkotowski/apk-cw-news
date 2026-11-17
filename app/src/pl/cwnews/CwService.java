@@ -236,6 +236,9 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
             band.setActivity(prefs.getInt("activity", 1));
             band.setSpeed(wpm, eff);
             band.setWeather(prefs.getInt("weather", 0));
+            // A K index older than six hours is not used.
+            boolean fresh = prefs.getInt("realwx", 0) != 0 && System.currentTimeMillis() - prefs.getLong("kpAt", 0) < 6 * 3600000L;
+            band.setKp(fresh ? prefs.getFloat("kp", 0) : Double.NaN);
             engine.setBand(band);
         } else { band = null; engine.setBand(null); }
         if ((timingChanged || textChanged) && engine.hasStory() && storyId != PlaybackQueue.NONE) {
