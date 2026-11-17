@@ -2,6 +2,14 @@
 
 What is built, what comes next, and how each step will be designed and checked. Updated whenever a step ships.
 
+## Start here (next session)
+
+1. **Ask what the owner heard in 2.5.2.** Two things were changed by description alone: weak signals are lifted (`Band.spawn`, a fifth of the loss below 40 dB) and static ticks are smaller and rounder (`Rx` constants `TICK_MIN`, `TICK_SPREAD`, `CRASH_DENSITY_HZ`). Adjust those numbers before anything else.
+2. **Still unheard on a phone:** the "Strongest" follow (2.5 s), the sleep timer with the screen off, CW-R, shift, peak filter, blanker, Slow and Fast AGC, aurora and flare, and the NOAA fetch (the sandbox that built it cannot reach the host).
+3. **Then Release 2.6 (P6 to P8).** P6 is the conversation core and needs a stronger model than Sonnet, as the plan says. P7 (your station and logbook) can be built first and by Sonnet. Specifications are in `docs/WORK-PACKAGES.md`.
+4. **Habits that kept this build honest:** read `CLAUDE.md` and `docs/WORK-PACKAGES.md` first; `bash tests/run.sh` must print `0 failed`; check the page with a short Node Playwright script when the Python module is missing; the Android classes are only compiled by the GitHub Actions run, so push and check it before reporting a build; the cloud session has no Android SDK, so it cannot hand over an APK file, only the CI artifact `CWNews-apk`.
+5. **Known loose ends:** the workflow does not publish a release, so the APK is only an artifact (a phone's GitHub app does not show it; use Chrome or a computer); `tests/ui.py` has not been run since 2.4.
+
 ## Where things stand
 
 | Version | What it added | State |
@@ -12,8 +20,9 @@ What is built, what comes next, and how each step will be designed and checked. 
 | 2.2 | One receiver chain with three filter widths and AGC, 10 Hz tuning, individual fists and signal faults | Built by CI, not released |
 | 2.3 | Front panel: waterfall, S-meter, tuning knob, RIT | Built by CI, not released |
 | 2.4 | A band that follows the clock: propagation, your region, band geography, activity by hour and weekday, contest weekends | Built by CI, not released |
+| 2.5, 2.5.1, 2.5.2 | P1 to P5: follow the strongest signal after 2.5 s of silence, sleep timer, CW-R, passband shift, peak filter, noise blanker, AGC Off/Slow/Fast, band weather (static, storm, aurora, flare), optional NOAA K index. 2.5.2 lifts weak signals and softens the static after a first listen on a phone | Built by CI, listened to on a phone by the owner, now on `main` |
 
-Versions 2.1 to 2.4 are on branch `ccr-e3a1d112-4kb7si`, not on `main`. None of them has been run on a phone, and nobody has listened to the new audio.
+Everything up to 2.5.2 is on `main` (it was merged from the working branches on 2026-11-17). The owner has listened to 2.5.x on a phone and found the weak signals too weak and the storm static too sharp; 2.5.2 changes both and has not been listened to yet.
 
 ## To finish 2.1 to 2.4
 
