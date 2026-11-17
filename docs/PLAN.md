@@ -66,20 +66,22 @@ What was built, where it differs from the first plan, and what is still open.
 
 Three releases. The exact specification of every package is in `docs/WORK-PACKAGES.md`; this section gives the overview, the order and who builds what.
 
-| Release | Package | What you get | Built by |
-|---|---|---|---|
-| **2.5 Listen better** | P1 | Jump to the strongest signal when a contact ends; a sleep timer | Sonnet |
-| | P2 | CW and CW-R: choose which side of the signal you listen on | Sonnet |
-| | P3 | Passband shift, peak filter, noise blanker, AGC Slow or Fast | Sonnet, with care |
-| | P4 | Weather on the band: thunderstorm static, a storm nearby, aurora, solar flare fade-out | Sonnet |
-| | P5 | Real space weather from NOAA (optional, off by default) | Sonnet |
-| **2.6 Your first contacts** | P6 | The forgiving partner: the conversation logic, live stations, your transmitter | **Fable** |
-| | P7 | Your station (call, name, QTH, rig) and a logbook | Sonnet |
-| | P8 | Taking part by typing, with hints and ready-made phrases | Sonnet |
-| **2.7 Your own key** | P9 | The phone hears your key's buzzer through the microphone and reads your Morse | **Fable** |
-| | P10 | Microphone set-up screens, warm-up, "You sent" line | Sonnet |
-| | P11 | Kind feedback on your sending | Sonnet |
-| After each release | | Version, README, release notes, plan status | Haiku |
+| Release | Package | What you get | Built by | Status |
+|---|---|---|---|---|
+| **2.5 Listen better** | P1 | Jump to the strongest signal when a contact ends; a sleep timer | Sonnet | Built in 2.5 |
+| | P2 | CW and CW-R: choose which side of the signal you listen on | Sonnet | Built in 2.5 |
+| | P3 | Passband shift, peak filter, noise blanker, AGC Slow or Fast | Sonnet, with care | Skipped: two listed tests contradict each other (see below) |
+| | P4 | Weather on the band: thunderstorm static, a storm nearby, aurora, solar flare fade-out | Sonnet | Skipped: its blanker test needs P3 |
+| | P5 | Real space weather from NOAA (optional, off by default) | Sonnet | Skipped: needs P4 |
+| **2.6 Your first contacts** | P6 | The forgiving partner: the conversation logic, live stations, your transmitter | **Fable** | Not started |
+| | P7 | Your station (call, name, QTH, rig) and a logbook | Sonnet | Not started |
+| | P8 | Taking part by typing, with hints and ready-made phrases | Sonnet | Not started |
+| **2.7 Your own key** | P9 | The phone hears your key's buzzer through the microphone and reads your Morse | **Fable** | Not started |
+| | P10 | Microphone set-up screens, warm-up, "You sent" line | Sonnet | Not started |
+| | P11 | Kind feedback on your sending | Sonnet | Not started |
+| After each release | | Version, README, release notes, plan status | Haiku | |
+
+**Release 2.5 outcome.** P1 and P2 are built. P3 was stopped on the rule "do not weaken a test": the existing `receiver()` test needs the noise back within 3 dB about 0.3 s after a strong signal, while the new test needs Slow AGC to take more than 0.4 s. Slow release times of 0.5, 0.42 and 0.35 s each failed one of the two (0.45, 0.30 and 0.30 s measured). Separately, the noise blanker as specified (replace a sample that differs from its neighbours' average by more than 4.5 times the usual amount) removed only about 30% of the static spikes, not 70%: the likely cause (not verified) is that the sample before a spike has the spike as a neighbour and is replaced too, which spreads the spike instead of removing it. A stronger model should choose which test gives way and judge each sample by its difference from the nearer neighbour only. P4 and P5 were not started because P4's blanker test and P5's dependency need P3.
 
 Nine of the eleven packages are for Sonnet. Fable is needed for two.
 
