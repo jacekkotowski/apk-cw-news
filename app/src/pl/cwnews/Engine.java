@@ -28,6 +28,7 @@ final class Engine {
     private volatile Band band;
     private final Rx rx;
     private final double[] sig;
+    private final double[] wx = new double[3];
     private double bandGate, noiseFade;
     private int newsOn, newsAll;
     private volatile int wantBed = Bed.OFF;
@@ -133,6 +134,8 @@ final class Engine {
             double lo = edge[0], hi = edge[1];
             rx.tune(lo, hi, toneHz, apf);
             rx.blanker(nb);
+            bd.weather(wx);
+            rx.weather(wx[0], wx[1], wx[2]);
             // The bulletin is one station on the band. Its pitch is its distance from the dial, kept inside what a
             // sampled tone can be; far outside the filter it waits, from the start of the current word, until you tune back.
             int sign = side == 1 ? -1 : 1;

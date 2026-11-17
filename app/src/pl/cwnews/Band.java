@@ -26,6 +26,9 @@ final class Band {
         double depthDb, p1, p2, w1, w2, wander, wanderTarget, flutter, pf, wf;
         /** Gain at the start and at the end of the block being rendered. */
         double g0, g1;
+        /** Whether the path to this operator reaches the auroral zone or lies in daylight, and the rate of the aurora's flutter. */
+        boolean northern, day;
+        double auroraW, auroraPhase;
         // Faults of the signal.
         double chirpHz, chirpNow, ramp = RAMP_S, driftKhzPerS, drifted, hum, humPhase, humStep;
         Fist fist;
@@ -54,6 +57,8 @@ final class Band {
     private final List<Station> slots = new ArrayList<>();
     private double wpm = 20, eff = 12, tone = 600, lo = Rx.lo(Rx.NORMAL, 600), hi = Rx.hi(Rx.NORMAL, 600);
     private int blocks;
+    private final Sky sky;
+    private int weather = Sky.AUTO;
     /** +1 when stations above the dial sound higher (CW), -1 when they sound lower (CW-R). */
     private int sign = 1;
     /** For follow(): frames since a station was last keyed inside the filter, and whether a contact is audible in it now. */
@@ -62,6 +67,7 @@ final class Band {
 
     Band(int rate, long seed, int month, Headlines headlines) {
         this.rate = rate; this.rng = new Dsp.Rng(seed); this.month = month; this.headlines = headlines;
+        sky = new Sky(seed * 31 + 7);
         setActivity(1);
     }
 
@@ -71,6 +77,13 @@ final class Band {
         while (slots.size() < n) { Station s = new Station(); s.wait = (int) ((1 + 20 * rng.uniform()) * rate); slots.add(s); }
         while (slots.size() > n) slots.remove(slots.size() - 1);
     }
+
+    /** Band weather: a Sky mode, Sky.AUTO to follow season, time and chance. */
+    synchronized void setWeather(int mode) { weather = Math.max(Sky.AUTO, Math.min(Sky.FLARE, mode)); }
+    /** The three noise numbers for the receiver, written into out: ticks per second, seconds between crashes, crash gain. */
+    synchronized void weather(double[] out) { out[0] = sky.ticksPerSecond(); out[1] = sky.crashEverySeconds(); out[2] = sky.crashGain(); }
+    /** One line about the weather for the Band tab, or an empty string. */
+    synchronized String sky() { return sky.label(); }
 
     synchronized void setSpeed(double wpm, double eff) { this.wpm = wpm; this.eff = Math.min(eff, wpm); }
 
@@ -86,6 +99,7 @@ final class Band {
     synchronized void setPlace(double lat, double lon) { placed = true; this.lat = lat; this.lon = lon; }
     /** The contest that fills the band today, or null. */
     synchronized String contest() { return contest; }
+    private double hourUtcNow() { return (hourUtc + sinceClock / (double) rate / 3600) % 24; }
     private int hourNow() { return (int) ((hourUtc + sinceClock / (double) rate / 3600) % 24); }
 
     /** How many of the slots are in use at this time of day: evenings and weekends are busier. */
@@ -115,6 +129,7 @@ final class Band {
     private void spawn(Station s) {
         String h = headlines == null ? null : headlines.next();
         Qso.Scene scene = placed ? new Qso.Scene(month, hourNow(), lat, lon, weekend, contest != null) : new Qso.Scene(month, hourNow());
+        scene.qrn = sky.noise(); scene.aurora = sky.aurora() > 0.3;
         Qso q = s.qso = Qso.generate(rng, scene, h == null ? null : Qso.shortHeadline(h));
         s.khz = freeFrequency(q.zone);
         s.next = 0; s.who = 0; s.key = null; s.log.setLength(0);
@@ -129,6 +144,12 @@ final class Band {
             o.w1 = 2 * Math.PI / (10 + 35 * rng.uniform()); o.w2 = 2 * Math.PI / (2 + 6 * rng.uniform());
             o.wander = o.wanderTarget = rng.uniform();
             if (rng.chance(0.07)) { o.flutter = 0.2 + 0.25 * rng.uniform(); o.wf = 2 * Math.PI * (6 + 8 * rng.uniform()); }
+            o.auroraW = 2 * Math.PI * (12 + 8 * o.p1 / (2 * Math.PI));
+            if (placed) {
+                o.northern = Prop.highLatitude(lat, lon, q.lat[i], q.lon[i]);
+                double[] mid = Prop.midpoint(lat, lon, q.lat[i], q.lon[i]);
+                o.day = Prop.sunElevation(mid[0], mid[1], month, hourUtcNow()) > 0;
+            }
             o.g0 = o.g1 = gain(o);
             o.fist = Fist.of(q.key[i], q.style[i] == Qso.NOVICE, rng);
             if (q.chirp[i]) o.chirpHz = (rng.chance(0.5) ? 1 : -1) * (12 + 30 * rng.uniform());
@@ -140,9 +161,20 @@ final class Band {
     }
 
     /** The operator's strength right now, with fading. */
-    private static double gain(Op o) {
+    private double gain(Op o) {
         double down = o.depthDb * (0.55 * (0.5 - 0.5 * Math.cos(o.p1)) + 0.25 * (0.5 - 0.5 * Math.cos(o.p2)) + 0.2 * o.wander);
-        return o.strength * Math.pow(10, -down / 20) * (1 - o.flutter * (0.5 + 0.5 * Math.sin(o.pf)));
+        return o.strength * Math.pow(10, -down / 20) * (1 - o.flutter * (0.5 + 0.5 * Math.sin(o.pf))) * skyFactor(o.northern, o.day, sky.aurora(), sky.flare(), o.auroraPhase);
+    }
+
+    /**
+     * What the weather does to one operator's signal. An aurora makes a path through the auroral zone flutter and
+     * lose 12 dB; a solar flare takes 30 dB off every path through daylight.
+     */
+    static double skyFactor(boolean northern, boolean day, double aurora, double flare, double phase) {
+        double f = 1;
+        if (northern) f *= (1 - 0.5 * aurora * (0.5 + 0.5 * Math.sin(phase))) * Math.pow(10, -12 * aurora / 20);
+        if (day) f *= Math.pow(10, -30 * flare / 20);
+        return f;
     }
 
     private void startTx(Station s) {
@@ -201,6 +233,7 @@ final class Band {
         sign = this.sign;
         boolean slow = ++blocks % 50 == 0;
         sinceClock += frames;
+        sky.advance(frames / (double) rate, month, (hourNow() + (placed ? lon / 15 : 0) + 24) % 24, placed ? lat : 50, weather);
         tone = toneHz; lo = loHz; hi = hiHz;
         double dt = frames / (double) rate, chirpKeep = Math.exp(-1 / (CHIRP_S * rate));
         int active = active(), index = 0;
@@ -215,7 +248,7 @@ final class Band {
             for (Op o : s.op) {
                 if (slow) o.wanderTarget = rng.uniform();
                 o.wander += 0.02 * (o.wanderTarget - o.wander);
-                o.p1 += o.w1 * dt; o.p2 += o.w2 * dt; o.pf += o.wf * dt;
+                o.p1 += o.w1 * dt; o.p2 += o.w2 * dt; o.pf += o.wf * dt; o.auroraPhase += o.auroraW * dt;
                 if (o.driftKhzPerS != 0) {
                     o.drifted += o.driftKhzPerS * dt;
                     if (Math.abs(o.drifted) > 0.06) o.driftKhzPerS = -o.driftKhzPerS;

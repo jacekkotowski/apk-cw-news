@@ -52,14 +52,24 @@ final class Prop {
         return ramp(km, 12000, 19000, 14, 20);
     }
 
-    /** Extra loss in dB on the path between two places, on top of what power and antenna give. */
-    static double pathLossDb(double lat1, double lon1, double lat2, double lon2, int month, double hourUtc) {
-        double km = distanceKm(lat1, lon1, lat2, lon2);
-        // Middle of the great circle, from the average of the two direction vectors.
+    /** Middle of the great circle between two places, from the average of the two direction vectors: {lat, lon}. */
+    static double[] midpoint(double lat1, double lon1, double lat2, double lon2) {
         double x = Math.cos(lat1 * RAD) * Math.cos(lon1 * RAD) + Math.cos(lat2 * RAD) * Math.cos(lon2 * RAD);
         double y = Math.cos(lat1 * RAD) * Math.sin(lon1 * RAD) + Math.cos(lat2 * RAD) * Math.sin(lon2 * RAD);
         double z = Math.sin(lat1 * RAD) + Math.sin(lat2 * RAD), len = Math.sqrt(x * x + y * y + z * z);
-        double midLat = len < 1e-6 ? lat1 : Math.asin(z / len) / RAD, midLon = len < 1e-6 ? lon1 : Math.atan2(y, x) / RAD;
+        return new double[]{len < 1e-6 ? lat1 : Math.asin(z / len) / RAD, len < 1e-6 ? lon1 : Math.atan2(y, x) / RAD};
+    }
+
+    /** Whether a path touches the auroral zone: either end, or its middle, is above 55 degrees north or south. */
+    static boolean highLatitude(double lat1, double lon1, double lat2, double lon2) {
+        return Math.abs(lat1) > 55 || Math.abs(lat2) > 55 || Math.abs(midpoint(lat1, lon1, lat2, lon2)[0]) > 55;
+    }
+
+    /** Extra loss in dB on the path between two places, on top of what power and antenna give. */
+    static double pathLossDb(double lat1, double lon1, double lat2, double lon2, int month, double hourUtc) {
+        double km = distanceKm(lat1, lon1, lat2, lon2);
+        double[] mid = midpoint(lat1, lon1, lat2, lon2);
+        double midLat = mid[0], midLon = mid[1];
         double e1 = sunElevation(lat1, lon1, month, hourUtc), e2 = sunElevation(lat2, lon2, month, hourUtc), em = sunElevation(midLat, midLon, month, hourUtc);
         double night = (dark(e1) + dark(e2) + dark(em)) / 3;
         // Daylight on any part of the path absorbs more than its share, so it counts for more than a straight mix.

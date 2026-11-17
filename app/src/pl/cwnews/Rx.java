@@ -14,7 +14,7 @@ final class Rx {
     /** With the AGC off nothing is compressed, but a ceiling at the bulletin's level stops static crashes from blasting. */
     private static final double CEILING = 1;
     private static final double SLOW_RELEASE_S = 0.5, FAST_RELEASE_S = 0.12, ATTACK_S = 0.0015, LOOKAHEAD_S = 0.004, DIP_S = 0.008, SETTLE_S = 0.016, NORMAL_HZ = 400;
-    private static final double TICKS_PER_S = 2.5, TICK_MIN = 6, TICK_SPREAD = 22, CRASH_EVERY_S = 40, CRASH_MIN_S = 0.15, CRASH_SPREAD_S = 0.45, CRASH_DENSITY_HZ = 1300;
+    private static final double TICK_MIN = 6, TICK_SPREAD = 22, CRASH_MIN_S = 0.15, CRASH_SPREAD_S = 0.45, CRASH_DENSITY_HZ = 1300;
     private static final double DRIFT_EVERY_S = 2.5, DRIFT_DB = 1.5;
     /** The filter is a Butterworth band-pass made from a low-pass of this order, so it has this many sections. */
     private static final int ORDER = 8;
@@ -56,6 +56,8 @@ final class Rx {
     private int agcSet = -1;
     private boolean apf, wantApf, nb;
     private double wantTone = 600, nbE;
+    /** Weather: static ticks per second, seconds between crashes and how hard a crash swells the noise. */
+    private double ticksPerS = 2.5, crashEveryS = 40, crashGain = 1, crashLen, crashAge;
     private final double[] nbPrev = new double[2], nbOut = new double[2];
     private int nbWarm = 2;
     private static final double NB_THRESHOLD = 5, NB_TAU_S = 0.05;
@@ -75,6 +77,9 @@ final class Rx {
         dipStep = 1 / (DIP_S * rate);
         driftSmooth = 1 - Math.exp(-1 / (3.0 * rate));
     }
+
+    /** Sets the static: ticks per second, mean seconds between crashes, and the crash gain (1 normal, 2.5 for a storm nearby). */
+    void weather(double ticksPerS, double crashEveryS, double crashGain) { this.ticksPerS = ticksPerS; this.crashEveryS = crashEveryS; this.crashGain = crashGain; }
 
     private void setRelease(double s) { releaseKeep = Math.exp(-1 / (s * rate)); }
 
@@ -147,7 +152,7 @@ final class Rx {
         double makeup = agc ? MAKEUP : 1;
         // White noise of deviation 1 leaves a filter of that width with this RMS.
         double perUnit = Math.sqrt(NORMAL_HZ / (rate / 2.0)), scale = 1 / (makeup * perUnit);
-        double tickChance = TICKS_PER_S / rate, crashChance = 1.0 / (CRASH_EVERY_S * rate), denseChance = CRASH_DENSITY_HZ / rate;
+        double tickChance = ticksPerS / rate, crashChance = 1.0 / (crashEveryS * rate), denseChance = CRASH_DENSITY_HZ / rate;
         double[] dl = delay[0], dr = delay[1];
         int n = dl.length;
         double top = level * Math.pow(releaseKeep, frames);
@@ -159,13 +164,16 @@ final class Rx {
                 drift += driftSmooth * (driftTarget - drift);
                 double spark = 0;
                 if (rng.uniform() < tickChance) spark = (TICK_MIN + TICK_SPREAD * rng.uniform() * rng.uniform()) * (rng.uniform() < 0.5 ? -1 : 1);
-                if (crashLeft <= 0 && rng.uniform() < crashChance) crashLeft = (CRASH_MIN_S + CRASH_SPREAD_S * rng.uniform()) * rate;
+                if (crashLeft <= 0 && rng.uniform() < crashChance) { crashLeft = crashLen = (CRASH_MIN_S + CRASH_SPREAD_S * rng.uniform()) * rate; crashAge = 0; }
+                double swell = 1;
                 if (crashLeft > 0) {
+                    // Above a gain of 1 (a storm nearby) the crash also swells the noise itself, which the blanker cannot remove.
+                    if (crashGain > 1) swell = 1 + 3 * crashGain * Math.min(1, crashAge++ / (0.01 * rate)) * (crashLeft / crashLen);
                     crashLeft--;
                     if (rng.uniform() < denseChance) spark += (8 + 22 * rng.uniform()) * (rng.uniform() < 0.5 ? -1 : 1);
                 }
-                l += sigma * (rng.gauss() * drift + spark);
-                r += sigma * (rng.gauss() * drift + spark * (0.5 + 0.5 * rng.uniform()));
+                l += sigma * (rng.gauss() * drift * swell + spark);
+                r += sigma * (rng.gauss() * drift * swell + spark * (0.5 + 0.5 * rng.uniform()));
             }
             // The noise blanker works on the raw signal, where a static tick is one stray sample. The one-sample
             // delay is there whether it is on or off, so switching it cannot move the audio.

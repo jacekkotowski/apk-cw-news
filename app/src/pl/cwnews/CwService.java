@@ -235,6 +235,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
             band.setPlace(Prop.REGION[region][0], Prop.REGION[region][1]);
             band.setActivity(prefs.getInt("activity", 1));
             band.setSpeed(wpm, eff);
+            band.setWeather(prefs.getInt("weather", 0));
             engine.setBand(band);
         } else { band = null; engine.setBand(null); }
         if ((timingChanged || textChanged) && engine.hasStory() && storyId != PlaybackQueue.NONE) {

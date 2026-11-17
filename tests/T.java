@@ -470,6 +470,118 @@ public class T {
         check("slow AGC takes over 0.4 s: " + back[1], back[1] > 0.4);
     }
 
+    static double[] skyNow(Sky k) { return new double[]{k.ticksPerSecond(), k.crashEverySeconds(), k.crashGain(), k.aurora(), k.flare()}; }
+
+    static void weather() {
+        // Each fixed mode settles on its own numbers within a minute.
+        double[][] want = {{2.5, 40, 1, 0, 0}, {25, 6, 1, 0, 0}, {40, 1.5, 2.5, 0, 0}, {2.5, 40, 1, 1, 0}, {2.5, 40, 1, 0, 1}};
+        for (int m = 0; m < 5; m++) {
+            Sky k = new Sky(5);
+            for (int i = 0; i < 6000; i++) k.advance(0.01, 6, 15, 50, Sky.CALM + m);
+            double[] got = skyNow(k);
+            for (int i = 0; i < 5; i++) near("sky mode " + (Sky.CALM + m) + " number " + i, got[i], want[m][i], 0.01);
+        }
+        // Auto: thunderstorms are common on summer evenings and rare on winter nights.
+        double[] share = new double[2];
+        for (int season = 0; season < 2; season++) {
+            double inStorm = 0, total = 0;
+            for (int n = 0; n < 2000; n++) {
+                Sky k = new Sky(1000 + n);
+                for (int step = 0; step < 360; step++) {
+                    k.advance(60, season == 0 ? 6 : 0, season == 0 ? 17 + step / 60.0 : step / 60.0, 50, Sky.AUTO);
+                    if (k.thunder() != Sky.T_CALM) inStorm++;
+                    total++;
+                }
+            }
+            share[season] = inStorm / total;
+        }
+        System.out.printf("band weather: thunderstorms %.0f%% of summer evenings, %.0f%% of winter nights%n", 100 * share[0], 100 * share[1]);
+        check("summer evenings: static or storm 25 to 60% of the time: " + share[0], share[0] >= 0.25 && share[0] <= 0.6);
+        check("winter nights: under 10%: " + share[1], share[1] < 0.1);
+        near("the tropics have a summer all year", Sky.season(0, 10), 1, 1e-9);
+        near("the southern summer is in December", Sky.season(11, -34), 1, 1e-9);
+        // Smooth: no output jumps between two calls 10 ms apart, even when the mode is switched.
+        Sky sm = new Sky(9);
+        double[] range = {37.5, 38.5, 1.5, 1, 1}, before = skyNow(sm);
+        double worst = 0;
+        for (int i = 0; i < 6 * 60 * 100; i++) {
+            sm.advance(0.01, 6, 15, 50, 1 + (i / 3000) % 5);
+            double[] now = skyNow(sm);
+            for (int j = 0; j < 5; j++) worst = Math.max(worst, Math.abs(now[j] - before[j]) / range[j]);
+            before = now;
+        }
+        check("no weather number moves more than 5% of its range in 10 ms: " + worst, worst < 0.05);
+        // A flare never starts at night.
+        double flare = 0;
+        for (int n = 0; n < 2000; n++) { Sky k = new Sky(n); for (int i = 0; i < 360; i++) { k.advance(10, 6, 22, 50, Sky.AUTO); flare = Math.max(flare, k.flare()); } }
+        eq("no flare at 22 local", flare, 0.0);
+        // The aurora weakens and flutters signals on northern paths only; a flare removes 30 dB in daylight.
+        check("a path from 50 N to 62 N reaches the auroral zone", Prop.highLatitude(50, 15, 62, 25));
+        check("a path from 50 N to 40 N does not", !Prop.highLatitude(50, 15, 40, 20));
+        double worstDrop = 99;
+        for (int k = 0; k < 20; k++) worstDrop = Math.min(worstDrop, -db(Band.skyFactor(true, false, 1, 0, k * 0.3)));
+        check("aurora at level 1: a northern operator is at least 10 dB weaker: " + worstDrop, worstDrop >= 10);
+        eq("aurora leaves an operator at 40 degrees unchanged", Band.skyFactor(false, false, 1, 0, 1.0), 1.0);
+        near("aurora at 0 changes nothing", Band.skyFactor(true, true, 0, 0, 1.0), 1, 1e-12);
+        near("a flare takes 30 dB off a daylight path", db(Band.skyFactor(false, true, 0, 1, 0)), -30, 0.01);
+        eq("a flare leaves a night path alone", Band.skyFactor(false, false, 0, 1, 0), 1.0);
+
+        // Static through the receiver: a storm is much louder, and the blanker takes the ticks but not the swell.
+        double[] rms = new double[4];
+        for (int v = 0; v < 4; v++) {
+            boolean storm = v % 2 == 1; boolean blank = v >= 2;
+            Rx rx = new Rx(R, 51); rx.tune(Rx.lo(Rx.NORMAL, 600), Rx.hi(Rx.NORMAL, 600), 600, false); rx.blanker(blank);
+            if (storm) rx.weather(40, 1.5, 2.5);
+            double[] b = new double[960]; double sq = 0; long n = 0;
+            for (int blk = 0; blk < 120 * R / 480; blk++) {
+                java.util.Arrays.fill(b, 0);
+                rx.process(b, 480, 0.05, 0.05, 0);   // about the app's default background level, -24 dB
+                if (blk >= 50) for (int i = 0; i < 960; i += 2) { sq += b[i] * b[i]; n++; }
+            }
+            rms[v] = Math.sqrt(sq / n);
+        }
+        double rise = db(rms[1] / rms[0]), riseBlanked = db(rms[3] / rms[2]);
+        System.out.printf("storm static: %.1f dB louder than calm, %.1f dB with the blanker on%n", rise, riseBlanked);
+        check("a storm nearby is at least 6 dB louder than calm: " + rise, rise >= 6);
+        check("the blanker leaves at least half of that rise: " + riseBlanked, riseBlanked >= 0.5 * rise);
+
+        // The band owns a sky; its weather reaches the receiver and the Band tab.
+        Band b = new Band(R, 3, 6, null);
+        b.setWeather(Sky.STORM);
+        double[] buf = new double[960], out = new double[3];
+        for (int i = 0; i < 100 * 90; i++) { java.util.Arrays.fill(buf, 0); b.render(buf, 480, 7010, 600); }
+        b.weather(out);
+        near("band weather: storm ticks", out[0], 40, 0.1); near("band weather: storm crashes", out[1], 1.5, 0.05); near("band weather: storm gain", out[2], 2.5, 0.02);
+        check("the Band tab says there is a storm: " + b.sky(), b.sky().contains("thunderstorm"));
+        b.setWeather(Sky.CALM);
+        for (int i = 0; i < 100 * 90; i++) { java.util.Arrays.fill(buf, 0); b.render(buf, 480, 7010, 600); }
+        eq("calm band says nothing", b.sky(), "");
+
+        // Operators mention the weather.
+        boolean sawStatic = false, sawAurora = false;
+        for (int n = 0; n < 600; n++) {
+            Qso.Scene sc = new Qso.Scene(6, 20, 50, 15, false, false); sc.qrn = 0.8;
+            for (Qso.Tx t : Qso.generate(new Dsp.Rng(n), sc, null).tx) if (t.text.contains("QRN VY BAD HR") || t.text.contains("LOTS OF STATIC TODAY") || t.text.contains("QRN FROM TSTORMS")) sawStatic = true;
+            Qso.Scene sa = new Qso.Scene(6, 20, 50, 15, false, false); sa.aurora = true;
+            for (Qso.Tx t : Qso.generate(new Dsp.Rng(n), sa, null).tx) if (t.text.contains("AURORA TONITE") || t.text.contains("K INDEX HIGH")) sawAurora = true;
+        }
+        check("operators mention static", sawStatic);
+        check("operators mention the aurora", sawAurora);
+
+        // A busy band in a storm still stays clear of full scale.
+        double max = 0;
+        for (int w = 0; w < 3; w++) {
+            Engine e = new Engine(R, 61 + w, 480);
+            Band busy = new Band(R, 19 + w, 6, null);
+            busy.setActivity(2); busy.setWeather(Sky.STORM);
+            e.setBand(busy); e.setBed(Bed.BAND); e.bedDb = -12; e.volume = 1; e.width = w; e.agc = w; e.nb = w == 1; e.setAudible(true);
+            e.load(Keying.build("TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST", new Timing(25, 25), R), 0);
+            float[] fb = new float[960];
+            for (int blk = 0; blk < 120 * R / 480; blk++) { e.render(fb, 480); for (float v : fb) max = Math.max(max, Math.abs(v)); }
+        }
+        check("busy band in a storm stays clear of full scale: " + max, max < 0.9);
+    }
+
     static void propagation() {
         double eu = Prop.REGION[0][0], euLon = Prop.REGION[0][1];
         check("June noon sun is high in Europe", Prop.sunElevation(50, 15, 5, 11) > 55);
@@ -804,7 +916,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

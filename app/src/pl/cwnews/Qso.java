@@ -30,6 +30,8 @@ final class Qso {
     /** When and where the band is being heard. Without a place there is no propagation: every station is equally likely. */
     static final class Scene {
         final int month, hourUtc; final boolean here, weekend, contest; final double lat, lon;
+        /** Static on the band, 0 to 1, and whether an aurora is on: operators may mention them. */
+        double qrn; boolean aurora;
         Scene(int month, int hourUtc) { this(month, hourUtc, false, 0, 0, false, false); }
         Scene(int month, int hourUtc, double lat, double lon, boolean weekend, boolean contest) { this(month, hourUtc, true, lat, lon, weekend, contest); }
         private Scene(int month, int hourUtc, boolean here, double lat, double lon, boolean weekend, boolean contest) {
@@ -467,6 +469,8 @@ final class Qso {
                 }
                 case FACT: return "DID U KNOW " + FACTS[r.nextInt(FACTS.length)];
                 case CONDX: {
+                    if (scene.qrn > 0.4) return pick("QRN VY BAD HR", "LOTS OF STATIC TODAY", "QRN FROM TSTORMS HR");
+                    if (scene.aurora) return pick("AURORA TONITE SIGS FLUTTERY", "CONDX POOR K INDEX HIGH");
                     if (ot.qsbDb > 9) return pick("QSB ON UR SIG BUT OK", "SOME QSB HR");
                     int m = me.c.south ? (month + 6) % 12 : month;
                     if (m >= 5 && m <= 7 && r.chance(0.5)) return "QRN FROM TSTORMS HR";
