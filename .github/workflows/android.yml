@@ -1,5 +1,7 @@
 name: android
 on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,3 +29,15 @@ jobs:
         run: ANDROID_SDK_ROOT="$ANDROID_HOME" bash build.sh
       - uses: actions/upload-artifact@v4
         with: { name: CWNews-apk, path: CWNews.apk }
+      - name: Publish the release (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(grep -o 'versionName="[^"]*"' app/AndroidManifest.xml | cut -d'"' -f2)
+          cp CWNews.apk "CWNews-$V.apk"
+          if gh release view "v$V" > /dev/null 2>&1; then
+            gh release upload "v$V" "CWNews-$V.apk" --clobber
+          else
+            gh release create "v$V" "CWNews-$V.apk" --target "$GITHUB_SHA" --title "CW News $V" --notes "Android APK, version $V. Install it from this page; Android will ask to allow installing from your browser. The tests pass on a PC; the Android code is built by this workflow. See docs/PLAN.md for what has and has not been heard on a phone."
+          fi
