@@ -83,6 +83,8 @@ public class MainActivity extends Activity {
                 o.put("status", CwService.status); o.put("title", CwService.title); o.put("source", CwService.source);
                 o.put("word", CwService.word); o.put("words", CwService.words); o.put("error", CwService.error);
                 o.put("id", "" + CwService.storyId); o.put("refreshing", Refresher.busy());
+                long at = prefs.getLong("sleepAt", 0);
+                o.put("sleepLeft", at > 0 ? (int) Math.max(1, (at - System.currentTimeMillis() + 59999) / 60000) : 0);
                 o.put("news", db.counts(Refresher.notBefore(prefs), online()));
                 return o.toString();
             } catch (Exception e) { return "{\"status\":\"stopped\",\"error\":\"" + e.getClass().getSimpleName() + "\",\"news\":{\"state\":\"has_news\"}}"; }
@@ -108,6 +110,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void setRit(int hz) {
             int v = Math.max(-500, Math.min(500, hz));
             CwService.rit = v;
+            CwService.lastUserTune = System.currentTimeMillis();
             prefs.edit().putInt("rit", v).apply();
         }
         /** A light click in the fingers, for the tuning knob. */
@@ -116,6 +119,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void setDial(double khz) {
             double d = Math.max(Band.LOW, Math.min(Band.HIGH, khz));
             CwService.dial = d;
+            CwService.lastUserTune = System.currentTimeMillis();
             prefs.edit().putFloat("dial", (float) d).apply();
         }
         @JavascriptInterface public double nextSignal(int dir) {
@@ -134,6 +138,7 @@ public class MainActivity extends Activity {
                 o.put("bed", prefs.getInt("bed", Bed.BAND)); o.put("bedDb", prefs.getInt("bedDb", -24));
                 o.put("width", prefs.getInt("width", Rx.NORMAL)); o.put("agc", prefs.getInt("agc", 1)); o.put("span", prefs.getInt("span", 40)); o.put("region", prefs.getInt("region", 0));
                 o.put("auto", prefs.getBoolean("auto", true) ? 1 : 0); o.put("announce", prefs.getBoolean("announce", true) ? 1 : 0);
+                o.put("follow", prefs.getInt("follow", 0)); o.put("sleep", prefs.getInt("sleep", 0));
                 o.put("age", prefs.getInt("age", 0)); o.put("refresh", prefs.getInt("refresh", 30));
                 return o.toString();
             } catch (Exception e) { return "{}"; }
@@ -143,6 +148,7 @@ public class MainActivity extends Activity {
             if (key.equals("auto") || key.equals("announce")) e.putBoolean(key, value != 0); else e.putInt(key, value);
             if (key.equals("wpm") && prefs.getInt("eff", 12) > value) e.putInt("eff", value);
             if (key.equals("eff")) e.putInt("eff", Math.min(value, prefs.getInt("wpm", 20)));
+            if (key.equals("sleep")) e.putLong("sleepAt", value > 0 ? System.currentTimeMillis() + value * 60000L : 0);
             e.commit();
             if (key.equals("refresh")) RefreshJob.schedule(MainActivity.this, value);
             if (!CwService.status.equals(CwService.STOPPED)) service(CwService.APPLY, -1);

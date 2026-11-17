@@ -46,6 +46,9 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     /** For the front panel: the receiver's meter, and how much of the time the bulletin was keyed since last read. */
     static volatile double meter;
     static final java.util.concurrent.atomic.AtomicInteger newsOn = new java.util.concurrent.atomic.AtomicInteger(), newsAll = new java.util.concurrent.atomic.AtomicInteger();
+    /** When the user last turned the knob or moved RIT, and whether the receiver follows the strongest station (the "follow" setting). */
+    static volatile long lastUserTune;
+    static volatile int follow;
     /** Where the receiver actually listens, in kHz. */
     static double rxKhz() { return dial + rit / 1000.0; }
 
@@ -60,7 +63,8 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     private boolean resumeOnGain, autoAdvance = true, announce = true, finishedRestore;
     private int mode, gap, abbr;
     private double wpm = 20, eff = 12, volume = 0.8, duck = 1;
-    private long notBefore = 0, lastRefresh, lastSave, lastTitles;
+    private long notBefore = 0, lastRefresh, lastSave, lastTitles, sleepAt;
+    private int followBlocks;
     private volatile java.util.List<String> titles = new java.util.ArrayList<>();
     private int titleAt;
     private int refreshMin = 30;
@@ -212,6 +216,8 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         engine.setBed(prefs.getInt("bed", Bed.BAND));
         engine.width = prefs.getInt("width", Rx.NORMAL);
         engine.agc = prefs.getInt("agc", 1) != 0;
+        follow = prefs.getInt("follow", 0);
+        sleepAt = prefs.getLong("sleepAt", 0);
         if (prefs.getInt("band", 1) != 0) {
             if (band == null) {
                 band = new Band(RATE, System.nanoTime(), java.util.Calendar.getInstance().get(java.util.Calendar.MONTH), () -> {
@@ -337,6 +343,20 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
                     continue;
                 }
                 if (!trackOn) { track.play(); trackOn = true; }
+                Band fb = band;
+                if (follow == 1 && fb != null && !paused && ++followBlocks % 50 == 0 && !engine.newsHeard()
+                    && System.currentTimeMillis() - lastUserTune > 20000) {
+                    double f = fb.follow(rxKhz(), 6, 75);
+                    if (!Double.isNaN(f)) { dial = f - rit / 1000.0; prefs.edit().putFloat("dial", (float) dial).apply(); }
+                }
+                if (sleepAt > 0) {
+                    long left = sleepAt - System.currentTimeMillis();
+                    if (left <= 0) {
+                        sleepAt = 0;
+                        prefs.edit().putLong("sleepAt", 0).putInt("sleep", 0).apply();
+                        main.post(this::stopAll);
+                    } else engine.volume = volume * duck * Math.min(1, left / 20000.0);
+                }
                 engine.dialKhz = rxKhz();
                 engine.render(buf, BLOCK);
                 meter = engine.meter();

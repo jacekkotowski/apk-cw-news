@@ -64,6 +64,8 @@ final class Engine {
         pos = 0;
     }
     void clear() { keying = null; }
+    /** Whether the bulletin is playing on the band: a story is loaded and not finished, and it is inside the filter. */
+    boolean newsHeard() { return band != null && keying != null && run < keying.runs.length && !off; }
     boolean hasStory() { return keying != null; }
     boolean storyDone() { return keying != null && run >= keying.runs.length; }
     int word() { return word; }

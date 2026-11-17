@@ -73,6 +73,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <div class="col"><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button><button class="btn" id="dplus" aria-label="Up 100 Hz">+100</button><button class="btn" id="dplus10" aria-label="Up 10 Hz">+10</button></div>
   </div>
   <div class="set"><label>RIT<b id="v-rit"></b></label><div class="ritrow"><input type="range" id="rit" min="-500" max="500" step="10" aria-label="Receiver incremental tuning"><button class="btn" id="rit0">Clear</button></div></div>
+  <div class="set"><label>When it goes quiet</label><div class="seg" data-k="follow"><button data-v="0">Stay</button><button data-v="1">Strongest</button></div></div>
   <div class="msg" id="tuned"></div>
   <div class="msg" id="contest" style="color:var(--gold)"></div>
   <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button><button class="btn" id="span" aria-label="Waterfall span">Span 40 kHz</button></div>
@@ -105,6 +106,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <h2>Band</h2>
   <div class="set"><label for="region">Your region</label><select id="region" aria-label="Your region"></select></div>
   <div class="msg" style="color:var(--dim)">The Band tab follows the clock from where you are: nearby stations by day, distant ones after dark, and nearby ones drop into the skip zone at night. Evenings and weekends are busier, and on the big contest weekends the band fills with contest stations.</div>
+  <h2>Sleep</h2>
+  <div class="set"><label>Stop playing after</label><div class="seg" data-k="sleep"><button data-v="0">Off</button><button data-v="15">15 min</button><button data-v="30">30 min</button><button data-v="60">60 min</button></div></div>
   <h2>News</h2>
   <div class="set"><label>Send</label><div class="seg" data-k="mode"><button data-v="0">Headline</button><button data-v="1">Headline + summary</button></div></div>
   <div class="set"><label>Ham abbreviations in the news (AND = ES, THANKS = TNX)</label><div class="seg" data-k="abbr"><button data-v="0">Off</button><button data-v="1">Light</button><button data-v="2">Full</button></div></div>
@@ -164,7 +167,7 @@ function tick(){const s=JSON.parse(A.state());curStatus=s.status;bandTick();cons
  $('src').textContent=s.source||'';$('head').textContent=s.title||(s.status==='waiting'?'Listening for new stories':'CW News');
  $('prog').style.width=(s.words?100*Math.min(s.word+1,s.words)/s.words:0)+'%';
  $('toggle').innerHTML=(s.status==='playing'||s.status==='waiting')?'&#10074;&#10074;':'&#9654;';
- let m=s.error||NEWS[n.state]||'';if(!s.error&&n.state==='has_news'&&n.failed)m=n.failed+' feed(s) failed on the last check.';if(s.refreshing)m='Fetching feeds...';$('msg').textContent=m;
+ let m=s.error||NEWS[n.state]||'';if(!s.error&&n.state==='has_news'&&n.failed)m=n.failed+' feed(s) failed on the last check.';if(s.refreshing)m='Fetching feeds...';if(!s.error&&s.sleepLeft>0)m=(m?m+' ':'')+'Stops in '+s.sleepLeft+' min.';$('msg').textContent=m;
  $('refresh').disabled=!!s.refreshing;
  feeds();list(s.id);}
 buildCat();

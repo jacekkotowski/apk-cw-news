@@ -294,6 +294,55 @@ public class T {
         check("bulletin resumes when tuned back", en.word() > w1);
     }
 
+    /** The station at this frequency, from activityJson, or NaN. */
+    static boolean listed(Band b, double khz) {
+        String a = b.activityJson(); int i = 0;
+        while ((i = a.indexOf("\"k\":", i)) >= 0) { i += 4; if (Math.abs(Double.parseDouble(a.substring(i, a.indexOf(',', i))) - khz) < 0.02) return true; }
+        return false;
+    }
+
+    static void follow() {
+        Band b = new Band(R, 21, 5, null);
+        b.setClock(5, 19.5);
+        double[] buf = new double[960];
+        int blk = 0;
+        // Wait for a station that can be heard, and tune onto it.
+        double dial = Double.NaN;
+        for (; blk < 60 * 100 && Double.isNaN(dial); blk++) {
+            java.util.Arrays.fill(buf, 0); b.render(buf, 480, Band.NEWS, 600);
+            if (blk % 100 == 0) { double f = b.next(7000, 1); if (f != Band.NEWS && f >= 7000) dial = f; }
+        }
+        check("follow: found a station to listen to", !Double.isNaN(dial));
+        // While that contact runs, the receiver stays.
+        boolean stayed = true; int n = 0; double jump = Double.NaN;
+        for (int i = 0; i < 100 * 400 && Double.isNaN(jump); i++) {
+            java.util.Arrays.fill(buf, 0); b.render(buf, 480, dial, 600);
+            if (listed(b, dial)) { stayed &= Double.isNaN(b.follow(dial, 6, 75)); n++; }
+            else {
+                // The slot is free: within 7 s of audio there is somewhere to go.
+                for (int j = 0; j < 100 * 7 && Double.isNaN(jump); j++) {
+                    java.util.Arrays.fill(buf, 0); b.render(buf, 480, dial, 600);
+                    jump = b.follow(dial, 6, 75);
+                }
+                break;
+            }
+        }
+        check("follow stays during the contact: " + n + " checks", stayed && n > 100);
+        check("follow names a station within 7 s of the contact ending", !Double.isNaN(jump));
+        check("follow names a station on the band", !Double.isNaN(jump) && listed(b, jump));
+        check("follow does not return to the frequency just left", Math.abs(jump - dial) > 0.25);
+        check("a second call straight after a jump stays", Double.isNaN(b.follow(jump, 6, 75)));
+        // With nothing else on the band there is nowhere to go, however long it has been quiet.
+        int idle = 0; boolean never = true;
+        for (int seed = 1; seed <= 40; seed++) {
+            Band empty = new Band(R, seed, 5, null);
+            empty.setActivity(0);
+            for (int i = 0; i < 20; i++) { java.util.Arrays.fill(buf, 0); empty.render(buf, 480, 7010, 600); }
+            if (empty.activityJson().equals("[]")) { idle++; never &= Double.isNaN(empty.follow(7010, 0, 0)); }
+        }
+        check("follow stays when the band is empty (" + idle + " idle bands)", never && idle >= 20);
+    }
+
     static void propagation() {
         double eu = Prop.REGION[0][0], euLon = Prop.REGION[0][1];
         check("June noon sun is high in Europe", Prop.sunElevation(50, 15, 5, 11) > 55);
@@ -628,7 +677,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

@@ -54,6 +54,9 @@ final class Band {
     private final List<Station> slots = new ArrayList<>();
     private double wpm = 20, eff = 12, tone = 600, lo = Rx.lo(Rx.NORMAL, 600), hi = Rx.hi(Rx.NORMAL, 600);
     private int blocks;
+    /** For follow(): frames since a station was last keyed inside the filter, and whether a contact is audible in it now. */
+    private long quietFrames;
+    private boolean busyHere;
 
     Band(int rate, long seed, int month, Headlines headlines) {
         this.rate = rate; this.rng = new Dsp.Rng(seed); this.month = month; this.headlines = headlines;
@@ -194,6 +197,7 @@ final class Band {
         tone = toneHz; lo = loHz; hi = hiHz;
         double dt = frames / (double) rate, chirpKeep = Math.exp(-1 / (CHIRP_S * rate));
         int active = active(), index = 0;
+        boolean keyedHere = false, contactHere = false;
         for (Station s : slots) {
             index++;
             if (s.qso == null) {
@@ -212,6 +216,7 @@ final class Band {
                 o.g0 = o.g1; o.g1 = gain(o);
             }
             Op o = null;
+            int on0 = s.onFrames;
             double hz = 0, step = 0, ramp = 0, left = 0.55 + 0.1 * Math.sin(s.khz * 7), right = 1.1 - left;
             boolean audible = false;
             for (int i = 0; i < frames; i++) {
@@ -251,7 +256,15 @@ final class Band {
                     if (s.run >= s.key.runs.length) { endTx(s); o = null; if (s.qso == null) break; }
                 }
             }
+            if (s.qso != null) {
+                Op cur = s.op[s.who];
+                boolean inPass = Rx.gain(loHz, hiHz, toneHz + (s.khz + cur.offsetKhz + cur.drifted - dialKhz) * 1000) > 0.25;
+                if (inPass && heard(s)) contactHere = true;
+                if (inPass && cur.strength >= UNHEARD && s.onFrames > on0) keyedHere = true;
+            }
         }
+        quietFrames = keyedHere ? 0 : quietFrames + frames;
+        busyHere = contactHere;
     }
 
     private static String num(double v) { return String.format(java.util.Locale.ROOT, "%.2f", v); }
@@ -325,5 +338,26 @@ final class Band {
             if (Double.isNaN(wrap) || (dir > 0 ? x < wrap : x > wrap)) wrap = x;
         }
         return Double.isNaN(best) ? wrap : best;
+    }
+
+    /**
+     * Where to go when this frequency has gone quiet, in kHz, or NaN to stay. It stays while a contact can be heard in
+     * the filter, unless nothing has been keyed there for deadS seconds. Otherwise, after quietS seconds of silence it
+     * names the strongest station that can be heard; a lone CQ or a contact about to end counts for less.
+     */
+    synchronized double follow(double rxKhz, double quietS, double deadS) {
+        if (!(quietFrames >= quietS * rate && !busyHere) && quietFrames < deadS * rate) return Double.NaN;
+        Station best = null; double bestScore = 0;
+        for (Station s : slots) {
+            if (s.qso == null || !heard(s) || Math.abs(s.khz - rxKhz) <= 0.25) continue;
+            double score = 0;
+            for (Op o : s.op) if (o.strength >= UNHEARD) score = Math.max(score, level(o));
+            if (s.qso.kind == Qso.CQ || s.qso.kind == Qso.TUNE) score *= 0.3;
+            if (s.qso.tx.size() - s.next < 2) score *= 0.5;
+            if (best == null || score > bestScore) { best = s; bestScore = score; }
+        }
+        if (best == null) return Double.NaN;
+        quietFrames = 0;
+        return best.khz;
     }
 }
