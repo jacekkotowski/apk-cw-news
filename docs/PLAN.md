@@ -62,67 +62,109 @@ What was built, where it differs from the first plan, and what is still open.
 - **Contest weekends.** A small calendar knows CQ WW CW, ARRL DX CW, CQ WPX CW, IARU HF, WAE DX CW and SP DX. On those days most stations are in the contest and the Band tab says so.
 - **Limits.** The model was tuned for Europe. The station table has few countries outside Europe, so other regions hear a thinner band; from Japan by day there is only Japan. Seasons change the hours of darkness but not the skip distance.
 
-## Step 5 (version 2.5): take part in a contact with typed sending
+## What comes next
 
-**What you get:** you answer a CQ, or call CQ yourself, and a station works you in real time.
+Three releases. The exact specification of every package is in `docs/WORK-PACKAGES.md`; this section gives the overview, the order and who builds what.
 
-**Settings**
-- Your callsign, name, QTH, rig and power. The bridge only stores numbers today (`set(String, int)`), so it needs a text setter.
-- Decision for you: your real callsign or a made-up one.
-- RIT, built in 2.3, then does its real job: listening beside your transmit frequency.
-- Whether a station hears you can use the same path model as 2.4.
+| Release | Package | What you get | Built by |
+|---|---|---|---|
+| **2.5 Listen better** | P1 | Jump to the strongest signal when a contact ends; a sleep timer | Sonnet |
+| | P2 | CW and CW-R: choose which side of the signal you listen on | Sonnet |
+| | P3 | Passband shift, peak filter, noise blanker, AGC Slow or Fast | Sonnet, with care |
+| | P4 | Weather on the band: thunderstorm static, a storm nearby, aurora, solar flare fade-out | Sonnet |
+| | P5 | Real space weather from NOAA (optional, off by default) | Sonnet |
+| **2.6 Your first contacts** | P6 | The forgiving partner: the conversation logic, live stations, your transmitter | **Fable** |
+| | P7 | Your station (call, name, QTH, rig) and a logbook | Sonnet |
+| | P8 | Taking part by typing, with hints and ready-made phrases | Sonnet |
+| **2.7 Your own key** | P9 | The phone hears your key's buzzer through the microphone and reads your Morse | **Fable** |
+| | P10 | Microphone set-up screens, warm-up, "You sent" line | Sonnet |
+| | P11 | Kind feedback on your sending | Sonnet |
+| After each release | | Version, README, release notes, plan status | Haiku |
 
-**Band tab**
-- An **Answer** button appears when you are tuned to a station calling CQ. **Call CQ** appears on a clear frequency.
-- A text line plus macro buttons: your call, report with name and QTH, rig and antenna and weather, `AGN?`, `QRS`, `73`.
-- What you send is keyed as sidetone at your speed. The receiver mutes while you send, as on a real rig with semi break-in.
+Nine of the eleven packages are for Sonnet. Fable is needed for two.
 
-**Partner** (new plain-Java class `Partner`)
-- A small state machine: waiting for a call, exchange, chat, goodbye.
-- It reads what you typed for callsigns, a report, `NAME`, `QTH`, `RIG`, `ANT`, `WX`, questions (`NAME?`, `QTH?`, `HW?`), `QRS`, `AGN` and `73`.
-- It answers with the same phrase modules the generated contacts use, so `Qso` is reworked to produce one side's overs on demand.
-- Whether it hears you depends on how close you are to its frequency, your power and its noise. A partial copy gives `SP9?` or `AGN`; far off frequency gives no answer.
-- It matches your speed, and slows down when asked.
-- Text it does not understand gets `R FB` and its own next topic.
+## Which model builds what, and why
 
-**Logbook, first version**
-- Each completed contact is stored (call, name, QTH, reports both ways, time) and listed.
+- **Fable for P6 and P9.**
+  - P6 decides how a partner reacts to anything you might send. It also reworks the contact generator without changing the contacts it produces, and adds your transmitter to the audio path. The design matters more than the typing, and a wrong design would make contacts frustrating.
+  - P9 is signal processing that has to work in a real room with an unknown buzzer, plus a decoder that must read a learner's uneven timing.
+- **Sonnet for the rest.** Each of those packages names the classes, methods, formulas and tests. The tests are the safety net: a package is not done until they pass.
+- **Sonnet "with care" on P3.** It edits the receiver's audio code. The formulas are given, and the package says to stop and hand over if a listed test cannot be made to pass.
+- **Haiku for housekeeping.**
+- **A middle option.** Opus 5.5 costs half of Fable. It might manage P6 and P9, but it has not been tried on this project, so the plan assumes Fable.
 
-**How it is checked**
-- `Partner` runs on a PC against scripted input: a full contact, a missing callsign, `QRS`, off frequency, you going silent (it calls again, then gives up).
+Relative cost, from the API list prices per million tokens (input / output) as of early November 2026. A subscription plan may count usage differently, but the ratios are a fair guide.
 
-**Risks**
-- Audio delay: the output buffer is at least 150 ms. That is fine for typed sending and too slow for hand keying, which is why hand keying is a separate step.
+| Model | Input | Output | Compared with Sonnet |
+|---|---|---|---|
+| Fable 5.2 | $8.00 | $40.00 | 4 times |
+| Opus 5.5 | $4.00 | $20.00 | 2 times |
+| Sonnet 5.5 | $2.00 | $10.00 | 1 |
+| Haiku 5.5 | $0.10 | $0.50 | one twentieth |
 
-## Step 6 (version 2.6): hand keying
+Three habits keep the cost down:
 
-**What you get:** you send with your own fist, on the screen or with a real key.
+1. **One package per session.** Start fresh, name the package, and let the model read only what it needs.
+2. **Switch the model before you start**, with `/model`, not in the middle of a package.
+3. **Use Fable for a short review, not a rebuild**, if a Sonnet package sounds wrong on the phone. Describe what you hear and ask for the cause.
 
-- Start with a test screen that measures tap-to-tone delay on your phone. Go ahead only if it is under about 40 ms.
-- A second, low-latency audio output just for the sidetone.
-- Touch straight key and iambic paddle as a native view, not in the WebView.
-- A decoder with adaptive timing turns your keying into text for `Partner`. Sloppy spacing is copied as sent, so the partner may ask `?`.
-- External keys: a paddle or straight key through a USB or Bluetooth keyboard or mouse adapter.
-- After each over the app can show what it copied from you, as sending practice.
+This assignment is a judgement. No package has been built by Sonnet on this project yet; P1 is a cheap first test of how well the specifications work.
 
-## Step 7 (version 2.7): reasons to come back
+## What learners say they want
+
+Searched before writing the packages. These are recurring themes from clubs, operators' write-ups and a podcast, not a survey.
+
+| What comes up | Where it went in the plan |
+|---|---|
+| "Key fright": fear of mistakes, strongest just before the first contact. The advice is that you do not need to be perfect to make a contact, and the fear fades after a few. | The forgiving partner (ten rules in the work packages): nothing you send ends a contact, and there is no score during one. |
+| Praying the other operator sends slowly enough. | The partner answers at your speed or slower and never speeds up. |
+| Receiving is harder than sending; copy in your head; let a missed letter go. | The partner sends important things twice. Text is shown after each over, as a check on what you copied by ear. |
+| Learn letters as sounds at about 20 WPM with wide gaps (20/5), not slow letters. | The partner widens the gaps before it slows the letters. |
+| Park and summit activators are patient, and their contacts are short. | An activator is the first and easiest kind of contact offered. |
+| Start with the common phrases: CQ, DE, RST, 73. | The hint line and the ready-made phrase buttons. |
+| Going on the air cold causes errors. | A one-minute warm-up before a contact (P10). |
+| Sending practice with a timing chart and tolerant scoring exists as a web page that listens through the microphone to a practice oscillator. | P9 to P11 use the same idea. The same source advises a cable when the room is noisy, and the set-up screen says so. |
+
+Sources:
+- [Jitters, Anxiety, and your first QSO (ditdit.fm)](https://ditdit.libsyn.com/jitters-anxiety-and-your-first-qso)
+- [Controlling Frustration and Nervousness (CWops)](https://cwops.org/wp-content/uploads/2023/06/Controlling-Frustration-and-Nervousness.pdf)
+- [My CW Journey, AF4O](https://uparc.org/wp-content/uploads/2026/05/My-CW-Journey-AF4O-PDF.pdf)
+- [Learning CW for the beginner: hear the music, not the math](https://hamradio.my/learning-cw-for-the-beginner-amateur-radio-operator-hear-the-music-not-the-math/)
+- [How to start your first CW QSO](https://hamradio.my/?p=9414)
+- [Common CW mistakes and how to fix them](https://morsecodegenerator.pages.dev/blog/common-cw-mistakes-and-how-to-fix-them/)
+- [Long Island CW Club: FAQ](https://longislandcwclub.org/faq/) and [Morse code training](https://longislandcwclub.org/morse-code-training/)
+- [Sending Practice, experimental (morsecode.world)](https://morsecode.world/labs/sending-practice/)
+- [Mic-based sending trainer (rfconsult.uk)](https://rfconsult.uk/morse)
+
+Sources for the receiver and the weather packages:
+- [Yaesu FT-950 manual, CW Reverse](https://www.manualslib.com/manual/381794/Yaesu-Ft-950.html?page=77) and [Icom IC-7000 manual, CW Reverse](https://www.manualslib.com/manual/75722/Icom-Ic-7000.html?page=52)
+- [Summer thunderstorms (Handiham)](https://handiham.org/remotebase/?p=587) and [QRN and QRM, how to deal with it (Essex Ham)](https://www.essexham.co.uk/help-advice/qrnqrm-how-to-deal-with-it)
+- [Adding a DSP noise blanker (ZL2IK)](https://zl2ik.blogspot.com/2016/01/things-i-have-learned-about-spectrumlab_9.html)
+- [HF systems: effects of ionospheric disturbances (Australian Space Weather Services)](https://www.sws.bom.gov.au/HF_Systems/6/2/2)
+- [D-layer absorption (Ham Radio School)](https://www.hamradioschool.com/articles/d-layer-absorption.html)
+- [NOAA planetary K index](https://swpc.noaa.gov/products/planetary-k-index)
+- [Android foreground service types](https://developer.android.com/guide/components/fg-service-types)
+
+## Decisions for you
+
+None of these blocks P1 to P5.
+
+1. **Order.** The table follows the order you listed. The first-contacts release (2.6) could come before the weather package (P4) if you want to take part sooner.
+2. **Your callsign.** Real or made up, for the contacts in the app (needed for P7).
+3. **Microphone.** The app would ask for microphone permission. The sound is analysed on the phone and never stored or sent. P9 needs your agreement to add it.
+4. **Headphones.** With the phone's speaker, the microphone may hear the band and mistake it for your key. The set-up screen checks this; headphones are the sure fix.
+5. **Real space weather (P5).** It makes one small request to NOAA when feeds refresh. Off unless you turn it on.
+6. **Filter controls (P3).** Four new controls is a lot for one screen. Say if you want fewer.
+
+## Later
 
 - Recurring stations: the same operator returns on later days with the same rig and QTH, and greets you by name once you have worked them.
 - Copy practice: after listening to a contact, fill in call, name, QTH and report; the app scores it against what was sent.
 - Awards from the logbook: countries, QRP contacts, summits and parks.
-- Pile-up mode: you are the park activator, stations call you, and the score is rate and accuracy.
-
-## Ideas, not scheduled
-
-- Nets and round tables with three or more stations.
-- A DX station working split with a pile-up.
-- Real solar data and real weather for the operators' towns. Both need the network, so they must stay optional.
-
-## Order, and why
-
-1. Typed contacts before hand keying: the partner logic is the hard part, and typing avoids the audio-delay problem.
-2. Hand keying only after a delay measurement on a real phone.
-3. The reasons to come back build on the earlier steps and can be moved.
+- Pile-up mode: you are the park activator and stations call you.
+- A touch key or paddle on the screen, for when there is no key at hand. It needs a delay measurement on the phone first.
+- Nets and round tables; a DX station working split.
+- Real weather for the operators' towns.
 
 ## How every step is finished
 
