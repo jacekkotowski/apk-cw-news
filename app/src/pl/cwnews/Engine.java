@@ -19,7 +19,10 @@ final class Engine {
     volatile double toneHz = 600, volume = 0.8, bedDb = -24, dialKhz = Band.NEWS;
     /** Receiver filter width (an Rx constant) and whether its AGC is on. Both only matter with a band. */
     volatile int width = Rx.NORMAL;
-    volatile boolean agc = true;
+    volatile int agc = Rx.AGC_SLOW;
+    /** Passband shift in Hz, the peak filter and the noise blanker. Only matter with a band. */
+    volatile int shift;
+    volatile boolean apf, nb;
     /** 0 for CW (listening on the upper side of a signal), 1 for CW-R (the lower side). */
     volatile int side;
     private volatile Band band;
@@ -126,8 +129,10 @@ final class Engine {
         boolean rxOn = bd != null;
         pitch = toneHz; off = false;
         if (rxOn) {
-            double lo = Rx.lo(width, toneHz), hi = Rx.hi(width, toneHz);
-            rx.tune(lo, hi);
+            double[] edge = Rx.edges(width, toneHz, shift);
+            double lo = edge[0], hi = edge[1];
+            rx.tune(lo, hi, toneHz, apf);
+            rx.blanker(nb);
             // The bulletin is one station on the band. Its pitch is its distance from the dial, kept inside what a
             // sampled tone can be; far outside the filter it waits, from the start of the current word, until you tune back.
             int sign = side == 1 ? -1 : 1;

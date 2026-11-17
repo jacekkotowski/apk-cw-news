@@ -81,7 +81,10 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <h2>Receiver</h2>
   <div class="set"><label>Filter</label><div class="seg" data-k="width"><button data-v="0">Wide</button><button data-v="1">Normal</button><button data-v="2">Narrow</button></div></div>
   <div class="set"><label>Sideband</label><div class="seg" data-k="side"><button data-v="0">CW</button><button data-v="1">CW-R</button></div></div>
-  <div class="set"><label>AGC</label><div class="seg" data-k="agc"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+  <div class="set"><label>AGC</label><div class="seg" data-k="agc"><button data-v="0">Off</button><button data-v="1">Slow</button><button data-v="2">Fast</button></div></div>
+  <div class="set"><label>Shift<b id="v-shift"></b></label><input type="range" id="shift" min="-300" max="300" step="50" aria-label="Passband shift"></div>
+  <div class="set"><label>Peak filter</label><div class="seg" data-k="apf"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
+  <div class="set"><label>Noise blanker</label><div class="seg" data-k="nb"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
   <h2>Band activity</h2>
   <div class="seg" data-k="activity"><button data-v="0">Quiet</button><button data-v="1">Normal</button><button data-v="2">Busy</button></div>
   <div class="msg" style="color:var(--dim)">Stations are made up: each contact is generated on the spot, in real time. Operators differ: some chat at length, some are brief, beginners send slowly and ask for QRS, some are out on a summit or in a park. The report they give is how well the two stations hear each other, which is often close to what you hear, and the greeting matches the other station's time of day. Sometimes you hear only one side of a contact: the other station is too far, or too near and inside the skip zone. &lt;HH&gt; is the error sign, &lt;AS&gt; means wait. Your news is the bulletin station at 7020 kHz. Tune a few hundred Hz off a signal and its pitch changes, as on a real receiver. Everything passes one filter and one AGC: a strong station pushes the noise down, and a narrow filter cuts out the neighbours but needs careful tuning. The band noise follows the Ionosphere background and its level in Settings. The waterfall shows the band scrolling down: each station is a line that breaks up with its keying. Tap it to tune, or turn the knob; one turn is 1 kHz and a fast spin goes further. RIT moves only the receiver, up to 500 Hz either side of the dial.</div>
@@ -131,14 +134,14 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.query
 $('toggle').onclick=()=>A.command('toggle');
 $('replay').onclick=()=>A.command('replay');
 $('refresh').onclick=()=>A.refresh();
-function unit(k,v){return k==='pitch'?v+' Hz':k==='volume'?v+' %':k==='bedDb'?v+' dB':v+' WPM'}
-function paint(){for(const k of ['wpm','eff','pitch','volume','bedDb']){$(k).value=S[k];$('v-'+k).textContent=unit(k,S[k]);}
+function unit(k,v){return k==='pitch'?v+' Hz':k==='volume'?v+' %':k==='bedDb'?v+' dB':k==='shift'?(v>0?'+':v<0?'−':'')+Math.abs(v)+' Hz':v+' WPM'}
+function paint(){for(const k of ['wpm','eff','pitch','volume','bedDb','shift']){$(k).value=S[k];$('v-'+k).textContent=unit(k,S[k]);}
  document.querySelectorAll('.seg').forEach(g=>g.querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S[g.dataset.k])));
  $('bedDb').disabled=S.bed===0;
  const rg=$('region');if(!rg.options.length&&typeof A.regions==='function')JSON.parse(A.regions()).forEach((n,i)=>{const o=el('option','',n);o.value=i;rg.append(o);});
  rg.value=S.region||0;}
 function load(){S=JSON.parse(A.settings());paint();}
-for(const k of ['wpm','eff','pitch','volume','bedDb']){
+for(const k of ['wpm','eff','pitch','volume','bedDb','shift']){
  $(k).oninput=()=>{let v=+$(k).value;if(k==='eff')v=Math.min(v,S.wpm);if(k==='eff')$(k).value=v;$('v-'+k).textContent=unit(k,v);};
  $(k).onchange=()=>{A.set(k,+$(k).value);load();};
 }

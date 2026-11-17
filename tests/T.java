@@ -399,6 +399,77 @@ public class T {
         check("CW-R puts the neighbour 20 dB down: " + 20 * Math.log10(rGain / cwGain), 20 * Math.log10(rGain / cwGain) < -20);
     }
 
+    /** RMS of the left channel of an interleaved block. */
+    static double blockRms(double[] b, int n) { double q = 0; for (int i = 0; i < n; i += 2) q += b[i] * b[i]; return Math.sqrt(q / (n / 2)); }
+    static Rx peaked(long seed) { Rx a = new Rx(R, seed); a.tune(Rx.lo(Rx.NORMAL, 600), Rx.hi(Rx.NORMAL, 600), 600, true); return a; }
+
+    static void filters() {
+        // Shift: the passband moves, the pitch does not.
+        double[] e = Rx.edges(Rx.NORMAL, 600, 200);
+        near("shift +200 lifts the lower edge", e[0], 600, 1e-9);
+        near("shift +200 lifts the upper edge", e[1], 1000, 1e-9);
+        near("shifted passband passes tone + 200", Rx.gain(e[0], e[1], 800), 1, 0.05);
+        check("shifted passband rejects tone - 250: " + Rx.gain(e[0], e[1], 350), Rx.gain(e[0], e[1], 350) < 0.1);
+        check("the lower edge stays at 100 Hz or more", Rx.edges(Rx.WIDE, 600, -300)[0] >= 100);
+        near("heard with shift, CW", Rx.heard(Rx.NORMAL, 600, 1, 200)[0], 0, 1e-9);
+        near("heard with shift, CW-R", Rx.heard(Rx.NORMAL, 600, -1, 200)[1], 0, 1e-9);
+
+        // Peak filter: a tone at the pitch doubles, one 200 Hz away hardly changes.
+        near("peak filter doubles a tone at the pitch", through(peaked(41), 600, 0.3, false), 0.6, 0.03);
+        double up = through(peaked(41), 800, 0.3, false);
+        check("peak filter leaves a tone 200 Hz up under 0.34: " + up, up < 0.34);
+        near("without it the tone passes as it was", through(new Rx(R, 42), 600, 0.3, false), 0.3, 0.02);
+
+        // Noise blanker: spikes go, a clean tone stays.
+        double[] ticks = new double[2];
+        for (int on = 0; on < 2; on++) {
+            Rx rx = new Rx(R, 43); rx.tune(Rx.lo(Rx.NORMAL, 600), Rx.hi(Rx.NORMAL, 600), 600, false); rx.blanker(on == 1);
+            double[] b = new double[960], keep = new double[60 * R];
+            double sq = 0; int n = 0;
+            for (int blk = 0; blk < 60 * R / 480 + 50; blk++) {
+                java.util.Arrays.fill(b, 0);
+                rx.process(b, 480, 0.1, 0.1, 0);
+                if (blk >= 50) for (int i = 0; i < 960 && n < keep.length; i += 2) { keep[n++] = b[i]; sq += b[i] * b[i]; }
+            }
+            double rms = Math.sqrt(sq / n); int count = 0;
+            for (int i = 0; i < n; i++) if (Math.abs(keep[i]) > 4 * rms) count++;
+            ticks[on] = count;
+        }
+        System.out.printf("noise blanker: %.0f samples above 4 x RMS without it, %.0f with it%n", ticks[0], ticks[1]);
+        check("blanker removes at least 70% of the static spikes: " + ticks[0] + " -> " + ticks[1], ticks[0] > 100 && ticks[1] <= 0.3 * ticks[0]);
+        for (double hz : new double[]{600, 1000}) {
+            Rx off = new Rx(R, 44), on = new Rx(R, 44);
+            off.tune(Rx.lo(Rx.WIDE, 600), Rx.hi(Rx.WIDE, 600)); on.tune(Rx.lo(Rx.WIDE, 600), Rx.hi(Rx.WIDE, 600)); on.blanker(true);
+            double tOff = through(off, hz, 0.5, false), tOn = through(on, hz, 0.5, false);
+            near("a clean " + hz + " Hz tone passes the blanker within 1%", tOn, tOff, 0.01 * tOff);
+        }
+
+        // AGC speed: how long the noise takes to come back within 3 dB after a strong signal.
+        double[] back = new double[3];
+        for (int mode = 1; mode <= 2; mode++) {
+            Rx g = new Rx(R, 46);
+            double[] b = new double[960], last = new double[4]; double ph = 0, base = 0; int baseN = 0;
+            double found = -1; boolean dipped = false;
+            for (int blk = 0; blk < 500; blk++) {
+                boolean tone = blk >= 100 && blk < 200;
+                for (int i = 0; i < 480; i++) { b[2 * i] = b[2 * i + 1] = tone ? Math.sin(ph) : 0; ph += 2 * Math.PI * 600 / R; }
+                g.process(b, 480, 0.05, 0.05, mode);
+                if (blk < 100 && blk >= 50) { base += blockRms(b, 960); baseN++; }
+                if (blk == 99) base /= baseN;
+                if (blk >= 200 && found < 0) {
+                    last[0] = last[1]; last[1] = last[2]; last[2] = last[3]; last[3] = blockRms(b, 960);
+                    double m = (last[0] + last[1] + last[2] + last[3]) / 4;
+                    if (blk >= 204 && db(m / base) < -3) dipped = true;
+                    if (dipped && db(m / base) > -3) found = (blk - 200 - 1.5) * 0.01;
+                }
+            }
+            back[mode] = found;
+        }
+        System.out.printf("AGC: noise back within 3 dB after %.2f s (slow) and %.2f s (fast)%n", back[1], back[2]);
+        check("fast AGC recovers in under 0.25 s: " + back[2], back[2] >= 0 && back[2] < 0.25);
+        check("slow AGC takes over 0.4 s: " + back[1], back[1] > 0.4);
+    }
+
     static void propagation() {
         double eu = Prop.REGION[0][0], euLon = Prop.REGION[0][1];
         check("June noon sun is high in Europe", Prop.sunElevation(50, 15, 5, 11) > 55);
@@ -525,7 +596,7 @@ public class T {
         double peak = 0, ph = 0;
         for (int blk = 0; blk < 60; blk++) {
             for (int i = 0; i < 480; i++) { b[2 * i] = b[2 * i + 1] = amp * Math.sin(ph); ph += 2 * Math.PI * hz / R; }
-            rx.process(b, 480, 0, 0, agc);
+            rx.process(b, 480, 0, 0, agc ? 1 : 0);
             if (blk >= 40) for (double v : b) peak = Math.max(peak, Math.abs(v));
         }
         return peak;
@@ -534,7 +605,7 @@ public class T {
         double[] b = new double[960]; double sq = 0; long n = 0;
         for (int blk = 0; blk < blocks + 50; blk++) {
             java.util.Arrays.fill(b, 0);
-            rx.process(b, 480, noise, noise, agc);
+            rx.process(b, 480, noise, noise, agc ? 1 : 0);
             if (blk >= 50) for (double v : b) { sq += v * v; n++; }
         }
         return Math.sqrt(sq / n);
@@ -565,14 +636,14 @@ public class T {
         near("with AGC the bulletin still comes out at 1", through(new Rx(R, 24), 600, 1, true), 1, 0.08);
         check("the AGC compresses: a signal 12 dB weaker comes out less than 6 dB weaker", db(through(new Rx(R, 25), 600, 0.25, true)) > -6);
 
-        // A strong signal turns the gain down: the noise right after it is quieter, then comes back.
+        // A strong signal turns the gain down: the noise right after it is quieter, then comes back (Fast AGC; the Slow one is timed in filters()).
         Rx g = new Rx(R, 26);
         double[] b = new double[960]; double ph = 0;
         double[] after = new double[40];
         for (int blk = 0; blk < 100 + after.length; blk++) {
             boolean tone = blk >= 40 && blk < 100;
             for (int i = 0; i < 480; i++) { b[2 * i] = b[2 * i + 1] = tone ? Math.sin(ph) : 0; ph += 2 * Math.PI * 600 / R; }
-            g.process(b, 480, 0.05, 0.05, true);
+            g.process(b, 480, 0.05, 0.05, Rx.AGC_FAST);
             if (blk == 99) near("meter shows the bulletin as 1", g.level, 1, 0.15);
             if (blk >= 100) { double sq = 0; for (double v : b) sq += v * v; after[blk - 100] = Math.sqrt(sq / 960); }
         }
@@ -592,7 +663,7 @@ public class T {
             if (blk == 30) sw.tune(Rx.lo(Rx.NARROW, 600), Rx.hi(Rx.NARROW, 600));
             if (blk == 45) sw.tune(Rx.lo(Rx.WIDE, 600), Rx.hi(Rx.WIDE, 600));
             for (int i = 0; i < 480; i++) { b[2 * i] = b[2 * i + 1] = Math.sin(ph); ph += 2 * Math.PI * 600 / R; }
-            sw.process(b, 480, 0, 0, false);
+            sw.process(b, 480, 0, 0, 0);
             double top = 0;
             for (int i = 0; i < 960; i += 2) { if (blk > 20) jump = Math.max(jump, Math.abs(b[i] - prev)); prev = b[i]; top = Math.max(top, Math.abs(b[i])); }
             if (blk == 29 || blk == 44 || blk == 59) least = Math.min(least, top);
@@ -605,7 +676,7 @@ public class T {
         // The whole engine with a band: same Morse timing, bulletin at full level, never full scale.
         double[] plain = {0}, onBand = {0};
         renderCw(Bed.OFF, -24, 480, plain);
-        for (boolean agc : new boolean[]{true, false}) for (int w = 0; w < 3; w++) {
+        for (int agc : new int[]{1, 2, 0}) for (int w = 0; w < 3; w++) {
             Engine e = new Engine(R, 7, 480);
             Band quiet = new Band(R, 5, 5, null);
             e.setBand(quiet); e.setBed(Bed.OFF); e.volume = 1; e.agc = agc; e.width = w; e.setAudible(true);
@@ -623,11 +694,11 @@ public class T {
         }
         long t0 = System.nanoTime();
         double max = 0; int seconds = 180;
-        for (int w = 0; w < 6; w++) {
+        for (int w = 0; w < 9; w++) {
             Engine e = new Engine(R, 31 + w, 480);
             Band busy = new Band(R, 9 + w, 6, () -> "Parliament passes the new energy law after long debate");
             busy.setActivity(2); busy.setSpeed(30, 30);
-            e.setBand(busy); e.setBed(Bed.BAND); e.bedDb = -12; e.volume = 1; e.width = w % 3; e.agc = w < 3; e.setAudible(true);
+            e.setBand(busy); e.setBed(Bed.BAND); e.bedDb = -12; e.volume = 1; e.width = w % 3; e.agc = w / 3; e.setAudible(true);
             e.load(Keying.build("TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST", new Timing(30, 30), R), 0);
             float[] fb = new float[960];
             Dsp.Rng r = new Dsp.Rng(w + 1);
@@ -733,7 +804,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

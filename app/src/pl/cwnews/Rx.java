@@ -7,11 +7,13 @@ package pl.cwnews;
  */
 final class Rx {
     static final int WIDE = 0, NORMAL = 1, NARROW = 2;
+    /** AGC modes: off, slow release, fast release. */
+    static final int AGC_OFF = 0, AGC_SLOW = 1, AGC_FAST = 2;
     /** Signals above this level (the bulletin is 1) are compressed; the makeup gain brings the bulletin back to 1. */
     static final double AGC_THRESHOLD = 0.25, AGC_POWER = 0.7, MAKEUP = Math.pow(AGC_THRESHOLD, -AGC_POWER);
     /** With the AGC off nothing is compressed, but a ceiling at the bulletin's level stops static crashes from blasting. */
     private static final double CEILING = 1;
-    private static final double RELEASE_S = 0.35, ATTACK_S = 0.0015, LOOKAHEAD_S = 0.004, DIP_S = 0.008, SETTLE_S = 0.016, NORMAL_HZ = 400;
+    private static final double SLOW_RELEASE_S = 0.5, FAST_RELEASE_S = 0.12, ATTACK_S = 0.0015, LOOKAHEAD_S = 0.004, DIP_S = 0.008, SETTLE_S = 0.016, NORMAL_HZ = 400;
     private static final double TICKS_PER_S = 2.5, TICK_MIN = 6, TICK_SPREAD = 22, CRASH_EVERY_S = 40, CRASH_MIN_S = 0.15, CRASH_SPREAD_S = 0.45, CRASH_DENSITY_HZ = 1300;
     private static final double DRIFT_EVERY_S = 2.5, DRIFT_DB = 1.5;
     /** The filter is a Butterworth band-pass made from a low-pass of this order, so it has this many sections. */
@@ -28,6 +30,16 @@ final class Rx {
         double l = lo(width, tone), h = hi(width, tone);
         return sign < 0 ? new double[]{tone - h, tone - l} : new double[]{l - tone, h - tone};
     }
+    /** The passband edges {lo, hi} with the passband moved up or down by shift Hz; the lower edge never goes below 100 Hz. */
+    static double[] edges(int width, double tone, int shift) {
+        double l = Math.max(100, lo(width, tone) + shift);
+        return new double[]{l, Math.max(l + 50, hi(width, tone) + shift)};
+    }
+    /** As {@link #heard(int, double, int)} with the passband shifted. */
+    static double[] heard(int width, double tone, int sign, int shift) {
+        double[] e = edges(width, tone, shift);
+        return sign < 0 ? new double[]{tone - e[1], tone - e[0]} : new double[]{e[0] - tone, e[1] - tone};
+    }
     /** How much of a steady tone at that pitch gets through a filter with those edges, 0 to 1. */
     static double gain(double lo, double hi, double hz) {
         if (hz <= 0) return 0;
@@ -38,7 +50,15 @@ final class Rx {
     private final Dsp.Rng rng;
     private final Dsp.Biquad[][] bp = new Dsp.Biquad[2][ORDER];
     private final double[][] delay;
-    private final double releaseKeep, attack, dipStep, driftSmooth;
+    private final Dsp.Biquad[] apfBq = {new Dsp.Biquad(), new Dsp.Biquad()};
+    private final double attack, dipStep, driftSmooth, nbSmooth;
+    private double releaseKeep;
+    private int agcSet = -1;
+    private boolean apf, wantApf, nb;
+    private double wantTone = 600, nbE;
+    private final double[] nbPrev = new double[2], nbOut = new double[2];
+    private int nbWarm = 2;
+    private static final double NB_THRESHOLD = 5, NB_TAU_S = 0.05;
     private int at, driftTick, settle;
     private double lo = -1, hi = -1, wantLo, wantHi, dip = 1, peak, env, crashLeft, drift = 1, driftTarget = 1;
     private boolean retune;
@@ -49,16 +69,25 @@ final class Rx {
         this.rate = rate; rng = new Dsp.Rng(seed);
         for (int c = 0; c < 2; c++) for (int k = 0; k < ORDER; k++) bp[c][k] = new Dsp.Biquad();
         delay = new double[2][Math.max(1, (int) (LOOKAHEAD_S * rate))];
-        releaseKeep = Math.exp(-1 / (RELEASE_S * rate));
+        setRelease(SLOW_RELEASE_S);
+        nbSmooth = 1 - Math.exp(-1 / (NB_TAU_S * rate));
         attack = 1 - Math.exp(-1 / (ATTACK_S * rate));
         dipStep = 1 / (DIP_S * rate);
         driftSmooth = 1 - Math.exp(-1 / (3.0 * rate));
     }
 
+    private void setRelease(double s) { releaseKeep = Math.exp(-1 / (s * rate)); }
+
+    /** Switches the noise blanker. It takes effect at once: it only decides which samples are replaced. */
+    void blanker(boolean on) { nb = on; }
+
     /** Sets the passband. A change is made in a short dip to silence, so it cannot click. */
-    void tune(double loHz, double hiHz) {
-        if (loHz == wantLo && hiHz == wantHi) return;
-        wantLo = loHz; wantHi = hiHz;
+    void tune(double loHz, double hiHz) { tune(loHz, hiHz, wantTone, false); }
+    void tune(double loHz, double hiHz, double toneHz) { tune(loHz, hiHz, toneHz, false); }
+    /** With the peak filter (peak), a narrow boost at the pitch, which is retuned together with the passband. */
+    void tune(double loHz, double hiHz, double toneHz, boolean peak) {
+        if (loHz == wantLo && hiHz == wantHi && (toneHz == wantTone || !peak) && peak == wantApf) return;
+        wantLo = loHz; wantHi = hiHz; wantTone = toneHz; wantApf = peak;
         if (lo < 0) { apply(); settle = 0; } else retune = true;
     }
 
@@ -68,6 +97,9 @@ final class Rx {
      */
     private void apply() {
         lo = wantLo; hi = wantHi; retune = false;
+        apf = wantApf;
+        for (int c = 0; c < 2; c++) { apfBq[c].bandpass(wantTone, wantTone / 80.0, rate); apfBq[c].reset(); }
+        nbWarm = 2;
         double k = 2.0 * rate, w1 = k * Math.tan(Math.PI * lo / rate), w2 = k * Math.tan(Math.PI * hi / rate), bw = w2 - w1, w0sq = w1 * w2;
         int n = 0;
         for (int i = 0; i < ORDER / 2; i++) {
@@ -87,12 +119,31 @@ final class Rx {
     }
 
     /**
+     * One channel of the noise blanker. nbOut holds the sample being judged, nbPrev the one before it (as sent on),
+     * x is the next one. A sample is a spike when it stands out from both neighbours in the same direction by much
+     * more than the usual such distance; it is then replaced by the neighbours' average. Judging by the nearer
+     * neighbour keeps the sample next to a spike from being taken for one. A blanked sample counts towards the usual
+     * distance only up to the threshold, so the blanker cannot lock itself on after a quiet spell.
+     */
+    private double blank(int c, double x) {
+        double mid = nbOut[c], a = mid - nbPrev[c], b = mid - x;
+        double d = a * b > 0 ? Math.min(Math.abs(a), Math.abs(b)) : 0, y = mid;
+        if (nb && nbE > 0 && d > NB_THRESHOLD * nbE) { y = 0.5 * (nbPrev[c] + x); d = NB_THRESHOLD * nbE; }
+        if (c == 0) nbE = nbE == 0 ? d : nbE + nbSmooth * (d - nbE);
+        nbPrev[c] = y; nbOut[c] = x;
+        return y;
+    }
+
+    /**
      * Filters and levels the signals in place (interleaved stereo) and adds band noise.
      * @param noise0 noise level at the start of the block, as the RMS heard in the gaps with the normal filter
      * @param noise1 the same at the end of the block
+     * @param agcMode AGC_OFF, AGC_SLOW or AGC_FAST
      */
-    void process(double[] lr, int frames, double noise0, double noise1, boolean agc) {
-        if (lo < 0) tune(lo(NORMAL, 600), hi(NORMAL, 600));
+    void process(double[] lr, int frames, double noise0, double noise1, int agcMode) {
+        if (lo < 0) tune(lo(NORMAL, 600), hi(NORMAL, 600), 600, false);
+        if (agcMode != agcSet) { agcSet = agcMode; setRelease(agcMode == AGC_FAST ? FAST_RELEASE_S : SLOW_RELEASE_S); }
+        boolean agc = agcMode != AGC_OFF;
         double makeup = agc ? MAKEUP : 1;
         // White noise of deviation 1 leaves a filter of that width with this RMS.
         double perUnit = Math.sqrt(NORMAL_HZ / (rate / 2.0)), scale = 1 / (makeup * perUnit);
@@ -116,7 +167,12 @@ final class Rx {
                 l += sigma * (rng.gauss() * drift + spark);
                 r += sigma * (rng.gauss() * drift + spark * (0.5 + 0.5 * rng.uniform()));
             }
+            // The noise blanker works on the raw signal, where a static tick is one stray sample. The one-sample
+            // delay is there whether it is on or off, so switching it cannot move the audio.
+            if (nbWarm > 0) { nbWarm--; double t = nbOut[0], u = nbOut[1]; nbOut[0] = nbPrev[0] = l; nbOut[1] = nbPrev[1] = r; l = t; r = u; }
+            else { l = blank(0, l); r = blank(1, r); }
             for (int k = 0; k < ORDER; k++) { l = bp[0][k].step(l); r = bp[1][k].step(r); }
+            if (apf) { l += apfBq[0].step(l); r += apfBq[1].step(r); }
             // The gain is worked out from the signal a few milliseconds before it is heard, so it never overshoots.
             double a = Math.max(Math.abs(l), Math.abs(r));
             peak = Math.max(a, peak * releaseKeep);
