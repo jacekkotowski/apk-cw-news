@@ -141,7 +141,10 @@ final class Band {
         for (int i = 0; i < s.op.length; i++) {
             Op o = s.op[i] = new Op();
             o.offsetKhz = i == 0 ? 0 : rng.gauss() * 0.04;
-            o.strength = PEAK * Math.pow(10, -q.lossDb[i] / 20);
+            // Weak signals that can still be copied are lifted by a fifth of their loss (8 dB at the edge), because a
+            // signal that far down was inaudible under the noise. Beyond 40 dB nothing is heard, as before.
+            double loss = q.lossDb[i];
+            o.strength = PEAK * Math.pow(10, -(loss < 40 ? 0.8 * loss : loss) / 20);
             o.depthDb = q.qsbDb[i];
             o.p1 = 2 * Math.PI * rng.uniform(); o.p2 = 2 * Math.PI * rng.uniform();
             o.w1 = 2 * Math.PI / (10 + 35 * rng.uniform()); o.w2 = 2 * Math.PI / (2 + 6 * rng.uniform());

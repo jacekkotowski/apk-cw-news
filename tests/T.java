@@ -424,6 +424,7 @@ public class T {
         double[] ticks = new double[2];
         for (int on = 0; on < 2; on++) {
             Rx rx = new Rx(R, 43); rx.tune(Rx.lo(Rx.NORMAL, 600), Rx.hi(Rx.NORMAL, 600), 600, false); rx.blanker(on == 1);
+            rx.weather(40, 1.5, 1);   // plenty of ticks: they are softer now, and a count above 4 x RMS needs many to stand out from the noise itself
             double[] b = new double[960], keep = new double[60 * R];
             double sq = 0; int n = 0;
             for (int blk = 0; blk < 60 * R / 480 + 50; blk++) {

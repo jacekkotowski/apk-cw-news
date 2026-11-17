@@ -14,7 +14,7 @@ final class Rx {
     /** With the AGC off nothing is compressed, but a ceiling at the bulletin's level stops static crashes from blasting. */
     private static final double CEILING = 1;
     private static final double SLOW_RELEASE_S = 0.5, FAST_RELEASE_S = 0.12, ATTACK_S = 0.0015, LOOKAHEAD_S = 0.004, DIP_S = 0.008, SETTLE_S = 0.016, NORMAL_HZ = 400;
-    private static final double TICK_MIN = 6, TICK_SPREAD = 22, CRASH_MIN_S = 0.15, CRASH_SPREAD_S = 0.45, CRASH_DENSITY_HZ = 1300;
+    private static final double TICK_MIN = 2.5, TICK_SPREAD = 12, CRASH_MIN_S = 0.15, CRASH_SPREAD_S = 0.45, CRASH_DENSITY_HZ = 1500;
     private static final double DRIFT_EVERY_S = 2.5, DRIFT_DB = 1.5;
     /** The filter is a Butterworth band-pass made from a low-pass of this order, so it has this many sections. */
     private static final int ORDER = 8;
@@ -163,14 +163,14 @@ final class Rx {
                 if (driftTick++ >= DRIFT_EVERY_S * rate) { driftTick = 0; driftTarget = Math.pow(10, DRIFT_DB * (2 * rng.uniform() - 1) / 20); }
                 drift += driftSmooth * (driftTarget - drift);
                 double spark = 0;
-                if (rng.uniform() < tickChance) spark = (TICK_MIN + TICK_SPREAD * rng.uniform() * rng.uniform()) * (rng.uniform() < 0.5 ? -1 : 1);
+                if (rng.uniform() < tickChance) spark = (TICK_MIN + TICK_SPREAD * rng.uniform() * rng.uniform() * rng.uniform()) * (rng.uniform() < 0.5 ? -1 : 1);
                 if (crashLeft <= 0 && rng.uniform() < crashChance) { crashLeft = crashLen = (CRASH_MIN_S + CRASH_SPREAD_S * rng.uniform()) * rate; crashAge = 0; }
                 double swell = 1;
                 if (crashLeft > 0) {
                     // Above a gain of 1 (a storm nearby) the crash also swells the noise itself, which the blanker cannot remove.
                     if (crashGain > 1) swell = 1 + 3 * crashGain * Math.min(1, crashAge++ / (0.01 * rate)) * (crashLeft / crashLen);
                     crashLeft--;
-                    if (rng.uniform() < denseChance) spark += (8 + 22 * rng.uniform()) * (rng.uniform() < 0.5 ? -1 : 1);
+                    if (rng.uniform() < denseChance) spark += (2.5 + 10 * rng.uniform() * rng.uniform()) * (rng.uniform() < 0.5 ? -1 : 1);
                 }
                 l += sigma * (rng.gauss() * drift * swell + spark);
                 r += sigma * (rng.gauss() * drift * swell + spark * (0.5 + 0.5 * rng.uniform()));

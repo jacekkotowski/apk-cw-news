@@ -2,7 +2,7 @@
 
 Offline-friendly Android app that fetches RSS and Atom news and sends the headlines, optionally with summaries, as audible Morse code. A built-in catalogue of 36 feeds (ham radio, world news, science, psychology) is one tap away. Ham abbreviations (AND = ES, THANKS = TNX) can replace plain words. A synthesized receiver band or Cosmic background can play underneath. The Band tab is a made-up slice of the 40 m CW band with a receiver front panel: a waterfall, an S-meter, a tuning knob, three filter widths, AGC, RIT and a CW / CW-R sideband switch. Signals sweep in and out as you tune, and generated contacts between operators with different personalities (a chatty old-timer, a terse contester, a beginner who asks you to slow down, someone on a summit), with rigs, antennas, weather, hobbies, fun facts and sometimes a headline from your feeds. Your news is the bulletin station at 7020 kHz. No account, server, telemetry or ads. The app contacts only your feeds, and, if you switch on "Use real space weather" in Settings (off by default), `services.swpc.noaa.gov` for NOAA's public K index, once per refresh; nothing about you is sent.
 
-Current version: 2.5.1. Android 8.0 (API 26) or newer.
+Current version: 2.5.2. Android 8.0 (API 26) or newer.
 
 ## Install
 
