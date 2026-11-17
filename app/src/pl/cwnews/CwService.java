@@ -347,7 +347,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
                 Band fb = band;
                 if (follow == 1 && fb != null && !paused && ++followBlocks % 50 == 0 && !engine.newsHeard()
                     && System.currentTimeMillis() - lastUserTune > 20000) {
-                    double f = fb.follow(rxKhz(), 6, 75);
+                    double f = fb.follow(rxKhz(), 2.5, 75);
                     if (!Double.isNaN(f)) { dial = f - rit / 1000.0; prefs.edit().putFloat("dial", (float) dial).apply(); }
                 }
                 if (sleepAt > 0) {

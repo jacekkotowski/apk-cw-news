@@ -317,21 +317,21 @@ public class T {
         boolean stayed = true; int n = 0; double jump = Double.NaN;
         for (int i = 0; i < 100 * 400 && Double.isNaN(jump); i++) {
             java.util.Arrays.fill(buf, 0); b.render(buf, 480, dial, 600);
-            if (listed(b, dial)) { stayed &= Double.isNaN(b.follow(dial, 6, 75)); n++; }
+            if (listed(b, dial)) { stayed &= Double.isNaN(b.follow(dial, 2.5, 75)); n++; }
             else {
-                // The slot is free: within 7 s of audio there is somewhere to go.
-                for (int j = 0; j < 100 * 7 && Double.isNaN(jump); j++) {
+                // The slot is free: within 4 s of audio there is somewhere to go.
+                for (int j = 0; j < 100 * 4 && Double.isNaN(jump); j++) {
                     java.util.Arrays.fill(buf, 0); b.render(buf, 480, dial, 600);
-                    jump = b.follow(dial, 6, 75);
+                    jump = b.follow(dial, 2.5, 75);
                 }
                 break;
             }
         }
         check("follow stays during the contact: " + n + " checks", stayed && n > 100);
-        check("follow names a station within 7 s of the contact ending", !Double.isNaN(jump));
+        check("follow names a station within 4 s of the contact ending", !Double.isNaN(jump));
         check("follow names a station on the band", !Double.isNaN(jump) && listed(b, jump));
         check("follow does not return to the frequency just left", Math.abs(jump - dial) > 0.25);
-        check("a second call straight after a jump stays", Double.isNaN(b.follow(jump, 6, 75)));
+        check("a second call straight after a jump stays", Double.isNaN(b.follow(jump, 2.5, 75)));
         // With nothing else on the band there is nowhere to go, however long it has been quiet.
         int idle = 0; boolean never = true;
         for (int seed = 1; seed <= 40; seed++) {
