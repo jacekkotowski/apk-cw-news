@@ -45,7 +45,7 @@ with sync_playwright() as p:
     g.click('#dnext'); assert calls()[-1] == ['next',1]
     g.click('#cans'); g.wait_for_timeout(100); assert calls()[-1] == ['answer']
     g.wait_for_timeout(700); assert g.is_visible('#clive') and 'DL1ABC' in g.inner_text('#ccall')
-    assert 'report' in g.inner_text('#chint') and 'DL1ABC: CQ CQ' in g.inner_text('#ctrans') and 'R GM' not in g.inner_text('#ctrans')
+    assert 'DL1ABC: CQ CQ' in g.inner_text('#ctrans') and 'R GM' not in g.inner_text('#ctrans')
     assert 'above' in g.inner_text('#czero')
     assert 'UR RST 579 579' in g.inner_text('#csugt'); g.click('#cuse'); assert 'UR RST 579 579' in g.input_value('#ctext')
     g.click('#clive [data-f=call]'); assert g.input_value('#ctext') == 'DL1ABC DE SP0CWN SP0CWN K'
@@ -56,6 +56,7 @@ with sync_playwright() as p:
     g.evaluate('document.querySelector(".seg[data-k=showtext] button[data-v=\'2\']").click()'); assert calls()[-1] == ['set','showtext',2]; g.wait_for_timeout(700)
     assert 'R GM' in g.inner_text('#ctrans')
     g.evaluate('document.querySelector(".seg[data-k=showtext] button[data-v=\'1\']").click()'); g.wait_for_timeout(700); assert 'DL1ABC: CQ CQ' not in g.inner_text('#ctrans') and 'YOU:' in g.inner_text('#ctrans')
+    g.click('#cclear'); g.click('#clive [data-f=ask_name]'); g.click('#clive [data-f=ask_wx]'); assert g.input_value('#ctext') == 'UR NAME? <BT> UR WX?'
     g.click('#cclear'); g.select_option('#cwx','RAIN'); g.select_option('#ctemp','12'); assert g.input_value('#ctext') == 'WX HR RAIN TEMP 12 C'
     g.click('#cclear'); g.select_option('#ctemp','-3'); assert g.input_value('#ctext') == 'WX HR TEMP -3 C'; g.click('#cclear')
     g.click('#cnet'); assert calls()[-1] == ['net']
@@ -75,7 +76,6 @@ with sync_playwright() as p:
     g.click('#scale'); assert calls()[-1] == ['set','span',4]; g.click('#scale')
     g.click('#bfilt'); assert calls()[-1] == ['set','filter',2]
     g.wait_for_timeout(700); assert 'CQ CQ' in g.inner_text('#ctrans')  # one window: the tuned station's text when no contact is running
-    assert 'Thunderstorms' in g.inner_text('#sky')
     assert 'CQ WW CW' in g.inner_text('#contest')
     g.click('nav button[data-t=log]'); g.wait_for_timeout(700)
     assert '2 contacts, 2 countries' in g.inner_text('#lsum'), g.inner_text('#lsum')

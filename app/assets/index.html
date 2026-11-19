@@ -47,10 +47,12 @@ details{background:var(--panel);border-radius:8px;margin:8px 0;padding:0 12px}su
 .knob:after{content:'';position:absolute;inset:16px;border-radius:50%;border:1px dashed rgba(147,170,181,.35)}
 .knob i{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px;border-radius:50%;background:var(--gold);transform:translateY(-46px)}
 .ritrow{display:flex;gap:10px;align-items:center}.ritrow input{flex:1}.ritrow .btn{padding:6px 12px;font-size:14px}
-.scale{display:flex;justify-content:space-between;color:var(--dim);font-size:12px;margin:2px 2px 8px}
+.scale{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;padding:3px 6px 2px;color:#b9cbd3;font-size:11px;background:linear-gradient(transparent,rgba(8,20,26,.85))}
 .lg{padding:10px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.lg b{color:var(--gold);font-weight:600}.lg small{color:var(--dim);display:block}
 .lg.part b{color:var(--text)}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}.chips .btn,.chips select{width:auto;margin:0;padding:5px 10px;font-size:13px;border-radius:14px}.chips select{background:var(--panel);color:var(--text);border:1px solid var(--line);font:inherit;font-size:13px}.cap{color:var(--dim);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:10px 0 2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}.chips .btn,.chips select{width:auto;margin:0;padding:5px 10px;font-size:13px;border-radius:14px}.chips select{background:var(--panel);color:var(--text);border:1px solid var(--line);font:inherit;font-size:13px}.lab{font-size:11px;letter-spacing:.06em;text-transform:uppercase;width:34px;flex:none;align-self:center}.pill{display:inline-flex;border:1px solid var(--gold);border-radius:14px;overflow:hidden}.chips .pill select{border:0;border-radius:0;background:var(--panel)}
+.chips.tell .lab{color:var(--gold)}.chips.tell .btn{border-color:rgba(242,184,75,.55)}.chips.ask .lab{color:#7fb8ff}.chips.ask .btn{border-color:rgba(127,184,255,.55);color:#cfe3ff}.chips.say .lab{color:var(--dim)}
+.cap{color:var(--dim);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:10px 0 2px}
 .fills{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.fills .btn{padding:6px 10px;font-size:14px}
 #ctrans{max-height:220px;overflow-y:auto}
 .klight{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--line);vertical-align:middle;margin-right:8px}.klight.on{background:var(--gold)}
@@ -67,32 +69,26 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
 </section>
 <section id="band">
   <div id="bandbody">
-  <div class="fall" id="fall"><canvas id="wf" aria-label="Waterfall of the band. Tap to tune."></canvas><b id="pass"></b><i id="needle"></i></div>
-  <div class="scale" id="scale"><span></span><span></span><span></span><span></span><span></span></div>
-  <div class="meter"><div class="mbar"><i id="sbar"></i></div><b id="sval">S0</b></div>
+  <div class="fall" id="fall"><canvas id="wf" aria-label="Waterfall of the band. Tap to tune."></canvas><b id="pass"></b><i id="needle"></i><div class="scale" id="scale"><span></span><span></span><span></span><span></span><span></span></div></div>
   <div class="panel">
-    <div class="col"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button><button class="btn" id="bfilt" aria-label="Filter: tap to switch between wide and narrow">Wide</button></div>
-    <div class="knob" id="knob" aria-label="Tuning knob. Turn it to tune; one turn is 1 kHz."><i id="kmark"></i><b id="khz"></b><small>kHz</small></div>
+    <div class="col"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button><button class="btn" id="bfilt" aria-label="Filter: tap to switch between wide and narrow">Filter: Wide</button></div>
+    <div class="knob" id="knob" aria-label="Tuning knob. Turn it to tune; one turn is 1 kHz."><i id="kmark"></i><b id="khz"></b><small>kHz</small><small id="sval" style="margin-top:28px;color:var(--gold)">S0</small></div>
     <div class="col"><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button></div>
   </div>
-  <div id="bstat" style="margin:2px 0 8px"><div id="tuned"></div><div id="sky" style="color:var(--dim);font-size:13px"></div><div id="contest" style="color:var(--gold);font-size:13px"></div></div>
+  <div id="bstat" style="margin:2px 0 8px"><div id="tuned"></div><div id="contest" style="color:var(--gold);font-size:13px"></div></div>
   <pre id="ctrans"></pre>
   <div id="cbox" style="margin-top:12px">
     <div id="cstart">
-      <div class="cap" style="margin-top:0">Length of the contact when you call CQ</div>
-      <div class="seg" data-k="ckind" aria-label="Kind of contact when you call CQ"><button data-v="0">Short</button><button data-v="1">Standard</button><button data-v="2">Chat</button></div>
-      <div class="row" style="margin-top:8px"><button class="btn" id="cans">Answer</button><button class="btn" id="ccq">Call CQ</button></div>
+      <div class="row"><button class="btn" id="cans">Answer</button><button class="btn" id="ccq">Call CQ</button></div>
     </div>
     <div class="msg" id="cnudge" style="display:none;color:var(--gold)">You are using the demo callsign SP0CWN. Set your own in Settings, Your station.</div>
     <div class="msg bad" id="cerr"></div>
     <div id="clive" style="display:none">
       <div id="ccall" style="font-weight:600;margin:8px 0 2px"></div>
-      <div id="chint" style="color:var(--dim);margin:0 0 8px"></div>
       <div id="ctype" style="margin-top:8px">
-        <div class="cap">Tell them about you</div>
-        <div class="chips"><button class="btn" data-f="rst">RST</button><button class="btn" data-f="name">Name</button><button class="btn" data-f="qth">QTH</button><select id="cwx" aria-label="Weather"><option value="">Weather</option><option>SUNNY</option><option>CLOUDY</option><option>RAIN</option><option>SNOW</option><option>WINDY</option><option>FOG</option><option>HOT</option><option>COLD</option></select><select id="ctemp" aria-label="Temperature in degrees"><option value="">Temp</option><option>35</option><option>34</option><option>33</option><option>32</option><option>31</option><option>30</option><option>29</option><option>28</option><option>27</option><option>26</option><option>25</option><option>24</option><option>23</option><option>22</option><option>21</option><option>20</option><option>19</option><option>18</option><option>17</option><option>16</option><option>15</option><option>14</option><option>13</option><option>12</option><option>11</option><option>10</option><option>9</option><option>8</option><option>7</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option><option>0</option><option>-1</option><option>-2</option><option>-3</option><option>-4</option><option>-5</option><option>-6</option><option>-7</option><option>-8</option><option>-9</option><option>-10</option><option>-11</option><option>-12</option><option>-13</option><option>-14</option><option>-15</option></select><button class="btn" data-f="rig">Rig</button><button class="btn" data-f="ant">Ant</button></div>
-        <div class="cap">Say</div>
-        <div class="chips"><button class="btn" data-f="call">Call</button><button class="btn" data-f="r">R</button><button class="btn" data-f="agn">AGN?</button><button class="btn" data-f="qrs">QRS</button><button class="btn" data-f="73">73</button></div>
+        <div class="chips tell"><span class="lab">Tell</span><button class="btn" data-f="rst">RST</button><button class="btn" data-f="name">Name</button><button class="btn" data-f="qth">QTH</button><span class="pill"><select id="cwx" aria-label="Weather"><option value="">Weather</option><option>SUNNY</option><option>CLOUDY</option><option>RAIN</option><option>SNOW</option><option>WINDY</option><option>FOG</option><option>HOT</option><option>COLD</option></select><select id="ctemp" aria-label="Temperature in degrees"><option value="">&deg;C</option><option>35</option><option>34</option><option>33</option><option>32</option><option>31</option><option>30</option><option>29</option><option>28</option><option>27</option><option>26</option><option>25</option><option>24</option><option>23</option><option>22</option><option>21</option><option>20</option><option>19</option><option>18</option><option>17</option><option>16</option><option>15</option><option>14</option><option>13</option><option>12</option><option>11</option><option>10</option><option>9</option><option>8</option><option>7</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option><option>0</option><option>-1</option><option>-2</option><option>-3</option><option>-4</option><option>-5</option><option>-6</option><option>-7</option><option>-8</option><option>-9</option><option>-10</option><option>-11</option><option>-12</option><option>-13</option><option>-14</option><option>-15</option></select></span><button class="btn" data-f="rig">Rig</button><button class="btn" data-f="ant">Ant</button></div>
+        <div class="chips ask"><span class="lab">Ask</span><button class="btn" data-f="ask_name">Name?</button><button class="btn" data-f="ask_qth">QTH?</button><button class="btn" data-f="ask_wx">Weather?</button><button class="btn" data-f="ask_rig">Rig?</button></div>
+        <div class="chips say"><span class="lab">Say</span><button class="btn" data-f="call">Call</button><button class="btn" data-f="r">R</button><button class="btn" data-f="agn">AGN?</button><button class="btn" data-f="qrs">QRS</button><button class="btn" data-f="73">73</button></div>
         <input type="text" id="ctext" autocomplete="off" autocapitalize="characters" aria-label="Text to send" placeholder="Tap the buttons above, then Send">
         <div class="row"><button class="btn" id="csend">Send</button><button class="btn" id="cclear">Clear</button></div>
       </div>
@@ -102,8 +98,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <div class="msg" id="csum"></div>
   </div>
   <div id="keybox" style="display:none">
-    <div class="msg" id="kstat"></div>
-    <div class="msg" id="ksent"></div>
+    <div class="msg"><div id="kstat"></div><div id="ksent" style="margin-top:4px"></div></div>
     <div class="row"><button class="btn" id="ksetup">Set up my key</button><button class="btn" id="kfist">Learn my fist</button><button class="btn" id="kwarm">Warm up</button></div>
     <div id="kwiz" style="display:none">
       <div class="msg" id="kstep"></div>
@@ -160,6 +155,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="seg" data-k="bed"><button data-v="1">Ionosphere</button><button data-v="2">Cosmic</button><button data-v="0">Off</button></div>
   <div class="set"><label>Background level<b id="v-bedDb"></b></label><input type="range" id="bedDb" min="-40" max="-12"></div>
   <h2>Band</h2>
+  <div class="set"><label>Length of a contact when you call CQ</label><div class="seg" data-k="ckind"><button data-v="0">Short</button><button data-v="1">Standard</button><button data-v="2">Chat</button></div></div>
   <div class="set"><label>When a contact ends</label><div class="seg" data-k="follow"><button data-v="0">Stay</button><button data-v="1">Go to the strongest</button></div></div>
   <div class="set"><label for="region">Your region</label><select id="region" aria-label="Your region"></select></div>
   <div class="msg" style="color:var(--dim)">The band is always busy. Pick the band weather: Summer static is the default. It follows the clock from where you are: nearby stations by day, distant ones after dark, and nearby ones drop into the skip zone at night. Evenings and weekends are busier, and on the big contest weekends the band fills with contest stations.</div>
@@ -194,7 +190,7 @@ function paint(){for(const k of ['wpm','eff','pitch','volume','bedDb','sendwpm']
  document.querySelectorAll('.seg').forEach(g=>g.querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S[g.dataset.k])));
  $('bedDb').disabled=S.bed===0;
  const rg=$('region');if(!rg.options.length&&typeof A.regions==='function')JSON.parse(A.regions()).forEach((n,i)=>{const o=el('option','',n);o.value=i;rg.append(o);});
- $('bfilt').textContent=(S.filter||0)===0?'Wide':'Narrow';rg.value=S.region||0;$('weather').value=S.weather2==null?2:S.weather2;}
+ $('bfilt').textContent=(S.filter||0)===0?'Filter: Wide':'Filter: Narrow';rg.value=S.region||0;$('weather').value=S.weather2==null?2:S.weather2;}
 const TEXTS=['mycall','myname','myqth','myrig','myant'];
 function load(){S=JSON.parse(A.settings());paint();}
 for(const k of ['wpm','eff','pitch','volume','bedDb','sendwpm']){
@@ -251,7 +247,6 @@ function bandPaint(b){
  const heard=k=>{const hz=(k-rxk())*1000;return hz>=passLo-50&&hz<=passHi+50;};
  const near=b.act.some(a=>heard(a.k)),atNews=heard(b.news);
  $('tuned').textContent=!b.on?'Press play to start the band.':atNews?'Tuned to your news bulletin.':near?'A station is on this frequency.':'Nothing here. Use Signal to jump to the next one.';
- $('sky').textContent=b.sky||'';
  $('contest').textContent=b.contest?'Contest weekend: '+b.contest+'. Most stations are in the contest.':'';
  $('bplay').innerHTML=(curStatus==='playing'||curStatus==='waiting')?'&#10074;&#10074; Pause':'&#9654; Play';
 }
@@ -274,6 +269,7 @@ function bandTick(){if(!$('band').classList.contains('on'))return;try{bandPaint(
 let live={on:false},typeOpen=-1;
 function fillText(f){const my=S.mycall||'',th=live.call||'',n=S.myname||'',q=S.myqth||'';
  const seg={rst:'UR RST 579 579',name:'NAME '+n+' '+n,qth:'QTH '+q+' '+q,rig:'RIG '+(S.myrig||'')+' PWR '+(S.power||10)+' W',ant:'ANT '+(S.myant||''),r:'R',agn:'AGN?',qrs:'QRS'}[f];
+ const ask={ask_name:'UR NAME?',ask_qth:'UR QTH?',ask_wx:'UR WX?',ask_rig:'UR RIG?',ask_ant:'UR ANT?'}[f];if(ask){addSeg(ask);return;}
  const whole={call:th+' DE '+my+' '+my+' K','73':th+' DE '+my+' TNX FER QSO 73 <SK>'}[f];
  if(whole){$('ctext').value=whole;return;}
  if(seg)addSeg(seg);}
@@ -307,7 +303,6 @@ function contactTick(){
  if(on)$('tuned').textContent='';
  if(!on){$('ctrans').textContent=(S.showtext===1||typeof A.bandCopy!=='function')?'':A.bandCopy();return;}
  $('ccall').textContent='In contact with '+live.call+(live.sending?'  (sending)':'');
- $('chint').textContent=S.hint===0?'':live.hint||'';
  $('csug').style.display=S.hint===0||!live.suggest?'none':'';$('csugt').textContent=live.suggest||'';
  const st=S.showtext||0,lines=(live.lines||[]).filter(x=>st!==1||x.startsWith('YOU:'));
  let t=lines.join('\n');if(st===2&&live.partial)t+=(t?'\n':'')+live.call+': '+live.partial;
@@ -391,7 +386,6 @@ function wfRow(p){
 // S-meter: S9 is a full-strength station, an S unit is 5 dB as in the reports the stations give. The needle falls slowly.
 function meter(level){
  const u=level>0?9+4*Math.log10(level/0.477):0;sShown=Math.max(u,sShown-0.25,0);
- $('sbar').style.width=(100*Math.max(0,Math.min(1,(sShown-1)/12))).toFixed(1)+'%';$('sbar').className=sShown>=9.5?'hot':'';
  $('sval').textContent=sShown<0.5?'S0':sShown<9.5?'S'+Math.round(sShown):'S9+'+5*Math.round(sShown-9);
 }
 function panelLoop(t){
@@ -430,7 +424,7 @@ $('dnext').onclick=()=>{A.nextSignal(1);bandTick();};$('dprev').onclick=()=>{A.n
 $('bfilt').onclick=()=>{A.set('filter',(S.filter||0)===0?2:0);load();};
 $('weather').onchange=()=>{A.set('weather2',+$('weather').value);load();};
 $('region').onchange=()=>{A.set('region',+$('region').value);load();};
-$('scale').onclick=()=>{A.set('span',spanK()>=40?4:40);load();paintDial();};
+$('scale').onpointerdown=e=>e.stopPropagation();$('scale').onclick=()=>{A.set('span',spanK()>=40?4:40);load();paintDial();};
 $('bplay').onclick=()=>A.command('toggle');
 load();paintDial();tick();setInterval(tick,500);
 </script></body></html>
