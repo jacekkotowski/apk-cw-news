@@ -251,6 +251,8 @@ Bridge and UI
 
 ---
 
+> **Superseded:** P6 to P11 below are replaced by `docs/PLAN-KEY.md` (K1 to K8), approved on 2026-11-19. They are kept for reference; K1 to K8 reuse their rules and tests.
+
 ## Release 2.6: your first contacts
 
 The partner logic is the hard part, and it is where a mistake would spoil the experience. P6 is for Fable; P7 and P8 are routine and can be built by Sonnet once P6 exists.
