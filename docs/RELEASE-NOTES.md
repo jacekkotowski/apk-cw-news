@@ -12,7 +12,7 @@ An Android app that turns the news into Morse code, and a practice band where yo
 
 **News as Morse**
 1. Feeds tab: open *Built-in catalogue*, open a group and tap *Add* on a feed or two.
-2. Listen tab: tap the big Play button. Headlines are sent as Morse. Settings sets the speed and the tone.
+2. Listen tab: tap the big Play button. Headlines are sent as Morse. On the Band tab the news is the station at 7 020 kHz. Settings sets the speed and the tone.
 
 **The practice band**
 1. Settings > *Your station*: enter your callsign (a made-up one works), name and QTH. Settings > *Band*: choose your region.

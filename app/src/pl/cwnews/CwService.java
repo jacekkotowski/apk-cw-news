@@ -231,7 +231,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         profile = new Profile(prefs.getString("mycall", d.call), prefs.getString("myname", d.name), prefs.getString("myqth", d.qth), prefs.getString("myrig", d.rig), prefs.getString("myant", d.ant),
             prefs.getInt("power", d.power), prefs.getInt("sendwpm", d.sendWpm), prefs.getInt("manners", d.manners), prefs.getInt("sendwith", d.sendWith));
         sleepAt = prefs.getLong("sleepAt", 0);
-        if (prefs.getInt("band", 1) != 0) {
+        {   // The band is always on; the news is one of its stations, at 7020 kHz.
             if (band == null) {
                 band = new Band(RATE, System.nanoTime(), java.util.Calendar.getInstance().get(java.util.Calendar.MONTH), () -> {
                     java.util.List<String> t = titles;
@@ -248,7 +248,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
             band.setWeather(prefs.getInt("weather2", Sky.STATIC));
             band.setKp(Double.NaN);
             engine.setBand(band);
-        } else { band = null; engine.setBand(null); }
+        }
         if ((timingChanged || textChanged) && engine.hasStory() && storyId != PlaybackQueue.NONE) {
             load(storyId, textChanged ? 0 : engine.word());
         }
