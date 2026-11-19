@@ -147,18 +147,29 @@ final class Qso {
         "A GOOD OP CAN COPY CW BELOW THE NOISE FLOOR",
     };
 
-    private static final int RIG = 0, ANT = 1, WX = 2, AGE = 3, KEY = 4, HOBBY = 5, WORK = 6, QSL = 7, PET = 8, PROJECT = 9, NEWS = 10, FACT = 11,
+    static final int RIG = 0, ANT = 1, WX = 2, AGE = 3, KEY = 4, HOBBY = 5, WORK = 6, QSL = 7, PET = 8, PROJECT = 9, NEWS = 10, FACT = 11,
         CONDX = 12, DXING = 13, SITE = 14, FIRST = 15, WEEK = 16, PLAN = 17, TOPICS = 18;
     /** Topics up to here are ones the other operator usually answers with their own. */
-    private static final int LAST_MIRRORED = QSL;
+    static final int LAST_MIRRORED = QSL;
 
-    private static final class Op {
+    static final class Op {
         int id, style, hour, temp, power, age, years;
         Country c;
         String call, name, city, rig, ant, wx, hobby, key, job, site, ref;
         boolean qrp, yl, storm, snow, chirp, rough, drift;
         double speed, lossDb, qsbDb, lat, lon, baseDb;
         final List<Integer> plan = new ArrayList<>();
+    }
+
+    /** The user as an operator, for a live partner to talk to. Unknown fields stay null or 0. */
+    static Op userOp(Profile p, Scene s) {
+        Op o = new Op();
+        o.id = 1; o.style = CASUAL; o.call = p.call; o.name = p.name; o.city = p.qth; o.rig = p.rig; o.ant = p.ant;
+        o.power = p.power; o.qrp = p.power <= 10;
+        o.hour = ((s.hourUtc + 1) % 24 + 24) % 24;
+        if (s.here) { o.lat = s.lat; o.lon = s.lon; }
+        o.baseDb = o.qrp ? 12 : 6;
+        return o;
     }
 
     /** GM, GA or GE for a local hour. */
@@ -216,10 +227,12 @@ final class Qso {
     }
 
     /** Builds one contact. */
-    private static final class Gen {
+    static final class Gen {
         final Dsp.Rng r; final Scene scene; final int month, hourUtc; final List<Tx> tx;
         String headline;
         int zone;
+        /** No fumbled words: a live partner does not make the user's job harder. */
+        boolean clean;
         final List<Op> ops = new ArrayList<>();
         final double[] temp = new double[COUNTRIES.length];
         /** Current sending speed of each operator, and a slower speed they were asked for (0 if none). */
@@ -369,7 +382,7 @@ final class Qso {
         void send(Op o, String text, double pause) {
             String t = text.replaceAll("\\s+", " ").trim();
             slow(o);   // asked to slow down: does so even when the over has no room to say it
-            if (r.chance(o.style == NOVICE ? 0.3 : o.key.equals("BUG") ? 0.05 : 0.015)) t = fumble(t);
+            if (r.chance(o.style == NOVICE ? 0.3 : o.key.equals("BUG") ? 0.05 : 0.015) && !clean) t = fumble(t);
             tx.add(new Tx(o.id, t, spd[o.id], pause));
         }
 
@@ -497,18 +510,21 @@ final class Qso {
         String react(int t, Op me, Op ot) {
             switch (t) {
                 case RIG:
+                    if (ot.rig == null) return null;
                     if (ot.qrp) return between(ot, me) < 15 ? pick("ONLY " + ot.power + " W WOW", ot.power + " W DOING FB JOB", "FB QRP SIG") : pick(ot.power + " W BUT OK CPY", "QRP WORKS HI");
                     return ot.rig.equals(me.rig) ? "SAME RIG HR HI" : r.chance(0.5) ? pick("FB RIG", "NICE RIG") : null;
-                case ANT: return r.chance(0.5) ? pick("UR ANT WORKS WELL", "FB ANT") : null;
+                case ANT: if (ot.ant == null) return null; return r.chance(0.5) ? pick("UR ANT WORKS WELL", "FB ANT") : null;
                 case WX:
+                    if (ot.wx == null) return null;
+                    if (ot.c == null) return pick("TNX FER WX", "R WX NOTED");   // the user's own weather: no temperature to compare
                     if (ot.storm) return pick("STAY SAFE", "WATCH THAT STORM");
                     if (ot.snow) return "BRR SNOW HI";
                     if (me.temp - ot.temp >= 8) return "WARMER HR";
                     if (ot.temp - me.temp >= 8) return "COLDER HR";
                     return null;
                 case AGE: return ot.style == NOVICE ? pick("WELCOME TO CW", "WELCOME TO THE HOBBY") : ot.years >= 40 ? "LONG TIME ON THE AIR FB" : null;
-                case KEY: return ot.key.equals("BUG") ? "UR BUG SOUNDS FB" : ot.key.equals("STRAIGHT KEY") ? "NICE FIST ON STRAIGHT KEY" : null;
-                case HOBBY: return ot.hobby.equals(me.hobby) ? "I ALSO LIKE " + ot.hobby + " HI" : r.chance(0.5) ? ot.hobby + " IS NICE" : null;
+                case KEY: if (ot.key == null) return null; return ot.key.equals("BUG") ? "UR BUG SOUNDS FB" : ot.key.equals("STRAIGHT KEY") ? "NICE FIST ON STRAIGHT KEY" : null;
+                case HOBBY: if (ot.hobby == null) return null; return ot.hobby.equals(me.hobby) ? "I ALSO LIKE " + ot.hobby + " HI" : r.chance(0.5) ? ot.hobby + " IS NICE" : null;
                 case PET: return "HI HI";
                 case PROJECT: return pick("GL WID PROJECT", "FB PROJECT");
                 case NEWS: return pick("NO NOT YET WILL CHECK IT OUT TNX", "YES SAW IT TOO WOW HI", "NO NEWS HR ONLY RADIO HI");

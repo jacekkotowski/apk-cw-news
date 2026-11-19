@@ -428,6 +428,15 @@ The ten forgiving rules above all apply. Unreadable overs: `SRI NO COPY PSE AGN`
 
 **Done when** the tests pass and the hash test passed before and after the `Qso` change.
 
+**As built (differences from the text above)**
+- `Gen.clean` switches off the fumbled words a generated operator sometimes sends, so a live partner never adds errors of its own. The random numbers are still drawn, so generated contacts are unchanged (the hash test proves it).
+- The "after a repeat that worked" encouragement is `GUD COPY NW` only. `TNX FER RPT` is not used, because `Gen.basics` already says it and the test counts encouragements per over.
+- A callsign confirmation (`SP0CWN?`) replaces a request in the same over.
+- Rule 5's "widen the gaps first" is not built: `Qso.Tx` has only one speed. The partner slows its characters instead.
+- `Heard` returns values only for NAME, QTH, RIG, ANT, WX and PWR, so the partner reacts to those and merely notes HOBBY, JOB, AGE and KEY.
+- `Partner.from` has no names or places for a station already on the band (`Qso` does not store them), so it draws new ones; the callsign, personality and hour are kept.
+- The partner's speed is a factor of `Partner.baseWpm` (the listener's speed setting, default 20; K4 must set it). `Partner.logged` (contacts already logged) drives the early encouragement; K4 must set it from `Db.logCount()`.
+
 ### K4. A live station, TX muting and the contact card (typing)
 
 **Model:** Sonnet. **Size:** large. **Needs:** K1 to K3. Ships as **2.6.0**.

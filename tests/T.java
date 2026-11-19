@@ -1019,8 +1019,153 @@ public class T {
         check("unknown code", Morse.letter("......-") == null);
     }
 
+    /** A hash of the text of 500 generated contacts. K3 changes the visibility of Qso.Op and Qso.Gen; the contacts must not change. */
+    static long contactsHash() {
+        long h = 1125899906842597L;
+        for (int seed = 1; seed <= 500; seed++) {
+            Qso q = Qso.generate(new Dsp.Rng(seed), seed % 12, seed % 24, seed % 3 == 0 ? "WORLD LEADERS MEET IN GENEVA TODAY" : null);
+            for (Qso.Tx t : q.tx) {
+                String x = t.who + "|" + t.text + "|" + Math.round(t.speed * 1000) + "|" + Math.round(t.pause * 1000) + "|" + Math.round(t.carrier * 1000);
+                for (int i = 0; i < x.length(); i++) h = 31 * h + x.charAt(i);
+            }
+            for (String c : q.call) for (int i = 0; i < c.length(); i++) h = 31 * h + c.charAt(i);
+        }
+        return h;
+    }
+    static void contactsUnchanged() { eq("generated contacts unchanged", contactsHash(), 9109856235999552946L); }
+
+    // ---- K3: the friendly partner ----
+    static final Profile ME = new Profile("SP0CWN", "JACEK", "KRAKOW", "FT891", "DIPOLE", 10, 15, 0, 0);
+    static Profile me(int manners) { return new Profile("SP0CWN", "JACEK", "KRAKOW", "FT891", "DIPOLE", 10, 15, manners, 0); }
+    static Qso.Tx over(Partner p, String text) { return over(p, text, 15, 0); }
+    static Qso.Tx over(Partner p, String text, double wpm, double offset) { return p.hear(Heard.parse(text, p.expect()), 10, offset, wpm); }
+    static java.util.List<String> segs(Qso.Tx t) { return java.util.Arrays.asList(t.text.split(" <BT> ")); }
+    static final java.util.List<String> ENC = java.util.Arrays.asList("NO PROBLEM", "NP", "GUD COPY NW", "UR CW IS FB", "NICE FIST", "TAKE UR TIME", "TNX FER QSO UR DOING FB", "HPE CU AGN");
+    static final java.util.List<String> REQ = java.util.Arrays.asList("CALL?", "UR RST?", "UR NAME?", "UR QTH?", "PSE UR CALL?");
+    static final java.util.List<String> QUE = java.util.Arrays.asList("UR WX?", "WHAT RIG ES ANT?", "ANY OTHER HOBBIES?", "WHAT DO U DO FER WORK?", "HW LONG HAM?");
+    static int count(Qso.Tx t, java.util.List<String> set) { int n = 0; for (String s : segs(t)) if (set.contains(s.trim())) n++; return n; }
+    static Partner calling(long seed, int manners, int kind) { return Partner.calling(new Dsp.Rng(seed), new Qso.Scene(5, 20), me(manners), manners, kind); }
+
+    static void partner() {
+        // A minimal contact: both calls and one report.
+        Partner p = calling(1, 0, Partner.STANDARD);
+        check("the partner calls CQ first", p.first() != null && p.first() == null);
+        String pc = p.call();
+        check("the partner answers a call", over(p, pc + " DE SP0CWN SP0CWN K") != null);
+        check("reply 2", over(p, "SP0CWN DE " + pc + " UR RST 579 579 K") != null);
+        check("not finished before the user says 73", !p.done());
+        check("reply to 73", over(p, "TNX 73 SK") != null);
+        check("a minimal contact is done", p.done()); check("and complete", p.result().complete);
+        eq("the contact's call", p.result().call, pc); eq("report sent", p.result().rstSent, "579"); check("report received", !p.result().rstRcvd.isEmpty());
+        check("nothing after the end", over(p, "K") == null);
+        // An activator: call, report, thanks.
+        p = calling(2, 0, Partner.ACTIVATOR); p.first();
+        over(p, p.call() + " DE SP0CWN SP0CWN K"); over(p, "R UR 599 TU 73");
+        check("an activator contact ends", p.done() && p.result().complete);
+        // A full standard contact in two overs after the call.
+        p = calling(3, 0, Partner.STANDARD); p.first();
+        over(p, p.call() + " DE SP0CWN K");
+        over(p, "R TNX UR RST 579 579 <BT> NAME JACEK <BT> QTH KRAKOW K");
+        check("a standard contact ends once the exchange is done", p.done() && p.result().complete);
+        eq("the partner learned the name", p.result().qth.isEmpty(), false);
+        // A chat of at least eight overs.
+        int shortest = 99;
+        for (long seed = 1; seed <= 20; seed++) {
+            p = calling(seed, 0, Partner.CHATTY); p.first();
+            over(p, p.call() + " DE SP0CWN K");
+            over(p, "R TNX UR RST 579 579 <BT> NAME JACEK <BT> QTH KRAKOW K");
+            int n = 0;
+            while (!p.done() && n < 40) { over(p, "R FB TNX FER INFO <BT> UR WX HR CLOUDY K"); n++; }
+            check("a chat ends by itself " + seed, p.done());
+            shortest = Math.min(shortest, p.result().overs);
+        }
+        check("a chat takes at least 8 overs, shortest " + shortest, shortest >= 8);
+        // One letter wrong in the user's call: confirmed once, then accepted.
+        p = calling(4, 0, Partner.STANDARD); p.first();
+        Qso.Tx t = over(p, p.call() + " DE SP0CWX K");
+        check("the call is confirmed", t.text.contains("SP0CWN?"));
+        t = over(p, "R");
+        check("and accepted", !t.text.contains("SP0CWN?") && !t.text.contains("CALL?"));
+        // Three unreadable overs.
+        p = calling(5, 0, Partner.STANDARD); p.first();
+        double w0 = p.wpm();
+        t = over(p, "QZXJ KWVP VBQX"); check("first help", t.text.contains("SRI NO COPY PSE AGN"));
+        t = over(p, "ZZQX JKQW WPQV"); check("second help", t.text.contains("PSE AGN SLOWLY")); check("and the partner slows down", p.wpm() < w0);
+        t = over(p, "XQJZ QQKX VWPJ"); check("third help asks for one thing", t.text.contains("PSE UR CALL?"));
+        check("the contact goes on", !p.done() && over(p, p.call() + " DE SP0CWN K") != null);
+        // Silence: three prompts, then a kind sign-off, incomplete.
+        p = Partner.answering(new Dsp.Rng(6), new Qso.Scene(5, 20), me(0), 0, Partner.STANDARD); p.first();
+        check("no prompt too early", p.silence(10) == null);
+        check("prompt 1 at 25 s", p.silence(26) != null); check("no second prompt yet", p.silence(30) == null);
+        check("prompt 2", p.silence(51) != null); check("prompt 3", p.silence(76) != null);
+        t = p.silence(101);
+        check("then a sign-off", t != null && t.text.contains("NIL HR") && t.text.contains("73 CUL") && p.done());
+        check("incomplete, not failed", !p.result().complete);
+        // QRS twice.
+        p = calling(7, 0, Partner.CHATTY); p.first(); over(p, p.call() + " DE SP0CWN K");
+        double a = p.wpm();
+        over(p, "R QRS PSE K"); double b = p.wpm(); over(p, "QRS PSE K"); double c = p.wpm();
+        near("QRS twice slows to 56%", c / a, 0.5625, 0.01); check("it only falls", b < a);
+        for (int i = 0; i < 4; i++) over(p, "R FB K");
+        check("and never rises again", p.wpm() <= c + 1e-9);
+        // The error sign is answered at most once.
+        p = calling(8, 0, Partner.CHATTY); p.first(); over(p, p.call() + " DE SP0CWN K");
+        int np = 0;
+        for (String x : new String[]{"R UR RST 579 <HH> 579 K", "NAME JACEK <HH> JACEK K", "EEEEEEE QTH KRAKOW K", "R <HH> R K"}) { Qso.Tx r = over(p, x); if (r != null) for (String s : segs(r)) if (s.equals("NP") || s.equals("NO PROBLEM")) np++; }
+        check("NP at most once: " + np, np <= 1);
+        // Realistic manners do not hear you off frequency; patient ones do.
+        Partner rp = calling(9, 2, Partner.STANDARD), pp = calling(9, 0, Partner.STANDARD);
+        check("realistic: no answer at 300 Hz", over(rp, rp.call() + " DE SP0CWN K", 15, 300) == null);
+        check("patient: answers at 300 Hz", over(pp, pp.call() + " DE SP0CWN K", 15, 300) != null);
+        // Four questions in one over: two now, two next time.
+        int good = 0;
+        for (long seed = 20; seed < 40; seed++) {
+            p = calling(seed, 0, Partner.CHATTY); p.first();
+            over(p, p.call() + " DE SP0CWN K");
+            Qso.Op o = p.op();
+            Qso.Tx r1 = over(p, "R UR RST 579 579 <BT> NAME JACEK <BT> QTH KRAKOW <BT> WX? ANT? HOBBY? JOB? K");
+            Qso.Tx r2 = over(p, "R FB K");
+            String[] want = {o.wx, o.ant, o.hobby, o.job};
+            int in1 = 0, in2 = 0;
+            for (String w : want) { if (r1.text.contains(w)) in1++; if (r2.text.contains(w)) in2++; }
+            if (in1 == 2 && in2 == 2) good++;
+        }
+        check("two answered now and two next over: " + good + "/20", good >= 18);
+        // After the user's weather, the partner never asks for it.
+        p = calling(11, 0, Partner.CHATTY); p.first(); over(p, p.call() + " DE SP0CWN K");
+        boolean asked = false;
+        Qso.Tx r = over(p, "R UR RST 579 <BT> NAME JACEK <BT> QTH KRAKOW <BT> WX HR SUNNY 25C K");
+        for (int i = 0; i < 12 && r != null; i++) { if (r.text.contains("UR WX?")) asked = true; r = over(p, "R FB K"); }
+        check("it does not ask for the weather again", !asked);
+        check("hint is not empty", !p.hint().isEmpty() && !calling(12, 0, 1).hint().isEmpty());
+        // 2000 random scripts: one encouragement, one request and one question at most, never "wrong", never faster than the user.
+        String[] pool = {"{c} DE SP0CWN K", "SP0CWX DE {c} K", "R UR RST 579 579 K", "UR RST 5NN K", "NAME JACEK K", "QTH KRAKOW K", "WX? K", "UR ANT? K", "HOBBY? K", "AGN PSE K", "QRS K",
+            "EEEEEEE K", "QZXJ KWVP", "R R K", "73 SK", "TNX 73", "RIG FT891 ANT DIPOLE K", "WX HR SUNNY 25C K", "?", "SP0CWN"};
+        Dsp.Rng rr = new Dsp.Rng(99);
+        int badEnc = 0, badReq = 0, badQue = 0, badWord = 0, badSpeed = 0, replies = 0;
+        for (int i = 0; i < 2000; i++) {
+            int manners = rr.nextInt(3), kind = rr.nextInt(3);
+            Partner q = rr.chance(0.3) ? Partner.answering(rr, new Qso.Scene(rr.nextInt(12), rr.nextInt(24)), me(manners), manners, kind) : Partner.calling(rr, new Qso.Scene(rr.nextInt(12), rr.nextInt(24)), me(manners), manners, kind);
+            q.first();
+            for (int k = 0; k < 30 && !q.done(); k++) {
+                double uw = 8 + rr.nextInt(18);
+                Qso.Tx x = over(q, pool[rr.nextInt(pool.length)].replace("{c}", q.call()), uw, 0);
+                if (x == null) continue;
+                replies++;
+                if (count(x, ENC) > 1) badEnc++;
+                if (count(x, REQ) > 1) badReq++;
+                if (count(x, QUE) > 1) badQue++;
+                if (x.text.contains("WRONG") || x.text.contains("ERROR") || x.text.contains("FAIL")) badWord++;
+                if (manners == 0 && x.speed * q.baseWpm > uw + 1e-6) badSpeed++;
+            }
+        }
+        check("many replies were made: " + replies, replies > 10000);
+        eq("never more than one encouragement", badEnc, 0); eq("never more than one request", badReq, 0); eq("never more than one question", badQue, 0);
+        eq("never a harsh word", badWord, 0); eq("patient partner never faster than the user", badSpeed, 0);
+    }
+
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); partner(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);
