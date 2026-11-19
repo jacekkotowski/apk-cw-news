@@ -53,6 +53,7 @@ details{background:var(--panel);border-radius:8px;margin:8px 0;padding:0 12px}su
 .lg.part b{color:var(--text)}
 .fills{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.fills .btn{padding:6px 10px;font-size:14px}
 #ctrans{max-height:220px;overflow-y:auto}
+.klight{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--line);vertical-align:middle;margin-right:8px}.klight.on{background:var(--gold)}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-radius:8px;padding:12px;font:13px/1.5 ui-monospace,monospace;margin:10px 0}pre:empty{display:none}
 </style></head><body>
 <main>
@@ -100,6 +101,21 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     </div>
     <div class="msg" id="csum"></div>
   </div>
+  <div id="keybox" style="display:none">
+    <h2>My key</h2>
+    <div class="msg" id="kstat"></div>
+    <div class="row"><button class="btn" id="ksetup">Set up my key</button><button class="btn" id="kfist">Learn my fist</button><button class="btn" id="kwarm">Warm up</button></div>
+    <div id="kwiz" style="display:none">
+      <div class="msg" id="kstep"></div>
+      <div class="mbar"><i id="klvl"></i></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="kgo">Start</button><button class="btn" id="kcancel">Cancel</button></div>
+      <div class="msg" id="kres"></div>
+    </div>
+    <div class="msg" id="ksent"></div>
+    <div class="row"><input type="text" id="kmeant" placeholder="What you meant to send" autocomplete="off" autocapitalize="characters" style="flex:1;margin:0"><button class="btn" id="kwrong">That's not what I sent</button><button class="btn" id="kexport">Export</button></div>
+    <div class="msg" style="color:var(--dim)">The sound is analysed on the phone and never stored or sent. Only the timings of your key can be saved, and only if you tap "That's not what I sent".</div>
+    <details><summary>It does not hear my key</summary><div class="msg" style="color:var(--dim)">Hold the phone closer to the buzzer, run Set up again, use headphones so the band does not reach the microphone, try a buzzer with a different pitch, or connect the buzzer to the phone by cable.</div></details>
+  </div>
   <h2>Receiver</h2>
   <div class="set"><label>Filter</label><div class="seg" data-k="width"><button data-v="0">Wide</button><button data-v="1">Normal</button><button data-v="2">Narrow</button></div></div>
   <div class="set"><label>Sideband</label><div class="seg" data-k="side"><button data-v="0">CW</button><button data-v="1">CW-R</button></div></div>
@@ -137,7 +153,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="set"><label>Partners are</label><div class="seg" data-k="manners"><button data-v="0">Patient</button><button data-v="1">Normal</button><button data-v="2">Realistic</button></div></div>
   <div class="set"><label>Send with</label><div class="seg" data-k="sendwith"><button data-v="0">Typing</button><button data-v="1">My key (microphone)</button></div></div>
   <div class="set"><label>Hint line during a contact</label><div class="seg" data-k="hint"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
-  <div class="msg" style="color:var(--dim)">Until you can send with a key, "My key" is only stored; you take part by typing on the Band tab. Patient partners wait for you, ask again kindly and never fail a contact.</div>
+  <div class="msg" style="color:var(--dim)">With "My key" the phone listens to your key's buzzer through the microphone, on the Band tab only; set it up there. Typing always works too. Patient partners wait for you, ask again kindly and never fail a contact.</div>
   <h2>Morse</h2>
   <div class="set"><label>Character speed<b id="v-wpm"></b></label><input type="range" id="wpm" min="5" max="50"></div>
   <div class="set"><label>Effective speed<b id="v-eff"></b></label><input type="range" id="eff" min="5" max="50"></div>
@@ -210,7 +226,7 @@ function feeds(){const j=A.feeds();if(j===feedSig)return;feedSig=j;const f=JSON.
   r.append(t,e,del);d.append(r);l.append(d);});}
 function list(cur){const j=A.recent()+cur;if(j===listSig)return;listSig=j;const f=JSON.parse(A.recent()),l=$('list');l.textContent='';
  f.forEach(x=>{const d=el('div','story'+(x.heard?' heard':'')+(x.id===cur?' cur':''));d.append(el('small','',x.source),document.createTextNode(x.title));d.onclick=()=>A.playStory(x.id);l.append(d);});}
-function tick(){const s=JSON.parse(A.state());curStatus=s.status;bandTick();const n=s.news||{};
+function tick(){if(micWanted&&!$('band').classList.contains('on')){micWanted=false;A.micOn(false);}const s=JSON.parse(A.state());curStatus=s.status;bandTick();const n=s.news||{};
  $('src').textContent=s.source||'';$('head').textContent=s.title||(s.status==='waiting'?'Listening for new stories':'CW News');
  $('prog').style.width=(s.words?100*Math.min(s.word+1,s.words)/s.words:0)+'%';
  $('toggle').innerHTML=(s.status==='playing'||s.status==='waiting')?'&#10074;&#10074;':'&#9654;';
@@ -275,6 +291,7 @@ $('csend').onclick=()=>{const r=A.sendText($('ctext').value);$('cerr').textConte
 $('cnet').onclick=()=>{A.net();bandTick();};
 $('cend').onclick=()=>{A.endContact();contactTick();};
 function contactTick(){
+ keyTick();
  if(typeof A.liveState!=='function')return;
  try{live=JSON.parse(A.liveState());}catch(e){return;}
  const on=!!live.on;
@@ -290,6 +307,50 @@ function contactTick(){
  const d=Math.round((live.khz-live.tx)*1000);
  $('czero').textContent=Math.abs(d)<10?'On your frequency.':'Their signal is '+Math.abs(d)+' Hz '+(d>0?'above':'below')+' your frequency.';
  $('cnet').disabled=Math.abs(d)<10;
+}
+
+// My key: the phone listens to the buzzer through the microphone, on this screen only.
+let ms={},wiz=null,micWanted=false;
+const SENDTXT=()=>'CQ CQ DE '+(S.mycall||'SP0CWN')+' '+(S.mycall||'SP0CWN')+' K';
+function micMsg(){return 'Allow the microphone, then tap again. The sound is analysed on the phone and never stored or sent.';}
+function needMic(){if(typeof A.micPermission!=='function')return false;if(A.micPermission())return true;$('kres').textContent=micMsg();$('kwiz').style.display='';return false;}
+function wizShow(step,btn){$('kwiz').style.display='';$('kstep').textContent=step;$('kgo').textContent=btn||'Start';$('kres').textContent='';}
+$('ksetup').onclick=()=>{if(!needMic())return;wiz={k:'cal',n:0};wizShow('Step 1 of 3. Hold your key down for two seconds, starting when you tap Start.');};
+$('kfist').onclick=()=>{if(!needMic())return;wiz={k:'fist',n:0};wizShow('Send this three times at your own pace, then tap Done: '+SENDTXT(),'Begin');};
+$('kwarm').onclick=()=>{if(!needMic())return;wiz={k:'warm',n:0};A.warmUp(true);wizShow('Warm up for a minute. Send anything, for example '+SENDTXT()+'. What is read appears below.','Stop');};
+$('kcancel').onclick=()=>{if(wiz&&wiz.k==='warm')A.warmUp(false);wiz=null;$('kwiz').style.display='none';};
+$('kgo').onclick=()=>{
+ if(!wiz)return;
+ if(wiz.k==='cal'){
+  if(wiz.n===0){A.micRecord('held',2);wiz.n=1;$('kgo').disabled=true;$('kstep').textContent='Hold your key down...';}
+  else if(wiz.n===2){A.micRecord('quiet',2);wiz.n=3;$('kgo').disabled=true;$('kstep').textContent='Stay quiet...';}
+  else if(wiz.n===4){if(curStatus!=='playing'&&curStatus!=='waiting'){$('kres').textContent='Press Play first, so that the band is playing.';return;}A.micRecord('band',3);wiz.n=5;$('kgo').disabled=true;$('kstep').textContent='The band plays...';}
+ }else if(wiz.k==='fist'){
+  if(wiz.n===0){A.fistStart();wiz.n=1;$('kgo').textContent='Done';}
+  else{const r=A.fistDone(SENDTXT());$('kres').textContent=r||'That was too little to learn from. Try again, sending it three times.';wiz=null;$('kgo').textContent='Start';}
+ }else if(wiz.k==='warm'){A.warmUp(false);wiz=null;$('kwiz').style.display='none';}
+};
+function lev(a,b){const m=[];for(let i=0;i<=a.length;i++){m[i]=[i];}for(let j=0;j<=b.length;j++)m[0][j]=j;for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return m[a.length][b.length];}
+$('kwrong').onclick=()=>{A.notWhatISent($('kmeant').value);$('kmeant').value='';};
+$('kexport').onclick=()=>A.exportSaved();
+function keyTick(){
+ const on=S.sendwith===1;$('keybox').style.display=on?'':'none';
+ if(typeof A.micState!=='function')return;
+ const want=on&&$('band').classList.contains('on')&&(!!live.on||!!wiz);
+ if(want!==micWanted){micWanted=want;A.micOn(want);}
+ if(!on)return;
+ try{ms=JSON.parse(A.micState());}catch(e){return;}
+ $('kstat').textContent=!ms.perm?'The microphone is not allowed yet. Tap Set up my key.':!ms.calibrated?'Not set up yet. Tap Set up my key.':'Ready. Pitch about '+ms.pitch+' Hz.'+(ms.fist?' Your fist is learned.':'');
+ $('ksent').innerHTML='';const lt=el('span','klight'+(ms.key?' on':''));$('ksent').append(lt,document.createTextNode('You sent: '+((ms.heard||ms.sent||'')||'...')));
+ if(wiz&&wiz.k==='cal'){
+  if(wiz.n===1&&ms.have0){wiz.n=2;$('kgo').disabled=false;$('kstep').textContent='Step 2 of 3. Release the key and stay quiet for two seconds, starting when you tap Start.';}
+  if(wiz.n===3&&ms.have1){wiz.n=4;$('kgo').disabled=false;$('kstep').textContent='Step 3 of 3. The band will play for three seconds. Press Play first if it is not playing.';}
+  if(wiz.n===5&&ms.have2){const r=JSON.parse(A.micCalibrate());wiz=null;$('kgo').disabled=false;$('kgo').textContent='Start';
+   $('kres').textContent=r.ok?'Found your buzzer at about '+r.pitch+' Hz, '+r.snr+' dB above the room.'+(r.leakOk?'':' The band reaches the microphone too strongly: use headphones, or turn the volume down.'):'I could not hear a steady buzzer. Hold the key down for the whole first step, move the phone closer, or see the help below.';
+   $('kstep').textContent='Set-up finished.';}
+ }
+ if(wiz&&wiz.k==='warm'){const want=SENDTXT().replace(/^/,''),got=ms.warm||'';$('kres').textContent=(got?'Read: '+got:'Listening...')+(got?'  ('+Math.round(100*Math.max(0,1-lev(want,got)/want.length))+'% of the suggested text)':'');if(!ms.warming&&ms.running){wiz=null;}}
+ if(wiz&&wiz.k==='fist')$('kres').textContent=ms.heard?'Read so far: '+ms.heard:'';
 }
 
 // Waterfall: every 40 ms the picture moves down one row and a new row is drawn on top.

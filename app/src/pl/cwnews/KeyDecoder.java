@@ -315,6 +315,17 @@ final class KeyDecoder {
         return l;
     }
 
+    /** How much of the wanted text was read, 0 to 1, by edit distance. */
+    static double accuracy(String want, String got) {
+        if (want.isEmpty()) return got.isEmpty() ? 1 : 0;
+        int[][] m = new int[want.length() + 1][got.length() + 1];
+        for (int i = 0; i <= want.length(); i++) m[i][0] = i;
+        for (int j = 0; j <= got.length(); j++) m[0][j] = j;
+        for (int i = 1; i <= want.length(); i++) for (int j = 1; j <= got.length(); j++)
+            m[i][j] = Math.min(Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1), m[i - 1][j - 1] + (want.charAt(i - 1) == got.charAt(j - 1) ? 0 : 1));
+        return Math.max(0, 1 - m[want.length()][got.length()] / (double) want.length());
+    }
+
     // ---- saved overs, so that real ones can become test data ----
 
     /** The timings of the over so far, and what was meant, as JSON. */

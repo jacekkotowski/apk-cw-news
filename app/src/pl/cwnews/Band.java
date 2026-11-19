@@ -450,6 +450,9 @@ final class Band {
         return true;
     }
 
+    /** Whether the live partner is keying right now. */
+    synchronized boolean liveSending() { Station s = liveStation(); return s != null && s.key != null; }
+
     /** The live station's frequency in kHz, or NaN. */
     synchronized double liveKhz() { Station s = liveStation(); return s == null ? Double.NaN : s.khz; }
 

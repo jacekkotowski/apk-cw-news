@@ -91,14 +91,32 @@ final class KeyEar {
         levelOn = median(on, c);
         levelOff = envMedian(quiet, nQuiet);
         leak = band == null ? 0 : envMedian(band, nBand);
-        double floor = Math.max(Math.max(levelOff, leak), 1e-4 * levelOn);
-        // The geometric mean of the buzzer and the room, but never below 45% of the buzzer: a room echo then cannot hold a mark open.
-        thrOn = Math.min(0.85 * levelOn, Math.max(Math.sqrt(levelOn * floor), 0.45 * levelOn));
-        thrOff = 0.8 * thrOn;
+        thresholds();
         ready = pitch > 0 && levelOn > 3 * levelOff;
         restart(pitch);
         return ready;
     }
+    private void thresholds() {
+        double floor = Math.max(Math.max(levelOff, leak), 1e-4 * levelOn);
+        // The geometric mean of the buzzer and the room, but never below 45% of the buzzer: a room echo then cannot hold a mark open.
+        thrOn = Math.min(0.85 * levelOn, Math.max(Math.sqrt(levelOn * floor), 0.45 * levelOn));
+        thrOff = 0.8 * thrOn;
+    }
+
+    /** The calibration as text, to keep between sessions. */
+    String save() { return String.format(java.util.Locale.ROOT, "%.2f,%.6f,%.6f,%.6f,%d", pitch, levelOn, levelOff, leak, rate); }
+    /** Restores a saved calibration made at the same sample rate; false if the text is no good. */
+    boolean restore(String t) {
+        try {
+            String[] p = t.split(",");
+            if (p.length != 5 || Integer.parseInt(p[4]) != rate) return false;
+            pitch = Double.parseDouble(p[0]); levelOn = Double.parseDouble(p[1]); levelOff = Double.parseDouble(p[2]); leak = Double.parseDouble(p[3]);
+            if (!(pitch > 0 && levelOn > 0)) return false;
+            thresholds(); ready = true; restart(pitch);
+            return true;
+        } catch (RuntimeException e) { return false; }
+    }
+
     private double envMedian(float[] x, int n) {
         if (x == null || n == 0) return 0;
         restart(pitch);

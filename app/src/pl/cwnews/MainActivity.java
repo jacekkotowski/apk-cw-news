@@ -6,7 +6,10 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.media.AudioFormat;
 import android.media.AudioManager;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -102,6 +105,145 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
     }
+
+
+    // ---- the key, heard through the microphone ----
+
+    /**
+     * Listens to the buzzer of the user's key, only while the page asks for it and the app is on screen. The sound is
+     * analysed here and never stored or sent. It feeds the receiver's ducking, and at the end of an over gives the
+     * decoded text to the live partner.
+     */
+    private final class Mic implements Runnable {
+        static final int RATE = 16000, BLOCK = 320;
+        private AudioRecord rec;
+        private Thread thread;
+        private volatile boolean run;
+        final KeyEar ear = new KeyEar(RATE);
+        final KeyDecoder[] decoder = {new KeyDecoder(15, null)};
+        private final float[][] cap = new float[3][];
+        private final int[] capN = new int[3];
+        private volatile int capKind = -1, capWant;
+        volatile String heard = "", status = "";
+        volatile boolean keyDown;
+        private volatile long warmEnd;
+        volatile boolean learning, calibrating;
+        private volatile String warmText = "";
+        private long samples;
+        private String lastJson = "", lastText = "";
+        private int quietBlocks;
+
+        boolean running() { return run; }
+
+        synchronized boolean start() {
+            if (run) return true;
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) { status = "Microphone permission is needed."; return false; }
+            try {
+                String raw = ((AudioManager) getSystemService(AUDIO_SERVICE)).getProperty(AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED);
+                int source = "true".equals(raw) ? MediaRecorder.AudioSource.UNPROCESSED : MediaRecorder.AudioSource.VOICE_RECOGNITION;
+                int min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+                rec = new AudioRecord(source, RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, Math.max(min, RATE));
+                if (rec.getState() != AudioRecord.STATE_INITIALIZED) { rec.release(); rec = null; status = "The microphone could not be opened."; return false; }
+                rec.startRecording();
+            } catch (RuntimeException e) { status = "The microphone could not be opened."; return false; }
+            String saved = prefs.getString("keycal", "");
+            if (!saved.isEmpty()) ear.restore(saved);
+            decoder[0] = new KeyDecoder(prefs.getInt("sendwpm", 15), KeyDecoder.Fist5.parse(prefs.getString("fist5", "")));
+            run = true; samples = 0; status = "";
+            thread = new Thread(this, "mic");
+            thread.start();
+            runOnUiThread(() -> getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON));
+            return true;
+        }
+
+        synchronized void stop() {
+            run = false;
+            if (thread != null) { try { thread.join(500); } catch (InterruptedException ignored) { } thread = null; }
+            if (rec != null) { try { rec.stop(); } catch (RuntimeException ignored) { } rec.release(); rec = null; }
+            CwService.Engine_key(false);
+            keyDown = false;
+            runOnUiThread(() -> getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON));
+        }
+
+        /** Records seconds of sound for one calibration step: 0 key held, 1 room quiet, 2 band playing. */
+        String record(int kind, double seconds) {
+            if (!start()) return status;
+            cap[kind] = new float[(int) (seconds * RATE)]; capN[kind] = 0; capWant = cap[kind].length; capKind = kind;
+            return "";
+        }
+        boolean recording() { return capKind >= 0; }
+        boolean have(int kind) { return cap[kind] != null && capN[kind] >= cap[kind].length; }
+        boolean calibrate() {
+            if (!have(0) || !have(1)) return false;
+            calibrating = true;
+            boolean ok = ear.calibrate(cap[0], capN[0], cap[1], capN[1], have(2) ? cap[2] : null, have(2) ? capN[2] : 0);
+            if (ok) prefs.edit().putString("keycal", ear.save()).apply();
+            calibrating = false;
+            return ok;
+        }
+        void warm(boolean on) { warmEnd = on ? System.currentTimeMillis() + 60000 : 0; warmText = ""; decoder[0].reset(); heard = ""; }
+
+        @Override public void run() {
+            short[] blk = new short[BLOCK];
+            float[] f = new float[BLOCK];
+            KeyEar.Listener l = (down, sample) -> {
+                keyDown = down;
+                Band b = CwService.band;
+                // While the partner is sending, what the user keys is not an answer: it only mutes the receiver.
+                if (b == null || !b.liveSending()) decoder[0].key(down, sample * 1000.0 / RATE);
+                CwService.Engine_key(down);
+                heard = decoder[0].text();
+            };
+            while (run) {
+                int n = rec.read(blk, 0, BLOCK);
+                if (n <= 0) { if (n < 0) { status = "The microphone stopped."; break; } continue; }
+                for (int i = 0; i < n; i++) f[i] = blk[i] / 32768f;
+                int ck = capKind;
+                if (ck >= 0) {
+                    int take = Math.min(n, cap[ck].length - capN[ck]);
+                    System.arraycopy(f, 0, cap[ck], capN[ck], take); capN[ck] += take;
+                    if (capN[ck] >= cap[ck].length) capKind = -1;
+                    continue;
+                }
+                if (calibrating || !ear.ready()) { samples += n; continue; }
+                ear.process(f, n, l);
+                samples += n;
+                if (++quietBlocks % 5 == 0) overCheck();
+            }
+        }
+
+        private void overCheck() {
+            KeyDecoder d = decoder[0];
+            double now = samples * 1000.0 / RATE;
+            long we = warmEnd;
+            if (learning) return;
+            if (we > 0) {
+                warmText = d.text();
+                if (System.currentTimeMillis() > we) { warmEnd = 0; }
+                return;
+            }
+            if (d.marks() == 0 || !d.overEnded(now, prefs.getInt("manners", 0))) return;
+            Band b = CwService.band;
+            Partner p = b == null ? null : b.livePartner();
+            lastJson = d.timingsJson(""); lastText = d.text();
+            if (p != null) {
+                double wpm = Math.max(5, Math.min(40, d.wpm()));
+                b.userOver(Heard.parse(d.letters(), p.expect()), (d.lastUpMs() - d.markStartMs(0)) / 1000.0, wpm, CwService.dial, 0);
+            }
+            d.reset();
+            heard = "";
+            sent = lastText;
+        }
+        volatile String sent = "";
+        String warmText() { return warmText; }
+        boolean warming() { return warmEnd > 0; }
+        String lastJson() { return lastJson; }
+    }
+    private Mic mic;
+    private Mic mic() { if (mic == null) mic = new Mic(); return mic; }
+
+    @Override protected void onPause() { if (mic != null) mic.stop(); super.onPause(); }
+    @Override public void onRequestPermissionsResult(int code, String[] perms, int[] results) { super.onRequestPermissionsResult(code, perms, results); }
 
     class Bridge {
         @JavascriptInterface public String state() {
@@ -269,6 +411,87 @@ public class MainActivity extends Activity {
             Band b = CwService.band;
             finishContact();
             if (b != null) b.endLive();
+        }
+
+        // ---- the key through the microphone ----
+
+        /** Asks for the microphone permission if it is not yet granted. Returns true when it is granted now. */
+        @JavascriptInterface public boolean micPermission() {
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) return true;
+            runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 2));
+            return false;
+        }
+        /** The page says whether the microphone is wanted (Band tab visible, a contact or warm-up open, "My key" chosen). */
+        @JavascriptInterface public void micOn(boolean on) {
+            if (on) mic().start(); else if (mic != null && mic.running() && !mic.recording() && !mic.warming()) mic.stop();
+        }
+        /** Records one calibration step: "held", "quiet" or "band". Returns "" or a message. */
+        @JavascriptInterface public String micRecord(String kind, double seconds) {
+            return mic().record(kind.equals("held") ? 0 : kind.equals("quiet") ? 1 : 2, seconds);
+        }
+        @JavascriptInterface public String micCalibrate() {
+            try {
+                Mic m = mic();
+                boolean ok = m.calibrate();
+                JSONObject o = new JSONObject();
+                o.put("ok", ok); o.put("pitch", Math.round(m.ear.pitch())); o.put("snr", Math.round(m.ear.snrDb())); o.put("leakOk", m.ear.leakOk());
+                return o.toString();
+            } catch (Exception e) { return "{\"ok\":false}"; }
+        }
+        /** Learns the user's hand: call with listening on, send the text three times, then fistDone(). */
+        @JavascriptInterface public void fistStart() { Mic m = mic(); m.start(); m.decoder[0].reset(); m.heard = ""; m.learning = true; }
+        @JavascriptInterface public String fistDone(String text) {
+            Mic m = mic();
+            m.learning = false;
+            KeyDecoder d = m.decoder[0];
+            java.util.List<Long> marks = new java.util.ArrayList<>(), gaps = new java.util.ArrayList<>();
+            for (int i = 0; i < d.marks(); i++) {
+                marks.add(Math.round(d.markEndMs(i) - d.markStartMs(i)));
+                if (i + 1 < d.marks()) gaps.add(Math.round(d.markStartMs(i + 1) - d.markEndMs(i)));
+            }
+            KeyDecoder.Fist5 f = KeyDecoder.Fist5.learn(marks, gaps, text);
+            d.reset();
+            if (f == null) return "";
+            prefs.edit().putString("fist5", f.toString()).apply();
+            m.decoder[0] = new KeyDecoder(prefs.getInt("sendwpm", 15), f);
+            return String.format(java.util.Locale.ROOT, "Your dashes are about %.1f dots; I will read them that way.", f.dashDots());
+        }
+        @JavascriptInterface public void warmUp(boolean on) { Mic m = mic(); if (on) m.start(); m.warm(on); }
+        /** State for the set-up, the warm-up and the "You sent" line. */
+        @JavascriptInterface public String micState() {
+            try {
+                JSONObject o = new JSONObject();
+                Mic m = mic;
+                o.put("running", m != null && m.running());
+                o.put("perm", checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED);
+                o.put("calibrated", !prefs.getString("keycal", "").isEmpty());
+                o.put("fist", !prefs.getString("fist5", "").isEmpty());
+                if (m != null) {
+                    o.put("recording", m.recording()); o.put("key", m.keyDown); o.put("heard", m.heard); o.put("sent", m.sent); o.put("status", m.status);
+                    o.put("have0", m.have(0)); o.put("have1", m.have(1)); o.put("have2", m.have(2));
+                    o.put("warming", m.warming()); o.put("warm", m.warmText());
+                    o.put("pitch", Math.round(m.ear.pitch()));
+                }
+                return o.toString();
+            } catch (Exception e) { return "{}"; }
+        }
+        /** Keeps the last over's timings and what the user meant (timings only, never sound), up to 50. */
+        @JavascriptInterface public void notWhatISent(String meant) {
+            Mic m = mic;
+            if (m == null || m.lastJson().isEmpty()) return;
+            try {
+                org.json.JSONArray a = new org.json.JSONArray(prefs.getString("saved", "[]"));
+                JSONObject o = new JSONObject(m.lastJson()); o.put("meant", meant == null ? "" : meant.toUpperCase());
+                a.put(o);
+                org.json.JSONArray keep = new org.json.JSONArray();
+                for (int i = Math.max(0, a.length() - 50); i < a.length(); i++) keep.put(a.get(i));
+                prefs.edit().putString("saved", keep.toString()).apply();
+            } catch (Exception ignored) { }
+        }
+        /** Shares the saved overs as JSON, for tests/data/fist/. */
+        @JavascriptInterface public void exportSaved() {
+            String t = prefs.getString("saved", "[]");
+            runOnUiThread(() -> startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, t).putExtra(Intent.EXTRA_SUBJECT, "CW News key timings"), "Export")));
         }
         @JavascriptInterface public String log() { try { return db.logJson(200); } catch (Exception e) { return "[]"; } }
         @JavascriptInterface public String logSummary() { return "{\"contacts\":" + db.logCount() + ",\"countries\":" + db.logCountries() + "}"; }

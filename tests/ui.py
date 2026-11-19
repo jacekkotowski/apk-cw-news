@@ -2,13 +2,16 @@
 import json, pathlib
 from playwright.sync_api import sync_playwright
 FAKE = """
-window.calls=[];window.fake={status:'stopped',title:'',source:'',word:0,words:0,error:'',id:'-1',refreshing:false,news:{state:'no_feeds',failed:0}};
+window.calls=[];window.mst={running:true,perm:true,calibrated:false,fist:false,key:true,heard:'CQ DE',sent:'',have0:false,have1:false,have2:false,warming:false,warm:'',pitch:812};window.fake={status:'stopped',title:'',source:'',word:0,words:0,error:'',id:'-1',refreshing:false,news:{state:'no_feeds',failed:0}};
 window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,region:0,auto:1,announce:1,age:0,refresh:30,follow:0,sleep:0,mycall:'SP0CWN',myname:'JACEK',myqth:'KRAKOW',myrig:'FT891',myant:'DIPOLE',power:10,sendwpm:15,manners:0,sendwith:0,hint:1,showtext:0,ckind:1,side:0,shift:0,apf:0,nb:0,weather:0,realwx:0};
 window.Android={state:()=>JSON.stringify(fake),settings:()=>JSON.stringify(st),feeds:()=>JSON.stringify(fs),
 recent:()=>JSON.stringify([{id:'5',title:'<b>Not markup</b>',source:'HN',heard:false}]),
 set:(k,v)=>{calls.push(['set',k,v]);st[k]=v;if(k==='wpm'&&st.eff>v)st.eff=v;},command:c=>calls.push([c]),playStory:i=>calls.push(['story',i]),
 addFeed:(u,n)=>{if(!u.startsWith('https://'))return 'The address must start with https://';fs.push({id:'1',url:u,name:'',custom:false,enabled:true,lastOk:0,error:'HTTP 500',count:0});return '';},
 editFeed:()=>'',setFeedEnabled:(i,o)=>{calls.push(['en',i,o]);fs[0].enabled=o;},removeFeed:i=>{calls.push(['rm',i]);fs.length=0;},refresh:()=>calls.push(['refresh']),regions:()=>JSON.stringify(['Europe','North America, east']),
+micPermission:()=>{calls.push(['perm']);return true;},micOn:o=>calls.push(['mic',o]),micRecord:(k,sec)=>{calls.push(['rec',k]);window.mst['have'+({held:0,quiet:1,band:2}[k])]=true;return '';},
+micCalibrate:()=>JSON.stringify({ok:true,pitch:812,snr:34,leakOk:false}),fistStart:()=>calls.push(['fist']),fistDone:t=>{calls.push(['fistdone',t]);return 'Your dashes are about 2.4 dots; I will read them that way.';},warmUp:o=>calls.push(['warm',o]),
+micState:()=>JSON.stringify(window.mst),notWhatISent:t=>calls.push(['wrong',t]),exportSaved:()=>calls.push(['export']),
 liveState:()=>JSON.stringify(window.live||{on:false,canAnswer:true,canCall:true,tx:7015,summary:''}),answer:()=>{calls.push(['answer']);window.live={on:true,call:'DL1ABC',stage:1,done:false,sending:false,khz:7015.12,tx:7015,hint:'Give DL1ABC a report.',lines:['DL1ABC: CQ CQ DE DL1ABC K','YOU: DL1ABC DE SP0CWN K'],partial:'R GM',canAnswer:false,canCall:false};return '';},
 callCq:()=>{calls.push(['cq']);return 'Another station is on this frequency. Tune to a clear one.';},sendText:t=>{calls.push(['send',t]);return '';},net:()=>calls.push(['net']),endContact:()=>{calls.push(['end']);window.live={on:false,canAnswer:true,canCall:true,tx:7015,summary:'Contact with DL1ABC. Thank you for the contact.'};},setText:(k,v)=>{calls.push(['text',k,v]);if(k==='mycall'&&!/^[A-Z0-9]{1,3}[0-9][A-Z0-9]{0,3}[A-Z]$/.test(v.toUpperCase()))return 'That is not a callsign. A call looks like SP9ABC.';st[k]=v.toUpperCase();return '';},
 log:()=>JSON.stringify([{id:'2',at:1700000000000,call:'DL1XYZ',name:'HANS',qth:'BERLIN',sent:'579',rcvd:'599',khz:7012.3,complete:true,overs:6},{id:'1',at:1699990000000,call:'OH2BH',name:'',qth:'',sent:'',rcvd:'',khz:7031,complete:false,overs:2}]),logSummary:()=>JSON.stringify({contacts:2,countries:2}),
@@ -57,6 +60,18 @@ with sync_playwright() as p:
     g.evaluate("window.live={on:false,canAnswer:false,canCall:false,tx:7015,summary:''}"); g.wait_for_timeout(700); assert g.is_disabled('#cans') and g.is_disabled('#ccq')
     g.evaluate("window.live={on:false,canAnswer:false,canCall:true,tx:7015,summary:''}"); g.wait_for_timeout(700)
     g.click('#ccq'); assert calls()[-1] == ['cq'] and 'clear one' in g.inner_text('#cerr')
+    g.evaluate("S.sendwith=1"); g.wait_for_timeout(700)
+    assert g.is_visible('#keybox') and 'You sent: CQ DE' in g.inner_text('#ksent') and g.locator('.klight.on').count() == 1
+    g.click('#ksetup'); assert 'Step 1' in g.inner_text('#kstep')
+    g.click('#kgo'); g.wait_for_timeout(700); assert 'Step 2' in g.inner_text('#kstep')
+    g.click('#kgo'); g.wait_for_timeout(700); assert 'Step 3' in g.inner_text('#kstep')
+    g.click('#kgo'); assert 'Press Play' in g.inner_text('#kres')
+    g.evaluate("fake.status='playing'"); g.wait_for_timeout(700); g.click('#kgo'); g.wait_for_timeout(900)
+    assert '812 Hz' in g.inner_text('#kres') and 'headphones' in g.inner_text('#kres')
+    g.click('#kfist'); g.click('#kgo'); g.click('#kgo'); assert '2.4 dots' in g.inner_text('#kres')
+    g.click('#kwarm'); g.evaluate("mst.warming=true;mst.warm='CQ CQ DE SP0CWN SP0CWN K'"); g.wait_for_timeout(700); assert '100%' in g.inner_text('#kres')
+    g.click('#kgo'); g.fill('#kmeant','cq de sp0cwn'); g.click('#kwrong'); assert calls()[-1][0] == 'wrong'
+    g.evaluate("S.sendwith=0"); g.wait_for_timeout(700)
     g.click('#reveal'); g.wait_for_timeout(700); assert 'CQ CQ' in g.inner_text('#copy')
     g.click('#dplus'); assert calls()[-1][0] == 'dial'
     g.click('#dplus10'); assert abs(calls()[-1][1] - calls()[-2][1] - 0.01) < 1e-6, calls()[-2:]

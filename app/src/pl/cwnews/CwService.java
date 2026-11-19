@@ -61,6 +61,8 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     private SharedPreferences prefs;
     /** The audio mix, so the Activity can key the user's transmitter into it. */
     static volatile Engine engine;
+    /** The user's key goes down or up (heard through the microphone). */
+    static void Engine_key(boolean down) { Engine e = engine; if (e != null) e.key(down); }
     private Thread thread;
     private volatile boolean alive, paused;
     private boolean resumeOnGain, autoAdvance = true, announce = true, finishedRestore;

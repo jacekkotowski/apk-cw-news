@@ -1462,7 +1462,25 @@ public class T {
         check("rule 5: the joined reading is kept", has); check("rule 5 matters", !hasNot);
     }
 
+    static void earMemory() {
+        Dsp.Rng r = new Dsp.Rng(8);
+        BuzzerSynth b = new BuzzerSynth();
+        KeyEar a = ear(b, r);
+        String saved = a.save();
+        KeyEar c = new KeyEar(b.rate);
+        check("a saved calibration restores", c.restore(saved) && c.ready());
+        near("pitch restored", c.pitch(), a.pitch(), 0.01);
+        Keying k = Keying.build("CQ", new Timing(18, 18), b.rate);
+        eq("a restored ear hears the same", events(c, b.render(k, r), b.rate).size(), events(ear(b, r), b.render(k, r), b.rate).size());
+        check("a calibration for another rate is refused", !new KeyEar(48000).restore(saved));
+        check("garbage is refused", !new KeyEar(16000).restore("x") && !new KeyEar(16000).restore("1,2,3,4,xx"));
+        near("accuracy of equal text", KeyDecoder.accuracy("CQ DE", "CQ DE"), 1, 1e-9);
+        near("accuracy of one wrong letter in five", KeyDecoder.accuracy("CQ DE", "CQ DF"), 0.8, 1e-9);
+        near("accuracy of nothing", KeyDecoder.accuracy("CQ", ""), 0, 1e-9);
+    }
+
     static void fistFiles() {
+        earMemory();
         // A hand's profile from three sends, and a saved over read back.
         Dsp.Rng r = new Dsp.Rng(5);
         Fist hand = learner(0.75, 0.2, 0.9);
