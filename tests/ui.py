@@ -3,12 +3,13 @@ import json, pathlib
 from playwright.sync_api import sync_playwright
 FAKE = """
 window.calls=[];window.fake={status:'stopped',title:'',source:'',word:0,words:0,error:'',id:'-1',refreshing:false,news:{state:'no_feeds',failed:0}};
-window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,region:0,auto:1,announce:1,age:0,refresh:30,follow:0,sleep:0,side:0,shift:0,apf:0,nb:0,weather:0,realwx:0};
+window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,region:0,auto:1,announce:1,age:0,refresh:30,follow:0,sleep:0,mycall:'SP0CWN',myname:'JACEK',myqth:'KRAKOW',myrig:'FT891',myant:'DIPOLE',power:10,sendwpm:15,manners:0,sendwith:0,side:0,shift:0,apf:0,nb:0,weather:0,realwx:0};
 window.Android={state:()=>JSON.stringify(fake),settings:()=>JSON.stringify(st),feeds:()=>JSON.stringify(fs),
 recent:()=>JSON.stringify([{id:'5',title:'<b>Not markup</b>',source:'HN',heard:false}]),
 set:(k,v)=>{calls.push(['set',k,v]);st[k]=v;if(k==='wpm'&&st.eff>v)st.eff=v;},command:c=>calls.push([c]),playStory:i=>calls.push(['story',i]),
 addFeed:(u,n)=>{if(!u.startsWith('https://'))return 'The address must start with https://';fs.push({id:'1',url:u,name:'',custom:false,enabled:true,lastOk:0,error:'HTTP 500',count:0});return '';},
-editFeed:()=>'',setFeedEnabled:(i,o)=>{calls.push(['en',i,o]);fs[0].enabled=o;},removeFeed:i=>{calls.push(['rm',i]);fs.length=0;},refresh:()=>calls.push(['refresh']),regions:()=>JSON.stringify(['Europe','North America, east']),
+editFeed:()=>'',setFeedEnabled:(i,o)=>{calls.push(['en',i,o]);fs[0].enabled=o;},removeFeed:i=>{calls.push(['rm',i]);fs.length=0;},refresh:()=>calls.push(['refresh']),regions:()=>JSON.stringify(['Europe','North America, east']),setText:(k,v)=>{calls.push(['text',k,v]);if(k==='mycall'&&!/^[A-Z0-9]{1,3}[0-9][A-Z0-9]{0,3}[A-Z]$/.test(v.toUpperCase()))return 'That is not a callsign. A call looks like SP9ABC.';st[k]=v.toUpperCase();return '';},
+log:()=>JSON.stringify([{id:'2',at:1700000000000,call:'DL1XYZ',name:'HANS',qth:'BERLIN',sent:'579',rcvd:'599',khz:7012.3,complete:true,overs:6},{id:'1',at:1699990000000,call:'OH2BH',name:'',qth:'',sent:'',rcvd:'',khz:7031,complete:false,overs:2}]),logSummary:()=>JSON.stringify({contacts:2,countries:2}),
 band:()=>JSON.stringify({on:true,dial:window.dialV||7020,rit:window.ritV||0,passLo:-200,passHi:200,low:7000,high:7040,news:7020,contest:'CQ WW CW',sky:'Thunderstorms in the distance: crackling static.',act:[{k:7012.3,l:.8,on:true},{k:7031.1,l:.3,on:false}]}),
 panel:()=>JSON.stringify({s:0.3,n:1,w:[[7012.3,.8,1],[7031.1,.3,0]]}),setRit:v=>{window.ritV=v;calls.push(['rit',v]);},tick:()=>calls.push(['tick']),bandCopy:()=>'DL1ABC: CQ CQ',setDial:v=>{window.dialV=v;calls.push(['dial',v]);},nextSignal:d=>{calls.push(['next',d]);return 7012.3;},abbrevs:()=>JSON.stringify([{a:'ES',m:'and',l:1},{a:'CQ',m:'calling any station',l:0}])};
 """
@@ -52,7 +53,19 @@ with sync_playwright() as p:
     g.click('.seg[data-k=follow] button[data-v="1"]'); assert calls()[-1] == ['set','follow',1]
     assert 'Thunderstorms' in g.inner_text('#sky')
     assert 'CQ WW CW' in g.inner_text('#contest')
-    g.click('nav button[data-t=settings]'); g.click('.seg[data-k=bed] button[data-v="2"]'); assert calls()[-1] == ['set','bed',2]
+    g.click('nav button[data-t=log]'); g.wait_for_timeout(700)
+    assert '2 contacts, 2 countries' in g.inner_text('#lsum'), g.inner_text('#lsum')
+    assert 'DL1XYZ' in g.inner_text('#llist') and 'Not finished' in g.inner_text('#llist')
+    assert g.locator('#llist .bad').count() == 0
+    g.click('nav button[data-t=settings]')
+    g.fill('#mycall','hello'); g.dispatch_event('#mycall','change'); assert calls()[-1] == ['text','mycall','hello'] and 'not a callsign' in g.inner_text('#serr')
+    g.fill('#mycall','sp9abc'); g.dispatch_event('#mycall','change'); assert calls()[-1] == ['text','mycall','sp9abc'] and g.inner_text('#serr') == ''
+    g.fill('#myname','Jan'); g.dispatch_event('#myname','change'); assert calls()[-1] == ['text','myname','Jan']
+    g.click('.seg[data-k=power] button[data-v="50"]'); assert calls()[-1] == ['set','power',50]
+    g.click('.seg[data-k=manners] button[data-v="2"]'); assert calls()[-1] == ['set','manners',2]
+    g.click('.seg[data-k=sendwith] button[data-v="1"]'); assert calls()[-1] == ['set','sendwith',1]
+    g.evaluate("(()=>{const e=document.getElementById('sendwpm');e.value=22;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))})()"); assert calls()[-1] == ['set','sendwpm',22]
+    g.click('.seg[data-k=bed] button[data-v="2"]'); assert calls()[-1] == ['set','bed',2]
     g.click('.seg[data-k=sleep] button[data-v="30"]'); assert calls()[-1] == ['set','sleep',30]
     g.select_option('#weather', '3'); assert calls()[-1] == ['set','weather',3]
     g.click('.seg[data-k=realwx] button[data-v="1"]'); assert calls()[-1] == ['set','realwx',1]

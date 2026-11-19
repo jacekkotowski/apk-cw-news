@@ -49,6 +49,8 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     /** When the user last turned the knob or moved RIT, and whether the receiver follows the strongest station (the "follow" setting). */
     static volatile long lastUserTune;
     static volatile int follow;
+    /** The user's own station, rebuilt whenever the settings are applied. */
+    static volatile Profile profile = Profile.defaults();
     /** Where the receiver actually listens, in kHz. */
     static double rxKhz() { return dial + rit / 1000.0; }
 
@@ -221,6 +223,9 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         engine.nb = prefs.getInt("nb", 0) != 0;
         engine.side = prefs.getInt("side", 0);
         follow = prefs.getInt("follow", 0);
+        Profile d = Profile.defaults();
+        profile = new Profile(prefs.getString("mycall", d.call), prefs.getString("myname", d.name), prefs.getString("myqth", d.qth), prefs.getString("myrig", d.rig), prefs.getString("myant", d.ant),
+            prefs.getInt("power", d.power), prefs.getInt("sendwpm", d.sendWpm), prefs.getInt("manners", d.manners), prefs.getInt("sendwith", d.sendWith));
         sleepAt = prefs.getLong("sleepAt", 0);
         if (prefs.getInt("band", 1) != 0) {
             if (band == null) {

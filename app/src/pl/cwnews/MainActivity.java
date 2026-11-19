@@ -142,6 +142,10 @@ public class MainActivity extends Activity {
                 o.put("auto", prefs.getBoolean("auto", true) ? 1 : 0); o.put("announce", prefs.getBoolean("announce", true) ? 1 : 0);
                 o.put("follow", prefs.getInt("follow", 0)); o.put("sleep", prefs.getInt("sleep", 0));
                 o.put("age", prefs.getInt("age", 0)); o.put("refresh", prefs.getInt("refresh", 30));
+                Profile d = Profile.defaults();
+                o.put("mycall", prefs.getString("mycall", d.call)); o.put("myname", prefs.getString("myname", d.name)); o.put("myqth", prefs.getString("myqth", d.qth));
+                o.put("myrig", prefs.getString("myrig", d.rig)); o.put("myant", prefs.getString("myant", d.ant));
+                o.put("power", prefs.getInt("power", d.power)); o.put("sendwpm", prefs.getInt("sendwpm", d.sendWpm)); o.put("manners", prefs.getInt("manners", d.manners)); o.put("sendwith", prefs.getInt("sendwith", d.sendWith));
                 return o.toString();
             } catch (Exception e) { return "{}"; }
         }
@@ -155,6 +159,17 @@ public class MainActivity extends Activity {
             if (key.equals("refresh")) RefreshJob.schedule(MainActivity.this, value);
             if (!CwService.status.equals(CwService.STOPPED)) service(CwService.APPLY, -1);
         }
+        /** Stores one text of "Your station". Returns "" when accepted, otherwise a message for the page and nothing is stored. */
+        @JavascriptInterface public String setText(String key, String value) {
+            if (!(key.equals("mycall") || key.equals("myname") || key.equals("myqth") || key.equals("myrig") || key.equals("myant"))) return "Unknown setting";
+            String v = Profile.clean(key, value), msg = Profile.check(key, v);
+            if (!msg.isEmpty()) return msg;
+            prefs.edit().putString(key, v).commit();
+            if (!CwService.status.equals(CwService.STOPPED)) service(CwService.APPLY, -1);
+            return "";
+        }
+        @JavascriptInterface public String log() { try { return db.logJson(200); } catch (Exception e) { return "[]"; } }
+        @JavascriptInterface public String logSummary() { return "{\"contacts\":" + db.logCount() + ",\"countries\":" + db.logCountries() + "}"; }
         @JavascriptInterface public void command(String a) {
             if (a.equals(CwService.PLAY) || a.equals(CwService.TOGGLE) || a.equals(CwService.REPLAY)) runOnUiThread(MainActivity.this::askNotifications);
             service(a, -1);

@@ -18,15 +18,20 @@ final class Db extends SQLiteOpenHelper {
         if (instance == null) instance = new Db(c.getApplicationContext());
         return instance;
     }
-    private Db(Context c) { super(c, "cwnews.db", null, 1); }
+    private Db(Context c) { super(c, "cwnews.db", null, 2); }
 
     @Override public void onConfigure(SQLiteDatabase d) { d.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase d) {
         d.execSQL("CREATE TABLE feeds(id INTEGER PRIMARY KEY, url TEXT UNIQUE NOT NULL, name TEXT NOT NULL DEFAULT '', custom INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1, last_ok INTEGER NOT NULL DEFAULT 0, last_error TEXT NOT NULL DEFAULT '')");
         d.execSQL("CREATE TABLE articles(id INTEGER PRIMARY KEY, feed_id INTEGER NOT NULL REFERENCES feeds(id) ON DELETE CASCADE, uid TEXT NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL, link TEXT NOT NULL, pub INTEGER NOT NULL, fetched INTEGER NOT NULL, heard INTEGER NOT NULL DEFAULT 0, UNIQUE(feed_id, uid))");
         d.execSQL("CREATE INDEX articles_heard ON articles(heard)");
+        createLog(d);
     }
-    @Override public void onUpgrade(SQLiteDatabase d, int o, int n) { }
+    /** Version 2 added the logbook; feeds and articles are left alone. */
+    @Override public void onUpgrade(SQLiteDatabase d, int o, int n) { if (o < 2) createLog(d); }
+    private static void createLog(SQLiteDatabase d) {
+        d.execSQL("CREATE TABLE IF NOT EXISTS log(id INTEGER PRIMARY KEY, at INTEGER NOT NULL, call TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', qth TEXT NOT NULL DEFAULT '', rst_sent TEXT NOT NULL DEFAULT '', rst_rcvd TEXT NOT NULL DEFAULT '', khz REAL NOT NULL DEFAULT 0, complete INTEGER NOT NULL DEFAULT 0, overs INTEGER NOT NULL DEFAULT 0)");
+    }
 
     static final class Story { long id; String source, title, summary; }
 
@@ -156,6 +161,32 @@ final class Db extends SQLiteOpenHelper {
             while (c.moveToNext()) {
                 JSONObject o = new JSONObject();
                 o.put("id", "" + c.getLong(0)); o.put("title", c.getString(1)); o.put("source", c.getString(2)); o.put("heard", c.getInt(3) != 0);
+                a.put(o);
+            }
+        }
+        return a.toString();
+    }
+
+    long addLog(long at, String call, String name, String qth, String rstSent, String rstRcvd, double khz, boolean complete, int overs) {
+        ContentValues v = new ContentValues();
+        v.put("at", at); v.put("call", call); v.put("name", name); v.put("qth", qth); v.put("rst_sent", rstSent); v.put("rst_rcvd", rstRcvd);
+        v.put("khz", khz); v.put("complete", complete ? 1 : 0); v.put("overs", overs);
+        return getWritableDatabase().insert("log", null, v);
+    }
+    int logCount() { return count("SELECT COUNT(*) FROM log"); }
+    /** Distinct country prefixes among the logged calls (see Profile.country). */
+    int logCountries() {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT call FROM log", null)) { while (c.moveToNext()) seen.add(Profile.country(c.getString(0))); }
+        return seen.size();
+    }
+    String logJson(int limit) throws Exception {
+        JSONArray a = new JSONArray();
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT id, at, call, name, qth, rst_sent, rst_rcvd, khz, complete, overs FROM log ORDER BY at DESC, id DESC LIMIT " + limit, null)) {
+            while (c.moveToNext()) {
+                JSONObject o = new JSONObject();
+                o.put("id", "" + c.getLong(0)); o.put("at", c.getLong(1)); o.put("call", c.getString(2)); o.put("name", c.getString(3)); o.put("qth", c.getString(4));
+                o.put("sent", c.getString(5)); o.put("rcvd", c.getString(6)); o.put("khz", c.getDouble(7)); o.put("complete", c.getInt(8) != 0); o.put("overs", c.getInt(9));
                 a.put(o);
             }
         }

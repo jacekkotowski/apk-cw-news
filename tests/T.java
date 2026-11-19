@@ -943,8 +943,27 @@ public class T {
         return s1 * s1 + s2 * s2 - c * s1 * s2;
     }
 
+    static void profile() {
+        eq("clean upper-cases", Profile.clean("myname", "jacek"), "JACEK");
+        eq("clean drops unsupported", Profile.clean("myname", "Ja\u00e9c#ek{}"), "JACEK");
+        eq("clean collapses spaces", Profile.clean("myqth", "  new   york "), "NEW YORK");
+        eq("clean limits a call", Profile.clean("mycall", "ABCDEFGHIJKLMNOP"), "ABCDEFGHIJ");
+        eq("clean limits text", Profile.clean("myrig", "123456789012345678901234").length(), 20);
+        eq("clean null", Profile.clean("myname", null), "");
+        for (String c : new String[]{"SP9ABC", "DL1XYZ", "W1AW", "SP9ABC/P", "OH2BH", "9A1A", Profile.defaults().call}) eq("call ok " + c, Profile.check("mycall", c), "");
+        for (String c : new String[]{"HELLO", "123", "SP9", ""}) check("call refused " + c, !Profile.check("mycall", c).isEmpty());
+        eq("other fields may be empty", Profile.check("myname", ""), "");
+        eq("same country", Profile.country("SP9ABC"), Profile.country("SP1XYZ"));
+        check("different country", !Profile.country("SP9ABC").equals(Profile.country("DL1XYZ")));
+        eq("portable suffix ignored", Profile.country("SP9ABC/P"), "SP");
+        eq("portable prefix", Profile.country("DL/SP9ABC"), "SP");
+        eq("digit prefix", Profile.country("9A1A"), "9A");
+        Profile p = new Profile("SP0CWN", "A", "B", "C", "D", 5, 99, 7, 5);
+        eq("wpm clamped", p.sendWpm, 30); eq("manners clamped", p.manners, 2); eq("unknown send-with falls back to typing", p.sendWith, 0);
+    }
+
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

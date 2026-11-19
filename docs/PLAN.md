@@ -4,7 +4,7 @@ What is built, what comes next, and how each step will be designed and checked. 
 
 ## Start here (next session)
 
-**Next: your own key and a friendly partner.** The approved plan is `docs/PLAN-KEY.md` (packages K1 to K8; it replaces P6 to P11 below and in `docs/WORK-PACKAGES.md`). Start with its "Where to start" list. Neural decoding (DeepCW) is a contingency there (K7), built only if the simple decoder fails a measured check.
+**Next: your own key and a friendly partner. K1 (your station and the log) is built and pushed; K2 is next.** K1 is not a delivered build: the version is unchanged, and the Log tab and the database upgrade were compiled by CI only, never tried on a phone. The approved plan is `docs/PLAN-KEY.md` (packages K1 to K8; it replaces P6 to P11 below and in `docs/WORK-PACKAGES.md`). Start with its "Where to start" list. Neural decoding (DeepCW) is a contingency there (K7), built only if the simple decoder fails a measured check.
 
 1. **Ask what the owner heard in 2.5.2.** Two things were changed by description alone: weak signals are lifted (`Band.spawn`, a fifth of the loss below 40 dB) and static ticks are smaller and rounder (`Rx` constants `TICK_MIN`, `TICK_SPREAD`, `CRASH_DENSITY_HZ`). Adjust those numbers before anything else.
 2. **Still unheard on a phone:** the "Strongest" follow (2.5 s), the sleep timer with the screen off, CW-R, shift, peak filter, blanker, Slow and Fast AGC, aurora and flare, and the NOAA fetch (the sandbox that built it cannot reach the host).
