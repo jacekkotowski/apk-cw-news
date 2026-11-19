@@ -962,8 +962,65 @@ public class T {
         eq("wpm clamped", p.sendWpm, 30); eq("manners clamped", p.manners, 2); eq("unknown send-with falls back to typing", p.sendWith, 0);
     }
 
+    static Heard.Expect expectFor(String userCall) {
+        Profile u = new Profile(userCall, "JACEK", "KRAKOW", "FT891", "DIPOLE", 10, 15, 0, 0);
+        return Heard.Expect.of("DL1ZZ", "HANS", "BERLIN", u);
+    }
+    static void heard() {
+        Heard.Expect e = expectFor("SP9ABC");
+        Heard h = Heard.parse("SP9ABX DE DL1ZZ", e);
+        check("call one letter off is the user's", h.userCallHeard); check("and unsure", h.callUnsure);
+        eq("sender call", h.fromCall, "DL1ZZ");
+        h = Heard.parse("DL1ZZ DE SP9ABC", e);
+        check("exact call is sure", h.userCallHeard && !h.callUnsure); eq("to call", h.toCall, "DL1ZZ");
+        eq("5NN is 599", Heard.parse("UR RST 5NN 5NN", e).report, "599");
+        eq("579C report keeps the chirp mark", Heard.parse("RST 579C", e).report, "579C");
+        eq("run-on words split", Heard.parse("73AE0QDE", e).tokens.toString(), "[73, AE0Q, DE]");
+        eq("name", Heard.parse("NAME JACEK JACEK", e).values.get("NAME"), "JACEK");
+        eq("name with a wrong keyword", Heard.parse("NAMR JACEK", e).values.get("NAME"), "JACEK");
+        eq("name with a wrong letter", Heard.parse("NAME JACEC", e).values.get("NAME"), "JACEK");
+        eq("OP is a name", Heard.parse("OP JACEK", e).values.get("NAME"), "JACEK");
+        eq("QTH value", Heard.parse("QTH KRAKOW KRAKOW <BT> NAME JACEK", e).values.get("QTH"), "KRAKOW");
+        eq("weather value", Heard.parse("WX HR SUNNY 25C", e).values.get("WX"), "HR SUNNY 25C");
+        check("WX?", Heard.parse("WX?", e).questions.contains("WX"));
+        check("UR ANT?", Heard.parse("UR ANT?", e).questions.contains("ANT"));
+        check("WHAT JOB?", Heard.parse("WHAT JOB?", e).questions.contains("JOB"));
+        check("HOBBIES?", Heard.parse("HOBBIES?", e).questions.contains("HOBBY"));
+        check("UR RST 599 is a statement, not a question", Heard.parse("UR RST 599", e).questions.isEmpty());
+        check("a lone ? asks to repeat", Heard.parse("?", e).requests.contains("?"));
+        check("QRS and AGN", Heard.parse("PSE AGN QRS", e).requests.containsAll(java.util.Arrays.asList("AGN", "QRS")));
+        eq("turn marker", Heard.parse("TNX FER CALL K", e).turn, "K");
+        eq("prosign turn marker", Heard.parse("TNX FER CALL KN", e).turn, "KN");
+        check("closing 73", Heard.parse("TU 73 SK", e).closings.containsAll(java.util.Arrays.asList("73", "TU", "SK")));
+        eq("greeting", Heard.parse("GM OM", e).greeting, "GM");
+        check("EEEEEEE is the error sign", Heard.parse("EEEEEEE", e).errorSign);
+        check("good sending is readable", !Heard.parse("DL1ZZ DE SP9ABC UR RST 599 NAME JACEK K", e).unreadable);
+        Dsp.Rng r = new Dsp.Rng(5);
+        int bad = 0;
+        for (int i = 0; i < 100; i++) {
+            StringBuilder b = new StringBuilder();
+            for (int w = 0; w < 6; w++) { for (int k = 0, len = 3 + r.nextInt(5); k < len; k++) b.append((char) ('A' + r.nextInt(26))); b.append(' '); }
+            if (Heard.parse(b.toString(), e).unreadable) bad++;
+        }
+        check("random letters are unreadable: " + bad + "/100", bad >= 95);
+        // The Morse-aware cost is lower than the plain one where the codes differ by one element.
+        String[][] pairs = {{"NAMT", "NAME"}, {"QTS", "QTH"}, {"VR", "UR"}, {"TNX", "ENX"}};
+        for (String[] p : pairs) check("morse cost " + p[0] + "/" + p[1], Heard.cost(p[0], p[1]) < Heard.plain(p[0], p[1]));
+        near("plain cost is 1", Heard.plain("NAMT", "NAME"), 1, 1e-9);
+        near("morse cost is 0.5", Heard.cost("NAMT", "NAME"), 0.5, 1e-9);
+        // Re-segmentation from timing: the TT could have been an M.
+        java.util.List<Heard.Letter> ls = new java.util.ArrayList<>();
+        ls.add(new Heard.Letter("N")); ls.add(new Heard.Letter("A")); ls.add(new Heard.Letter("TT", "M")); ls.add(new Heard.Letter("E"));
+        eq("without the alternative the word fails", Heard.parse("NATTE", e).values.size() + "/" + Heard.parse("NATTE", e).tokens.get(0), "0/NATTE");
+        eq("with it the word is NAME", Heard.parse(ls, e).tokens.get(0), "NAME");
+        // Morse.letter.
+        eq("letter A", Morse.letter(".-"), "A"); eq("letter BT", Morse.letter("-...-"), "BT"); eq("letter SK", Morse.letter("...-.-"), "SK");
+        for (char c = 'A'; c <= 'Z'; c++) eq("round trip " + c, Morse.letter(Morse.code(c)), "" + c);
+        check("unknown code", Morse.letter("......-") == null);
+    }
+
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

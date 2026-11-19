@@ -24,6 +24,15 @@ final class Morse {
         PROSIGN.put("HH", "........");
     }
 
+    private static final Map<String, String> REVERSE = new HashMap<>();
+    static {
+        for (Map.Entry<Character, String> e : CODE.entrySet()) REVERSE.put(e.getValue(), "" + e.getKey());
+        for (Map.Entry<String, String> e : PROSIGN.entrySet()) REVERSE.put(e.getValue(), e.getKey()); // a prosign wins over a punctuation mark with the same code (BT and =)
+    }
+
+    /** The character, or the prosign name (BT, KN, SK, AR, AS, HH), for a string of dots and dashes; null if there is none. */
+    static String letter(String code) { return REVERSE.get(code); }
+
     static boolean supported(char c) { return CODE.containsKey(c); }
     static String code(char c) { return CODE.get(c); }
 

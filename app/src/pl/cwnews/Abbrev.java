@@ -80,6 +80,13 @@ final class Abbrev {
     }
 
     /** The whole table as JSON for the reference list: [{a, m, l}, ...]. */
+    /** Every abbreviation in the table, at any level. */
+    static java.util.List<String> keys() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String row : TABLE) out.add(row.substring(0, row.indexOf('|')));
+        return out;
+    }
+
     static String json() {
         StringBuilder b = new StringBuilder("[");
         for (int i = 0; i < TABLE.length; i++) {
