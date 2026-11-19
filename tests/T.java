@@ -943,8 +943,132 @@ public class T {
         return s1 * s1 + s2 * s2 - c * s1 * s2;
     }
 
+    // ---- P9: hearing the key ----
+    static float[] buzz(Keying k, double hz, double amp, double noise, Dsp.Rng r, int rate, int lead, int tail) {
+        float[] x = new float[lead + (int) k.totalSamples + tail];
+        double ph = 0, w = 2 * Math.PI * hz / rate;
+        int at = lead, ramp = rate / 300;
+        for (int run : k.runs) {
+            int len = Math.abs(run);
+            for (int i = 0; i < len; i++) {
+                double g = 0;
+                if (run > 0) { g = 1; if (i < ramp) g = i / (double) ramp; else if (len - i <= ramp) g = (len - i) / (double) ramp; }
+                x[at + i] = (float) (amp * g * Math.sin(ph));
+                ph += w;
+            }
+            at += len;
+        }
+        for (int i = 0; i < x.length; i++) x[i] += (float) (noise * r.gauss());
+        return x;
+    }
+    static float[] steady(double hz, double amp, double noise, Dsp.Rng r, int rate, double sec) {
+        float[] x = new float[(int) (sec * rate)];
+        for (int i = 0; i < x.length; i++) x[i] = (float) (amp * Math.sin(2 * Math.PI * hz * i / rate) + noise * r.gauss());
+        return x;
+    }
+    static ToneDetector calibrated(int rate, double hz, double amp, double noise, double leak, Dsp.Rng r) {
+        ToneDetector t = new ToneDetector(rate);
+        float[] held = steady(hz, amp, noise, r, rate, 1.5), quiet = steady(hz, 0, noise, r, rate, 1.5);
+        float[] band = leak > 0 ? steady(hz, leak, noise, r, rate, 1.5) : null;
+        t.calibrate(held, held.length, quiet, quiet.length, band, band == null ? 0 : band.length);
+        return t;
+    }
+    static String decodeAudio(ToneDetector t, float[] x, int rate, double[] firstDown) {
+        Decoder d = new Decoder();
+        final int rt = rate;
+        ToneDetector.Listener l = (down, s) -> { d.key(down, s / (double) rt); if (down && firstDown != null && firstDown[0] < 0) firstDown[0] = s / (double) rt; };
+        for (int i = 0; i < x.length; i += 480) t.process(java.util.Arrays.copyOfRange(x, i, Math.min(x.length, i + 480)), Math.min(480, x.length - i), l);
+        t.finish(l);
+        return d.text();
+    }
+    static double accuracy(String want, String got) {
+        int[][] m = new int[want.length() + 1][got.length() + 1];
+        for (int i = 0; i <= want.length(); i++) m[i][0] = i;
+        for (int j = 0; j <= got.length(); j++) m[0][j] = j;
+        for (int i = 1; i <= want.length(); i++) for (int j = 1; j <= got.length(); j++)
+            m[i][j] = Math.min(Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1), m[i - 1][j - 1] + (want.charAt(i - 1) == got.charAt(j - 1) ? 0 : 1));
+        return 1 - m[want.length()][got.length()] / (double) want.length();
+    }
+    static final String SENT = "CQ CQ DE SP9ABC SP9ABC K UR RST 579 NAME JACEK QTH KRAKOW HW COPY 73 TU";
+
+    static void sending() {
+        Dsp.Rng r = new Dsp.Rng(77);
+        // Pitches are found.
+        for (int rate : new int[]{44100, 48000}) for (double hz : new double[]{500, 800, 2400, 3200}) {
+            float[] x = steady(hz, 0.3, 0.02, r, rate, 1.0);
+            near("pitch " + hz + "@" + rate, ToneDetector.findPitch(x, x.length, rate), hz, hz * 0.03);
+        }
+        // A keyer at several speeds, 20 dB over the noise.
+        for (int wpm : new int[]{5, 12, 20, 30}) {
+            ToneDetector t = calibrated(R, 700, 0.3, 0.3 / 1.414 / 10, 0, r);
+            check("calibrated " + wpm, t.ready());
+            Keying k = Keying.build(SENT, new Timing(wpm, wpm), R, Fist.of(Fist.KEYER, false, r), r);
+            double[] fd = {-1};
+            String got = decodeAudio(t, buzz(k, 700, 0.3, 0.3 / 1.414 / 10, r, R, R / 2, R), R, fd);
+            check("keyer " + wpm + " wpm " + accuracy(SENT, got) + " [" + got + "]", accuracy(SENT, got) >= 0.99);
+            near("key-down within 15 ms at " + wpm, fd[0], 0.5, 0.015);
+        }
+        // Hand keys at 10 dB.
+        int[] keys = {Fist.STRAIGHT, Fist.BUG};
+        for (int key : keys) for (int wpm : new int[]{12, 18, 22}) {
+            double tot = 0; int runs = 4;
+            for (int q = 0; q < runs; q++) {
+                ToneDetector t = calibrated(R, 600, 0.3, 0.3 / 1.414 / 3.16, 0, r);
+                Keying k = Keying.build(SENT, new Timing(wpm, wpm), R, Fist.of(key, false, r), r);
+                tot += accuracy(SENT, decodeAudio(t, buzz(k, 600, 0.3, 0.3 / 1.414 / 3.16, r, R, R / 2, R), R, null));
+            }
+            check("fist " + key + " at " + wpm + " wpm: " + tot / runs, tot / runs >= 0.92);
+        }
+        // A beginner, Farnsworth 20/8: word breaks must come out right.
+        {
+            double tot = 0; int words = 0, right = 0;
+            for (int q = 0; q < 4; q++) {
+                ToneDetector t = calibrated(R, 600, 0.3, 0.3 / 1.414 / 3.16, 0, r);
+                Keying k = Keying.build(SENT, new Timing(20, 8), R, Fist.of(Fist.STRAIGHT, true, r), r);
+                String got = decodeAudio(t, buzz(k, 600, 0.3, 0.3 / 1.414 / 3.16, r, R, R / 2, R), R, null);
+                tot += accuracy(SENT, got);
+                words += SENT.split(" ").length; right += java.util.Arrays.asList(got.split(" ")).size() == SENT.split(" ").length ? SENT.split(" ").length : 0;
+            }
+            check("beginner Farnsworth accuracy " + tot / 4, tot / 4 >= 0.90);
+            check("beginner word breaks " + right + "/" + words, right >= words / 2);
+        }
+        // Nothing but noise, a voice-like burst, a door slam: no letters.
+        {
+            ToneDetector t = calibrated(R, 700, 0.3, 0.01, 0, r);
+            float[] n = steady(700, 0, 0.01, r, R, 3);
+            eq("noise alone", decodeAudio(t, n, R, null), "");
+            float[] v = new float[3 * R];
+            double env = 0;
+            for (int i = 0; i < v.length; i++) { if (i % 2400 == 0) env = r.uniform() * 0.25; v[i] = (float) (env * r.gauss() * (0.5 + 0.5 * Math.sin(i * 2 * Math.PI * 4 / R))); }
+            t = calibrated(R, 700, 0.3, 0.01, 0, r);
+            eq("voice-like burst", decodeAudio(t, v, R, null), "");
+            float[] slam = steady(700, 0, 0.01, r, R, 2);
+            for (int i = 0; i < 40; i++) slam[R + i] = (float) (0.9 * r.gauss());
+            t = calibrated(R, 700, 0.3, 0.01, 0, r);
+            eq("door slam", decodeAudio(t, slam, R, null), "");
+        }
+        // The band leaking in 12 dB below the buzzer while the user is silent.
+        {
+            ToneDetector t = calibrated(R, 700, 0.3, 0.01, 0.3 * 0.25, r);
+            check("leak at -12 dB is not flagged as too close", !t.leakTooClose());
+            Keying other = Keying.build("CQ CQ DE DL1XYZ K", new Timing(20, 20), R);
+            eq("leaking band: no false keying", decodeAudio(t, buzz(other, 700, 0.3 * 0.25, 0.01, r, R, R / 2, R), R, null), "");
+            ToneDetector loud = calibrated(R, 700, 0.3, 0.01, 0.3 * 0.6, r);
+            check("leak at -4 dB is flagged", loud.leakTooClose());
+        }
+        // The end of an over.
+        check("over ends after K and 1.5 s", Decoder.overEnded("CQ DE SP9ABC K", 1.6, false));
+        check("over ends after <KN>", Decoder.overEnded("SP9ABC DE DL1XYZ <KN>", 1.6, false));
+        check("over ends after BK", Decoder.overEnded("TNX BK", 1.6, false));
+        check("over ends after SK", Decoder.overEnded("73 SK", 1.6, false));
+        check("over does not end mid-word", !Decoder.overEnded("CQ DE SP9", 1.6, false));
+        check("over does not end before 1.5 s", !Decoder.overEnded("CQ DE SP9ABC K", 1.0, false));
+        check("patient over ends after 4 s of quiet", Decoder.overEnded("CQ DE SP9", 4.1, true));
+        check("patient over survives a slow word gap", !Decoder.overEnded("CQ DE SP9", 1.8, true));
+    }
+
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); sending(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

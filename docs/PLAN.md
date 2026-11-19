@@ -85,7 +85,7 @@ Three releases. The exact specification of every package is in `docs/WORK-PACKAG
 | **2.6 Your first contacts** | P6 | The forgiving partner: the conversation logic, live stations, your transmitter | **Fable** | Not started |
 | | P7 | Your station (call, name, QTH, rig) and a logbook | Sonnet | Not started |
 | | P8 | Taking part by typing, with hints and ready-made phrases | Sonnet | Not started |
-| **2.7 Your own key** | P9 | The phone hears your key's buzzer through the microphone and reads your Morse | **Fable** | Not started |
+| **2.7 Your own key** | P9 | The phone hears your key's buzzer through the microphone and reads your Morse | **Fable** | Parts 1 and 2 built (`ToneDetector`, `Decoder`, PC-tested); `Mic`, the permission and the wiring are not |
 | | P10 | Microphone set-up screens, warm-up, "You sent" line | Sonnet | Not started |
 | | P11 | Kind feedback on your sending | Sonnet | Not started |
 | After each release | | Version, README, release notes, plan status | Haiku | |
@@ -99,6 +99,8 @@ Three releases. The exact specification of every package is in `docs/WORK-PACKAG
 - The K index format was checked on a live sample, fetched through a web scraper because this session's network blocks the NOAA host. The app's own fetch has therefore not been run from here. The parser accepts the current layout (a list of objects) and the older one (a list of lists).
 
 Nine of the eleven packages are for Sonnet. Fable is needed for two.
+
+P9 note: `ToneDetector` and `Decoder` are tested on synthetic audio only (keyer 5 to 30 WPM, straight key and bug, a beginner at 20/8, noise, voice-like burst, door slam, speaker leak). The sideswiper fist is not in the spec's tests and reads at about 90%, because its letter gaps are barely longer than its inner gaps. Nothing has been heard through a real microphone.
 
 ## Which model builds what, and why
 

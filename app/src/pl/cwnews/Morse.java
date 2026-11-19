@@ -24,6 +24,15 @@ final class Morse {
         PROSIGN.put("HH", "........");
     }
 
+    private static final Map<String, String> REVERSE = new HashMap<>();
+    static {
+        for (Map.Entry<Character, String> e : CODE.entrySet()) REVERSE.put(e.getValue(), "" + e.getKey());
+        for (Map.Entry<String, String> e : PROSIGN.entrySet()) if (!REVERSE.containsKey(e.getValue())) REVERSE.put(e.getValue(), "<" + e.getKey() + ">");
+    }
+
+    /** The character or prosign (as &lt;BT&gt;) for a string of dots and dashes, or null if there is none. */
+    static String decode(String code) { return REVERSE.get(code); }
+
     static boolean supported(char c) { return CODE.containsKey(c); }
     static String code(char c) { return CODE.get(c); }
 
