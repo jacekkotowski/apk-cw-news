@@ -219,8 +219,8 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         engine.volume = volume * duck;
         engine.bedDb = prefs.getInt("bedDb", -24);
         engine.setBed(prefs.getInt("bed", Bed.BAND));
-        // The receiver is fixed: a normal-width filter on the CW side, slow AGC, no shift, peak filter or blanker.
-        engine.width = Rx.NORMAL;
+        // The filter is the user's choice and starts wide (1.6 kHz). The rest of the receiver is fixed: CW side, slow AGC, no shift, peak filter or blanker.
+        engine.width = Math.max(Rx.WIDE, Math.min(Rx.NARROW, prefs.getInt("filter", Rx.WIDE)));
         engine.agc = Rx.AGC_SLOW;
         engine.shift = 0;
         engine.apf = false;

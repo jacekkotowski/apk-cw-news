@@ -4,7 +4,7 @@ import json, pathlib
 from playwright.sync_api import sync_playwright
 FAKE = """
 window.calls=[];window.mst={running:true,perm:true,calibrated:false,fist:false,key:true,heard:'CQ DE',sent:'',have0:false,have1:false,have2:false,warming:false,warm:'',pitch:812};window.fake={status:'stopped',title:'',source:'',word:0,words:0,error:'',id:'-1',refreshing:false,news:{state:'no_feeds',failed:0}};
-window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,region:0,auto:1,announce:1,age:0,refresh:30,follow:0,sleep:0,mycall:'SP0CWN',myname:'JACEK',myqth:'KRAKOW',myrig:'FT891',myant:'DIPOLE',power:10,sendwpm:15,manners:0,sendwith:0,hint:1,showtext:0,ckind:1,side:0,shift:0,apf:0,nb:0,weather:0,realwx:0};
+window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,region:0,auto:1,announce:1,age:0,refresh:30,filter:0,follow:0,sleep:0,mycall:'SP0CWN',myname:'JACEK',myqth:'KRAKOW',myrig:'FT891',myant:'DIPOLE',power:10,sendwpm:15,manners:0,sendwith:0,hint:1,showtext:0,ckind:1,side:0,shift:0,apf:0,nb:0,weather:0,realwx:0};
 window.Android={state:()=>JSON.stringify(fake),settings:()=>JSON.stringify(st),feeds:()=>JSON.stringify(fs),
 recent:()=>JSON.stringify([{id:'5',title:'<b>Not markup</b>',source:'HN',heard:false}]),
 set:(k,v)=>{calls.push(['set',k,v]);st[k]=v;if(k==='wpm'&&st.eff>v)st.eff=v;},command:c=>calls.push([c]),playStory:i=>calls.push(['story',i]),
