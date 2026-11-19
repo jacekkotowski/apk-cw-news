@@ -32,19 +32,18 @@ input[type=range]{width:100%;accent-color:var(--gold);height:30px}
 details{background:var(--panel);border-radius:8px;margin:8px 0;padding:0 12px}summary{padding:12px 0;color:var(--gold);font-weight:600}
 .ci{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.ci div{flex:1;min-width:0}.ci small{color:var(--dim);display:block}.ci .btn{padding:6px 12px;font-size:14px}.ci .btn:disabled{opacity:.5}
 .ab{display:flex;gap:12px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}.ab b{color:var(--gold);min-width:56px}.ab span{flex:1;color:var(--dim)}
-.freq{font-size:34px;font-weight:600;text-align:center;margin:6px 0;color:var(--gold);font-variant-numeric:tabular-nums}.freq small{font-size:15px;color:var(--dim)}
-.freq em{display:block;font-size:13px;font-style:normal;font-weight:400;color:var(--dim);min-height:18px}
-.fall{position:relative;height:112px;background:#08141a;border:1px solid var(--line);border-radius:8px;overflow:hidden;touch-action:none}
+.fall{position:relative;height:92px;background:#08141a;border:1px solid var(--line);border-radius:8px;overflow:hidden;touch-action:none}
 .fall canvas{display:block;width:100%;height:100%}
 .fall i{position:absolute;top:0;bottom:0;width:1px;background:var(--bad);opacity:.85;pointer-events:none}
 .fall b{position:absolute;top:0;bottom:0;background:rgba(242,184,75,.14);border-left:1px solid rgba(242,184,75,.55);border-right:1px solid rgba(242,184,75,.55);pointer-events:none}
-.meter{display:grid;grid-template-columns:1fr 62px;column-gap:10px;align-items:center;margin:2px 0 12px}
+.meter{display:grid;grid-template-columns:1fr 54px;column-gap:10px;align-items:center;margin:0 0 4px}
 .mbar{height:10px;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}.mbar i{display:block;height:100%;width:0;background:#7fd4a0}.mbar i.hot{background:var(--gold)}
 .meter b{color:var(--gold);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
 .mticks{position:relative;height:16px;color:var(--dim);font-size:11px}.mticks span{position:absolute;top:1px;transform:translateX(-50%)}.mticks span:first-child{transform:none}.mticks span:last-child{transform:translateX(-100%)}
-.panel{display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0 10px}
+.panel{display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0 6px}
 .col{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}.col .btn{padding:9px 4px;font-size:14px;white-space:nowrap}
 .knob{flex:none;width:136px;height:136px;border-radius:50%;position:relative;touch-action:none;border:2px solid var(--line);background:radial-gradient(circle at 36% 30%,#35586a,#18313e 58%,#10222c);box-shadow:0 3px 10px rgba(0,0,0,.5)}
+.knob b{position:absolute;left:0;right:0;top:50%;margin-top:-16px;text-align:center;font-size:21px;font-weight:600;color:var(--gold);font-variant-numeric:tabular-nums;pointer-events:none}.knob small{position:absolute;left:0;right:0;top:50%;margin-top:10px;text-align:center;font-size:11px;color:var(--dim);pointer-events:none}
 .knob:after{content:'';position:absolute;inset:16px;border-radius:50%;border:1px dashed rgba(147,170,181,.35)}
 .knob i{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px;border-radius:50%;background:var(--gold);transform:translateY(-46px)}
 .ritrow{display:flex;gap:10px;align-items:center}.ritrow input{flex:1}.ritrow .btn{padding:6px 12px;font-size:14px}
@@ -68,24 +67,24 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
 </section>
 <section id="band">
   <div id="bandbody">
-  <div class="freq"><span id="khz"></span> <small>kHz</small><em id="ritv"></em></div>
   <div class="fall" id="fall"><canvas id="wf" aria-label="Waterfall of the band. Tap to tune."></canvas><b id="pass"></b><i id="needle"></i></div>
   <div class="scale" id="scale"><span></span><span></span><span></span><span></span><span></span></div>
-  <div class="meter"><div class="mbar"><i id="sbar"></i></div><b id="sval">S0</b><div class="mticks"><span style="left:0">1</span><span style="left:16.7%">3</span><span style="left:33.3%">5</span><span style="left:50%">7</span><span style="left:66.7%">9</span><span style="left:83.3%">+10</span><span style="left:100%">+20</span></div></div>
+  <div class="meter"><div class="mbar"><i id="sbar"></i></div><b id="sval">S0</b></div>
   <div class="panel">
     <div class="col"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button></div>
-    <div class="knob" id="knob" aria-label="Tuning knob. Turn it to tune; one turn is 1 kHz."><i id="kmark"></i></div>
+    <div class="knob" id="knob" aria-label="Tuning knob. Turn it to tune; one turn is 1 kHz."><i id="kmark"></i><b id="khz"></b><small>kHz</small></div>
     <div class="col"><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button></div>
   </div>
-  <div class="msg"><div id="tuned"></div><div id="sky" style="color:var(--dim)"></div><div id="contest" style="color:var(--gold)"></div></div>
+  <div id="bstat" style="margin:2px 0 8px"><div id="tuned"></div><div id="sky" style="color:var(--dim);font-size:13px"></div><div id="contest" style="color:var(--gold);font-size:13px"></div></div>
   <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button></div>
   <pre id="copy"></pre>
-  <h2>Contact</h2>
-  <div id="cbox">
+  <div id="cbox" style="margin-top:12px">
     <div id="cstart">
+      <div class="cap" style="margin-top:0">Length of the contact when you call CQ</div>
       <div class="seg" data-k="ckind" aria-label="Kind of contact when you call CQ"><button data-v="0">Short</button><button data-v="1">Standard</button><button data-v="2">Chat</button></div>
       <div class="row" style="margin-top:8px"><button class="btn" id="cans">Answer</button><button class="btn" id="ccq">Call CQ</button></div>
     </div>
+    <div class="msg" id="cnudge" style="display:none;color:var(--gold)">You are using the demo callsign SP0CWN. Set your own in Settings, Your station.</div>
     <div class="msg bad" id="cerr"></div>
     <div id="clive" style="display:none">
       <div id="ccall" style="font-weight:600;margin:8px 0 2px"></div>
@@ -106,7 +105,6 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <div class="msg" id="csum"></div>
   </div>
   <div id="keybox" style="display:none">
-    <h2>My key</h2>
     <div class="msg" id="kstat"></div>
     <div class="msg" id="ksent"></div>
     <div class="row"><button class="btn" id="ksetup">Set up my key</button><button class="btn" id="kfist">Learn my fist</button><button class="btn" id="kwarm">Warm up</button></div>
@@ -136,6 +134,12 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div id="llist"></div>
 </section>
 <section id="settings">
+  <details id="howto"><summary>How to use</summary>
+    <div class="msg" style="color:var(--dim)"><b style="color:var(--text)">News.</b> Feeds tab: add a feed from the catalogue. Listen tab: Play. Each headline is sent as Morse.<br><br>
+    <b style="color:var(--text)">The band.</b> Band tab: Play, then turn the knob (or tap the waterfall, or use the Signal buttons) to find stations. Tap Show what they send to check what you copied.<br><br>
+    <b style="color:var(--text)">A contact.</b> First set your callsign, name and QTH under Your station below. On the Band tab tap Answer when a station calls CQ, or Call CQ on a clear spot. Build your over with the buttons (RST, Name, QTH, Weather, Rig, Ant) and tap Send, or tap Send this for the suggested text. The partner is patient: it asks again, slows down and never fails you. Net puts the dial on its signal. End contact logs it.<br><br>
+    <b style="color:var(--text)">With a key.</b> Set Send with to My key, then tap Set up my key on the Band tab (about 8 seconds; repeat it when the noise changes). Key the suggested text; the line You sent shows what was read.</div>
+  </details>
   <h2>Your station</h2>
   <div class="set"><label for="mycall">Callsign</label><input type="text" id="mycall" autocomplete="off" autocapitalize="characters" maxlength="10" aria-label="Your callsign"></div>
   <div class="set"><label for="myname">Name</label><input type="text" id="myname" autocomplete="off" autocapitalize="characters" maxlength="20" aria-label="Your name"></div>
@@ -238,7 +242,6 @@ function view(){const sp=spanK();if(sp>=HIGH-LOW)return[LOW,HIGH];const a=Math.m
 function paintDial(){
  const v=view(),pos=k=>100*(k-v[0])/(v[1]-v[0]);
  $('khz').textContent=dialV.toFixed(2).replace(/^(\d)(\d{3})/,'$1 $2');
- $('ritv').textContent=rit?'RIT '+(rit>0?'+':'−')+Math.abs(rit)+' Hz':'';
  $('needle').style.left=pos(rxk())+'%';
  const a=pos(rxk()+passLo/1000),b=pos(rxk()+passHi/1000);$('pass').style.left=a+'%';$('pass').style.width=Math.max(0.5,b-a)+'%';
  const sc=$('scale').children;for(let i=0;i<5;i++)sc[i].textContent=(v[0]+(v[1]-v[0])*i/4).toFixed(v[1]-v[0]<40?1:0)+(i===4?' kHz':'');
@@ -305,6 +308,9 @@ function contactTick(){
  $('clive').style.display=on?'':'none';$('cstart').style.display=on?'none':'';
  $('cans').disabled=!live.canAnswer;$('ccq').disabled=!live.canCall;
  $('csum').textContent=live.summary||'';
+ $('cnudge').style.display=(S.mycall==='SP0CWN'&&!on)?'':'none';
+ if(!on&&live.canAnswer)$('tuned').textContent='A station is calling CQ here. Tap Answer.';
+ if(on)$('tuned').textContent='';
  if(!on)return;
  $('ccall').textContent='In contact with '+live.call+(live.sending?'  (sending)':'');
  $('chint').textContent=S.hint===0?'':live.hint||'';

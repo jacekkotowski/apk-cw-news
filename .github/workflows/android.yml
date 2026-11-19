@@ -39,5 +39,6 @@ jobs:
           if gh release view "v$V" > /dev/null 2>&1; then
             gh release upload "v$V" "CWNews-$V.apk" --clobber
           else
-            gh release create "v$V" "CWNews-$V.apk" --target "$GITHUB_SHA" --title "CW News $V" --notes "Android APK, version $V. Install it from this page; Android will ask to allow installing from your browser. The tests pass on a PC; the Android code is built by this workflow. See docs/PLAN.md for what has and has not been heard on a phone."
+            sed "s/{{VERSION}}/$V/g" docs/RELEASE-NOTES.md > release-notes.md
+            gh release create "v$V" "CWNews-$V.apk" --target "$GITHUB_SHA" --title "CW News $V" --notes-file release-notes.md
           fi
