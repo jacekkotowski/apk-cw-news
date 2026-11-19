@@ -203,9 +203,10 @@ final class Heard {
             if (de > 0 && isCall(kind[de - 1])) h.toCall = canon[de - 1];
             if (de + 1 < n && isCall(kind[de + 1])) h.fromCall = canon[de + 1];
         } else for (int i = 0; i < n; i++) if (isCall(kind[i])) { h.fromCall = canon[i]; break; }
+        List<String> reports = new ArrayList<>();
         for (int i = 0; i < n; i++) {
             String t = canon[i];
-            if (kind[i] == REPORT_K && h.report == null) h.report = t;
+            if (kind[i] == REPORT_K) reports.add(t);
             String k = alias(t);
             boolean word = kind[i] == WORD;
             if (word && TURNS.contains(t)) h.turn = t;
@@ -231,6 +232,9 @@ final class Heard {
                 if (v.length() > 0 && !h.values.containsKey(k)) h.values.put(k, v.toString());
             }
         }
+        // A report sent twice: take the one heard most often, the first if they differ.
+        int bestVotes = 0;
+        for (String rp : reports) { int v = 0; for (String x : reports) if (x.equals(rp)) v++; if (v > bestVotes) { bestVotes = v; h.report = rp; } }
         int good = 0;
         for (boolean b : ok) if (b) good++;
         h.known = n == 0 ? 0 : good / (double) n;
@@ -270,16 +274,19 @@ final class Heard {
         int combos = 1;
         for (int i : amb) combos *= 1 + letters.get(i).alternatives.size();
         for (int m = 0; m < combos; m++) {
-            int rem = m; StringBuilder b = new StringBuilder();
+            int rem = m, changes = 0; StringBuilder b = new StringBuilder();
             for (int i = start; i < end; i++) {
                 Letter l = letters.get(i);
                 if (!amb.contains(i)) { b.append(l.ch); continue; }
                 int opts = 1 + l.alternatives.size(), pick = rem % opts; rem /= opts;
                 b.append(pick == 0 ? l.ch : l.alternatives.get(pick - 1));
+                if (pick != 0) changes++;
             }
+            // A report-shaped reading counts as a hit, the more so the fewer letters had to be changed.
+            if (REPORT.matcher(b).matches() && 0.4 + 0.05 * changes < bestCost) { bestCost = 0.4 + 0.05 * changes; bestWord = b.toString(); continue; }
             double[] c = new double[1];
             String w = best(b.toString(), pool, c);
-            if (w != null && acceptable(c[0], b.length()) && c[0] < bestCost) { bestCost = c[0]; bestWord = w; }
+            if (w != null && acceptable(c[0], b.length()) && c[0] + 0.05 * changes < bestCost) { bestCost = c[0] + 0.05 * changes; bestWord = w; }
         }
         return bestWord;
     }

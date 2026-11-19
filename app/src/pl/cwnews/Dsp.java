@@ -58,6 +58,30 @@ final class Dsp {
         }
     }
 
+    /** In-place radix-2 FFT of re + i·im; the length must be a power of two. */
+    static void fft(float[] re, float[] im) {
+        int n = re.length;
+        for (int i = 1, j = 0; i < n; i++) {
+            int bit = n >> 1;
+            for (; (j & bit) != 0; bit >>= 1) j ^= bit;
+            j ^= bit;
+            if (i < j) { float t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+        }
+        for (int len = 2; len <= n; len <<= 1) {
+            double ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+            for (int i = 0; i < n; i += len) {
+                double cr = 1, ci = 0;
+                for (int k = 0; k < len / 2; k++) {
+                    int a = i + k, b = i + k + len / 2;
+                    double xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+                    re[b] = (float) (re[a] - xr); im[b] = (float) (im[a] - xi);
+                    re[a] += (float) xr; im[a] += (float) xi;
+                    double nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
+                }
+            }
+        }
+    }
+
     /** Transparent below 0.9, and never reaches full scale above it. */
     static double softLimit(double x) {
         double a = Math.abs(x);

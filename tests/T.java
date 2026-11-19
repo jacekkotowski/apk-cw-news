@@ -1249,8 +1249,272 @@ public class T {
     }
     static double peak(float[] x, int from, int to) { double m = 0; for (int i = from; i < to; i++) m = Math.max(m, Math.abs(x[i])); return m; }
 
+    // ---- K5: KeyEar ----
+    static KeyEar ear(BuzzerSynth b, Dsp.Rng r) {
+        KeyEar e = new KeyEar(b.rate);
+        float[] held = b.held(2, r), q = b.quiet(2, r), band = Double.isNaN(b.leakDb) ? null : b.leaking(2, r);
+        e.calibrate(held, held.length, q, q.length, band, band == null ? 0 : band.length);
+        return e;
+    }
+    /** Key events from feeding the samples in 20 ms blocks: times in ms, positive for down and negative for up (negated, 0 offset kept apart). */
+    static java.util.List<double[]> events(KeyEar e, float[] x, int rate) {
+        java.util.List<double[]> out = new java.util.ArrayList<>();
+        int block = rate / 50;
+        for (int i = 0; i < x.length; i += block) e.process(java.util.Arrays.copyOfRange(x, i, Math.min(x.length, i + block)), Math.min(block, x.length - i), (down, s) -> out.add(new double[]{down ? 1 : 0, s * 1000.0 / rate}));
+        return out;
+    }
+    static void keyear() {
+        Dsp.Rng r = new Dsp.Rng(21);
+        for (int rate : new int[]{16000, 48000}) for (double hz : new double[]{500, 800, 2400, 3200}) {
+            BuzzerSynth b = new BuzzerSynth(); b.rate = rate; b.hz = hz;
+            float[] x = b.held(2, r);
+            near("pitch " + hz + " at " + rate, KeyEar.findPitch(x, x.length, rate), hz, hz * 0.03);
+        }
+        BuzzerSynth b = new BuzzerSynth();
+        KeyEar e = ear(b, r);
+        check("calibrated", e.ready()); check("snr is well above the room (measured in the envelope): " + e.snrDb(), e.snrDb() > 20);
+        // Timing of the key: every transition within 15 ms of the truth, and nothing extra.
+        Keying k = Keying.build("CQ TEST", new Timing(18, 18), b.rate);
+        java.util.List<double[]> ev = events(e, b.render(k, r), b.rate);
+        double t = b.leadS * 1000; int idx = 0; double worst = 0; boolean shapeOk = true;
+        for (int run : k.runs) {
+            double len = Math.abs(run) * 1000.0 / b.rate;
+            if (run > 0) {
+                if (idx + 1 >= ev.size()) { shapeOk = false; break; }
+                worst = Math.max(worst, Math.abs(ev.get(idx)[1] - t)); worst = Math.max(worst, Math.abs(ev.get(idx + 1)[1] - (t + len)));
+                idx += 2;
+            }
+            t += len;
+        }
+        check("every mark found, none extra: " + ev.size(), shapeOk && idx == ev.size());
+        check("key times within 15 ms: " + worst, worst < 15);
+        // Noise alone, a voice-like burst, a door slam: nothing.
+        BuzzerSynth q = new BuzzerSynth();
+        float[] noise = q.quiet(4, r);
+        eq("noise alone", events(ear(b, r), noise, b.rate).size(), 0);
+        float[] v = q.quiet(4, r); double env = 0;
+        for (int i = 0; i < v.length; i++) { if (i % 2000 == 0) env = r.uniform() * 0.12; v[i] += (float) (env * r.gauss() * (0.5 + 0.5 * Math.sin(i * 2 * Math.PI * 4 / b.rate))); }
+        eq("voice-like burst", events(ear(b, r), v, b.rate).size(), 0);
+        BuzzerSynth sl = new BuzzerSynth(); sl.slamAt = 2;
+        eq("door slam", events(ear(b, r), sl.quiet(4, r), b.rate).size(), 0);
+        // The band leaking at 12 dB below the buzzer, key idle: silent. At 4 dB it is flagged.
+        BuzzerSynth lk = new BuzzerSynth(); lk.leakDb = -12;
+        KeyEar le = ear(lk, r);
+        Keying other = Keying.build("CQ CQ DE DL1XYZ K", new Timing(20, 20), lk.rate);
+        lk.leakKeying = other;
+        eq("leak at -12 dB: no false keying", events(le, lk.render(null, r, other), lk.rate).size(), 0);
+        BuzzerSynth loud = new BuzzerSynth(); loud.leakDb = -4;
+        check("a leak at -4 dB is flagged", !ear(loud, r).leakOk());
+        BuzzerSynth fine = new BuzzerSynth(); fine.leakDb = -20;
+        check("a leak at -20 dB is fine", ear(fine, r).leakOk());
+        // The shifted copy sits at 800 Hz for any buzzer pitch, at either rate.
+        for (int rate : new int[]{16000, 48000}) for (double hz : new double[]{500, 1000, 2000, 3500}) {
+            BuzzerSynth s = new BuzzerSynth(); s.rate = rate; s.hz = hz; s.echoGain = 0;
+            KeyEar se = ear(s, r);
+            float[] x = s.held(4, r); events(se, x, rate);
+            float[] ring = new float[KeyEar.RING]; se.shifted(ring);
+            float[] tail = java.util.Arrays.copyOfRange(ring, KeyEar.RING - 6400, KeyEar.RING);
+            double best = 0, bestF = 0;
+            for (double f = 770; f <= 830; f += 0.5) { double g = goertzelAt(tail, f, 3200); if (g > best) { best = g; bestF = f; } }
+            near("shifted peak for " + hz + " Hz at " + rate, bestF, 800, 3);
+        }
+    }
+    static double goertzelAt(float[] x, double f, double rate) {
+        double w = 2 * Math.PI * f / rate, k = 2 * Math.cos(w), s1 = 0, s2 = 0;
+        for (float v : x) { double s = v + k * s1 - s2; s2 = s1; s1 = s; }
+        return s1 * s1 + s2 * s2 - k * s1 * s2;
+    }
+
+    // ---- K5: KeyDecoder ----
+    static KeyDecoder feedRuns(KeyDecoder d, Keying k, int rate) {
+        double t = 0;
+        for (int run : k.runs) { double ms = Math.abs(run) * 1000.0 / rate; if (run > 0) { d.key(true, t); d.key(false, t + ms); } t += ms; }
+        return d;
+    }
+    static String viaAudio(BuzzerSynth b, Keying k, KeyDecoder d, Dsp.Rng r) {
+        KeyEar e = ear(b, r);
+        for (double[] ev : events(e, b.render(k, r), b.rate)) d.key(ev[0] == 1, ev[1]);
+        return d.text();
+    }
+    static Fist learner(double dah, double gapJitter, double charGap) { return new Fist(1, dah, 0.25, 0.25, gapJitter, charGap, 0.3, 0.2); }
+    static final String QSO = "{pc} DE SP0CWN SP0CWN <BT> UR RST 579 579 <BT> NAME JACEK JACEK <BT> QTH KRAKOW KRAKOW K";
+
+    static void keydecoder() {
+        Dsp.Rng r = new Dsp.Rng(31);
+        String text = "CQ CQ DE SP9ABC SP9ABC K UR RST 579 NAME JACEK QTH KRAKOW HW COPY 73 TU";
+        // Through the microphone path: keyer, 20 dB.
+        for (int wpm : new int[]{5, 12, 20, 30}) {
+            BuzzerSynth b = new BuzzerSynth(); b.snrDb = 20;
+            Keying k = Keying.build(text, new Timing(wpm, wpm), b.rate, Fist.of(Fist.KEYER, false, r), r);
+            String got = viaAudio(b, k, new KeyDecoder(wpm, null), r);
+            double a = accuracy(text, got);
+            check("keyer " + wpm + " wpm: " + a + " [" + got + "]", a >= 0.99);
+        }
+        // Straight key and bug at 10 dB.
+        for (int key : new int[]{Fist.STRAIGHT, Fist.BUG}) for (int wpm : new int[]{12, 18, 22}) {
+            double tot = 0; int runs = 6;
+            for (int q = 0; q < runs; q++) {
+                BuzzerSynth b = new BuzzerSynth(); b.snrDb = 10;
+                Keying k = Keying.build(text, new Timing(wpm, wpm), b.rate, Fist.of(key, false, r), r);
+                tot += accuracy(text, viaAudio(b, k, new KeyDecoder(wpm, null), r));
+            }
+            System.out.printf("fist %d at %d wpm: %.3f%n", key, wpm, tot / runs);
+            check("fist " + key + " at " + wpm + " wpm: " + tot / runs, tot / runs >= 0.92);
+        }
+        // A beginner at 20/8 Farnsworth.
+        {
+            double tot = 0; int breaksOk = 0, runs = 8;
+            for (int q = 0; q < runs; q++) {
+                BuzzerSynth b = new BuzzerSynth(); b.snrDb = 10;
+                Keying k = Keying.build(text, new Timing(20, 8), b.rate, Fist.of(Fist.STRAIGHT, true, r), r);
+                String got = viaAudio(b, k, new KeyDecoder(12, null), r);
+                tot += accuracy(text, got);
+                if (got.split(" ").length == text.split(" ").length) breaksOk++;
+            }
+            System.out.printf("beginner 20/8: %.3f, word breaks right in %d/%d%n", tot / runs, breaksOk, runs);
+            check("beginner accuracy " + tot / runs, tot / runs >= 0.90);
+            check("beginner word breaks " + breaksOk + "/" + runs, breaksOk >= runs / 2);
+        }
+        // The end of an over.
+        for (String last : new String[]{"K", "KN", "BK", "SK"}) {
+            KeyDecoder d = feedRuns(new KeyDecoder(20, null), Keying.build("CQ DE SP9ABC " + last, new Timing(20, 20), R), R);
+            double up = d.lastUpMs();
+            check("over ends after " + last, d.overEnded(up + 1600, Profile.REALISTIC) && !d.overEnded(up + 1000, Profile.REALISTIC));
+        }
+        {
+            KeyDecoder d = feedRuns(new KeyDecoder(5, null), Keying.build("CQ DE SP9ABC", new Timing(5, 5), R), R);
+            check("a slow sender's word gap does not end the over: text " + d.text(), !d.overEnded(d.lastUpMs() + 1800, Profile.PATIENT) && !d.overEnded(d.lastUpMs() + 1800, Profile.REALISTIC));
+            check("patient: a long silence does", d.overEnded(d.lastUpMs() + 6000, Profile.PATIENT));
+            check("normal: 2.5 s is enough at a normal speed", feedRuns(new KeyDecoder(20, null), Keying.build("CQ DE SP9ABC", new Timing(20, 20), R), R).overEnded(3000 + 12000, Profile.NORMAL));
+        }
+        rules();
+        fistFiles();
+    }
+
+    /** The two targets for a learner's hand that are NOT met (see docs/PLAN.md). Run with: java -cp out_test pl.cwnews.T targets */
+    static void learnerTargets() {
+        for (double[] f : new double[][]{{0.75, 0.35, 0.6}, {0.67, 0.45, 0.5}}) {
+            int ok = 0, okProfile = 0, runs = 200;
+            Heard.Expect e = expectFor("SP0CWN");
+            String say = QSO.replace("{pc}", "DL1ZZ");
+            Dsp.Rng rr = new Dsp.Rng(1000 + (long) (f[0] * 100));
+            for (int i = 0; i < runs; i++) {
+                Fist hand = learner(f[0], f[1], f[2]);
+                Keying k = Keying.build(say, new Timing(15, 15), R, hand, rr);
+                // The profile comes from three sends of the warm-up text.
+                java.util.List<Long> marks = new java.util.ArrayList<>(), gaps = new java.util.ArrayList<>();
+                for (int s = 0; s < 3; s++) {
+                    Keying w = Keying.build("CQ CQ DE SP0CWN SP0CWN K", new Timing(15, 15), R, hand, rr);
+                    KeyDecoder wd = feedRuns(new KeyDecoder(15, null), w, R);
+                    for (int m = 0; m < wd.marks(); m++) { marks.add(Math.round(wd.markEndMs(m) - wd.markStartMs(m))); if (m + 1 < wd.marks()) gaps.add(Math.round(wd.markStartMs(m + 1) - wd.markEndMs(m))); }
+                    if (s < 2) gaps.add(2000L);
+                }
+                KeyDecoder.Fist5 prof = KeyDecoder.Fist5.learn(marks, gaps, "CQ CQ DE SP0CWN SP0CWN K");
+                if (found(Heard.parse(feedRuns(new KeyDecoder(15, null), k, R).letters(), e))) ok++;
+                if (found(Heard.parse(feedRuns(new KeyDecoder(15, prof), k, R).letters(), e))) okProfile++;
+            }
+            System.out.printf("learner dah %.2f gapJitter %.2f charGap %.2f: %d/%d without a profile, %d/%d with one%n", f[0], f[1], f[2], ok, runs, okProfile, runs);
+            if (f[0] > 0.7) check("learner fist read: " + ok + "/200", ok >= 180);
+            else { check("severe fist with a profile: " + okProfile + "/200", okProfile >= 170); check("the profile helps by 10 points: " + ok + " vs " + okProfile, okProfile - ok >= 20); }
+        }
+    }
+
+    static KeyDecoder ms(KeyDecoder.Fist5 p, double[] marks, double[] gaps) {
+        KeyDecoder d = new KeyDecoder(15, p);
+        double t = 0;
+        for (int i = 0; i < marks.length; i++) { d.key(true, t); t += marks[i]; d.key(false, t); if (i < gaps.length) t += gaps[i]; }
+        return d;
+    }
+    static void rules() {
+        // Rule 1: a very long mark is still a dash.
+        double[] m = {80, 240, 80, 240, 80, 240, 480}, g = {80, 240, 80, 240, 80, 240};
+        KeyDecoder.rule1 = true; String with = ms(null, m, g).text();
+        KeyDecoder.rule1 = false; String without = ms(null, m, g).text(); KeyDecoder.rule1 = true;
+        eq("rule 1: a long mark is a dash", with, "AAAT"); check("rule 1 matters: " + without, !without.equals(with));
+        // Rule 2: a bounce inside a dash is not a gap.
+        double[] m2 = {80, 240, 80, 240, 80, 240, 80, 110, 130}, g2 = {80, 240, 80, 240, 80, 240, 80, 10, 0};
+        KeyDecoder.rule2 = true; with = ms(null, java.util.Arrays.copyOf(m2, 9), java.util.Arrays.copyOf(g2, 8)).text();
+        KeyDecoder.rule2 = false; without = ms(null, java.util.Arrays.copyOf(m2, 9), java.util.Arrays.copyOf(g2, 8)).text(); KeyDecoder.rule2 = true;
+        eq("rule 2: bounce is merged", with, "AAAA"); check("rule 2 matters: " + without, !without.equals(with));
+        // Rule 3: an unknown code is also tried split at its longest inner gap.
+        double[] m3 = {80, 240, 80, 240, 80, 240, 80, 80, 80, 80, 240, 80}, g3 = {80, 240, 80, 240, 80, 240, 70, 70, 70, 70, 90};
+        java.util.List<Heard.Letter> l3;
+        KeyDecoder.rule3 = true; l3 = ms(null, m3, java.util.Arrays.copyOf(g3, 11)).letters();
+        boolean has = false; for (Heard.Letter l : l3) if (l.ch.equals("*") && l.alternatives.contains("4E")) has = true;
+        KeyDecoder.rule3 = false; l3 = ms(null, m3, java.util.Arrays.copyOf(g3, 11)).letters();
+        boolean hasNot = false; for (Heard.Letter l : l3) if (l.alternatives.contains("4E")) hasNot = true; KeyDecoder.rule3 = true;
+        check("rule 3: the split reading is kept", has); check("rule 3 matters", !hasNot);
+        // Rule 4: a gap just over the usual letter gap is not yet a word gap.
+        KeyDecoder.Fist5 prof = new KeyDecoder.Fist5(80, 240, 80, 240, 384);
+        double[] m4 = {80, 240, 80, 240}, g4 = {80, 308, 80};
+        double[] m4b = {80, 240, 80, 240}, g4b = {80, 308, 80};
+        KeyDecoder.rule4 = true; with = ms(prof, m4, new double[]{80, 308, 80}).text();
+        KeyDecoder.rule4 = false; without = ms(prof, m4b, new double[]{80, 308, 80}).text(); KeyDecoder.rule4 = true;
+        check("rule 4: not a word gap: " + with, !with.contains(" ")); check("rule 4 matters: " + without, without.contains(" "));
+        // Rule 5: an unknown code next to a lone E or T keeps the joined reading.
+        double[] m5 = {80, 240, 80, 240, 80, 240, 80, 80, 240, 240, 80, 80}, g5 = {80, 240, 80, 240, 80, 240, 80, 80, 80, 80, 80};
+        // The last letter ..--.. is sent as ..--. then a letter gap then .
+        double[] g5b = g5.clone(); g5b[g5b.length - 1] = 260;
+        KeyDecoder.rule5 = true; l3 = ms(null, m5, g5b).letters();
+        has = false; for (Heard.Letter l : l3) if (l.alternatives.contains("?")) has = true;
+        KeyDecoder.rule5 = false; l3 = ms(null, m5, g5b).letters();
+        hasNot = false; for (Heard.Letter l : l3) if (l.alternatives.contains("?")) hasNot = true; KeyDecoder.rule5 = true;
+        check("rule 5: the joined reading is kept", has); check("rule 5 matters", !hasNot);
+    }
+
+    static void fistFiles() {
+        // A hand's profile from three sends, and a saved over read back.
+        Dsp.Rng r = new Dsp.Rng(5);
+        Fist hand = learner(0.75, 0.2, 0.9);
+        java.util.List<Long> marks = new java.util.ArrayList<>(), gaps = new java.util.ArrayList<>();
+        for (int s = 0; s < 3; s++) {
+            KeyDecoder wd = feedRuns(new KeyDecoder(15, null), Keying.build("CQ CQ DE SP0CWN SP0CWN K", new Timing(15, 15), R, hand, r), R);
+            for (int i = 0; i < wd.marks(); i++) { marks.add(Math.round(wd.markEndMs(i) - wd.markStartMs(i))); if (i + 1 < wd.marks()) gaps.add(Math.round(wd.markStartMs(i + 1) - wd.markEndMs(i))); }
+            if (s < 2) gaps.add(2000L);
+        }
+        KeyDecoder.Fist5 f = KeyDecoder.Fist5.learn(marks, gaps, "CQ CQ DE SP0CWN SP0CWN K");
+        check("a fist was learned", f != null);
+        if (f != null) {
+            near("learned dash length in dots: " + f.dashDots(), f.dashDots(), 2.25, 0.5);
+            check("gaps ordered: " + f, f.inner < f.letter && f.letter < f.word);
+            eq("profile text round trip", KeyDecoder.Fist5.parse(f.toString()).toString(), f.toString());
+        }
+        check("bad profile text", KeyDecoder.Fist5.parse("1,2,3") == null && KeyDecoder.Fist5.parse(null) == null);
+        KeyDecoder d = feedRuns(new KeyDecoder(15, null), Keying.build("CQ DE SP0CWN K", new Timing(15, 15), R), R);
+        String json = d.timingsJson("CQ DE SP0CWN K");
+        KeyDecoder.Saved sv = KeyDecoder.fromJson(json);
+        eq("saved over: meant text", sv.meant, "CQ DE SP0CWN K");
+        KeyDecoder back = new KeyDecoder(15, null); back.feed(sv);
+        eq("saved over reads back the same", back.text(), d.text());
+        // Real overs exported from a phone, once there are any.
+        java.io.File dir = new java.io.File("tests/data/fist");
+        java.io.File[] files = dir.listFiles((x, n) -> n.endsWith(".json"));
+        if (files != null) for (java.io.File fl : files) {
+            try {
+                KeyDecoder.Saved o = KeyDecoder.fromJson(new String(java.nio.file.Files.readAllBytes(fl.toPath()), StandardCharsets.UTF_8));
+                KeyDecoder x = new KeyDecoder(15, null); x.feed(o);
+                Heard.Expect e = expectFor("SP0CWN");
+                Heard want = Heard.parse(o.meant, e), got = Heard.parse(x.letters(), e);
+                System.out.printf("%s: character error rate %.1f%%%n", fl.getName(), 100 * (1 - accuracy(o.meant, x.text())));
+                if (want.report != null) eq(fl.getName() + ": report", got.report, want.report);
+                if (want.userCallHeard) check(fl.getName() + ": call", got.userCallHeard);
+            } catch (java.io.IOException ex) { check("read " + fl, false); }
+        }
+    }
+
+    static double accuracy(String want, String got) {
+        int[][] m = new int[want.length() + 1][got.length() + 1];
+        for (int i = 0; i <= want.length(); i++) m[i][0] = i;
+        for (int j = 0; j <= got.length(); j++) m[0][j] = j;
+        for (int i = 1; i <= want.length(); i++) for (int j = 1; j <= got.length(); j++)
+            m[i][j] = Math.min(Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1), m[i - 1][j - 1] + (want.charAt(i - 1) == got.charAt(j - 1) ? 0 : 1));
+        return 1 - m[want.length()][got.length()] / (double) want.length();
+    }
+    static boolean found(Heard h) { return h.userCallHeard && "579".equals(h.report) && "JACEK".equals(h.values.get("NAME")) && "KRAKOW".equals(h.values.get("QTH")); }
+
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); partner(); live(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); partner(); live(); keyear(); keydecoder(); if (a.length == 0) { audio(); receiver(); }
+        if (a.length == 1 && a[0].equals("targets")) learnerTargets();
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);
