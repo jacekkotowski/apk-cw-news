@@ -66,7 +66,6 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <h2>Stories</h2><div id="list"></div>
 </section>
 <section id="band">
-  <div class="seg" data-k="band"><button data-v="1">Band</button><button data-v="0">News only</button></div>
   <div id="bandbody">
   <div class="freq"><span id="khz"></span> <small>kHz</small><em id="ritv"></em></div>
   <div class="fall" id="fall"><canvas id="wf" aria-label="Waterfall of the band. Tap to tune."></canvas><b id="pass"></b><i id="needle"></i></div>
@@ -77,10 +76,6 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <div class="knob" id="knob" aria-label="Tuning knob. Turn it to tune; one turn is 1 kHz."><i id="kmark"></i></div>
     <div class="col"><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button></div>
   </div>
-  <details><summary>Fine tuning and RIT</summary>
-    <div class="fills"><button class="btn" id="dminus" aria-label="Down 100 Hz">&minus;100</button><button class="btn" id="dminus10" aria-label="Down 10 Hz">&minus;10</button><button class="btn" id="dplus10" aria-label="Up 10 Hz">+10</button><button class="btn" id="dplus" aria-label="Up 100 Hz">+100</button></div>
-  <div class="set"><label>RIT<b id="v-rit"></b></label><div class="ritrow"><input type="range" id="rit" min="-500" max="500" step="10" aria-label="Receiver incremental tuning"><button class="btn" id="rit0">Clear</button></div></div>
-  </details>
   <div class="msg"><div id="tuned"></div><div id="sky" style="color:var(--dim)"></div><div id="contest" style="color:var(--gold)"></div></div>
   <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button></div>
   <pre id="copy"></pre>
@@ -110,34 +105,19 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <h2>My key</h2>
     <div class="msg" id="kstat"></div>
     <div class="msg" id="ksent"></div>
-    <details id="ktools"><summary>Set up and tools</summary>
-    <div class="row"><button class="btn" id="ksetup">Set up my key</button><button class="btn" id="kfist">Learn my fist</button><button class="btn" id="kwarm">Warm up</button></div>
+    <div class="row"><button class="btn" id="ksetup">Set up my key</button></div>
     <div id="kwiz" style="display:none">
       <div class="msg" id="kstep"></div>
-      <div class="mbar"><i id="klvl"></i></div>
-      <div class="row" style="margin-top:8px"><button class="btn" id="kgo">Start</button><button class="btn" id="kcancel">Cancel</button></div>
+      <div class="row"><button class="btn" id="kgo">Start</button><button class="btn" id="kcancel">Cancel</button></div>
       <div class="msg" id="kres"></div>
     </div>
+    <details id="ktools"><summary>More</summary>
+    <div class="row"><button class="btn" id="kfist">Learn my fist</button><button class="btn" id="kwarm">Warm up</button></div>
     <div class="row"><input type="text" id="kmeant" placeholder="What you meant to send" autocomplete="off" autocapitalize="characters" style="flex:1;margin:0"><button class="btn" id="kwrong">That's not what I sent</button><button class="btn" id="kexport">Export</button></div>
     <div class="msg" style="color:var(--dim)">The sound is analysed on the phone and never stored or sent. Only the timings of your key can be saved, and only if you tap "That's not what I sent".</div>
     <details><summary>It does not hear my key</summary><div class="msg" style="color:var(--dim)">Hold the phone closer to the buzzer, run Set up again, use headphones so the band does not reach the microphone, try a buzzer with a different pitch, or connect the buzzer to the phone by cable.</div></details>
     </details>
   </div>
-  <details id="rcv"><summary>Receiver and band settings</summary>
-  <div class="set"><label>When it goes quiet</label><div class="seg" data-k="follow"><button data-v="0">Stay</button><button data-v="1">Strongest</button></div></div>
-    <div class="set"><label>Waterfall</label><button class="btn" id="span" aria-label="Waterfall span">Span 40 kHz</button></div>
-  <div class="set"><label>Filter</label><div class="seg" data-k="width"><button data-v="0">Wide</button><button data-v="1">Normal</button><button data-v="2">Narrow</button></div></div>
-  <div class="set"><label>Sideband</label><div class="seg" data-k="side"><button data-v="0">CW</button><button data-v="1">CW-R</button></div></div>
-  <div class="set"><label>AGC</label><div class="seg" data-k="agc"><button data-v="0">Off</button><button data-v="1">Slow</button><button data-v="2">Fast</button></div></div>
-  <div class="set"><label>Shift<b id="v-shift"></b></label><input type="range" id="shift" min="-300" max="300" step="50" aria-label="Passband shift"></div>
-  <div class="set"><label>Peak filter</label><div class="seg" data-k="apf"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
-  <div class="set"><label>Noise blanker</label><div class="seg" data-k="nb"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
-    <div class="set"><label>Band activity</label>
-<div class="seg" data-k="activity"><button data-v="0">Quiet</button><button data-v="1">Normal</button><button data-v="2">Busy</button></div></div>
-    <details><summary>About the band</summary>
-  <div class="msg" style="color:var(--dim)">Stations are made up: each contact is generated on the spot, in real time. Operators differ: some chat at length, some are brief, beginners send slowly and ask for QRS, some are out on a summit or in a park. The report they give is how well the two stations hear each other, which is often close to what you hear, and the greeting matches the other station's time of day. Sometimes you hear only one side of a contact: the other station is too far, or too near and inside the skip zone. &lt;HH&gt; is the error sign, &lt;AS&gt; means wait. Your news is the bulletin station at 7020 kHz. Tune a few hundred Hz off a signal and its pitch changes, as on a real receiver. Everything passes one filter and one AGC: a strong station pushes the noise down, and a narrow filter cuts out the neighbours but needs careful tuning. The band noise follows the Ionosphere background and its level in Settings. The waterfall shows the band scrolling down: each station is a line that breaks up with its keying. Tap it to tune, or turn the knob; one turn is 1 kHz and a fast spin goes further. RIT moves only the receiver, up to 500 Hz either side of the dial.</div>
-    </details>
-  </details>
   </div>
 </section>
 <section id="feeds">
@@ -176,12 +156,12 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="seg" data-k="bed"><button data-v="1">Ionosphere</button><button data-v="2">Cosmic</button><button data-v="0">Off</button></div>
   <div class="set"><label>Background level<b id="v-bedDb"></b></label><input type="range" id="bedDb" min="-40" max="-12"></div>
   <h2>Band</h2>
+  <div class="set"><label>Band tab</label><div class="seg" data-k="band"><button data-v="1">Band</button><button data-v="0">News only</button></div></div>
+  <div class="set"><label>When a contact ends</label><div class="seg" data-k="follow"><button data-v="0">Stay</button><button data-v="1">Go to the strongest</button></div></div>
   <div class="set"><label for="region">Your region</label><select id="region" aria-label="Your region"></select></div>
-  <div class="msg" style="color:var(--dim)">The Band tab follows the clock from where you are: nearby stations by day, distant ones after dark, and nearby ones drop into the skip zone at night. Evenings and weekends are busier, and on the big contest weekends the band fills with contest stations.</div>
+  <div class="msg" style="color:var(--dim)">The band is always busy and the day is a good one. It follows the clock from where you are: nearby stations by day, distant ones after dark, and nearby ones drop into the skip zone at night. Evenings and weekends are busier, and on the big contest weekends the band fills with contest stations.</div>
   <h2>Sleep</h2>
   <div class="set"><label>Stop playing after</label><div class="seg" data-k="sleep"><button data-v="0">Off</button><button data-v="15">15 min</button><button data-v="30">30 min</button><button data-v="60">60 min</button></div></div>
-  <div class="set"><label for="weather">Band weather</label><select id="weather" aria-label="Band weather"><option value="0">Auto</option><option value="1">Calm</option><option value="2">Summer static</option><option value="3">Storm nearby</option><option value="4">Aurora</option><option value="5">Solar flare</option></select></div>
-  <div class="set"><label>Use real space weather (fetches NOAA's K index)</label><div class="seg" data-k="realwx"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
   <h2>News</h2>
   <div class="set"><label>Send</label><div class="seg" data-k="mode"><button data-v="0">Headline</button><button data-v="1">Headline + summary</button></div></div>
   <div class="set"><label>Ham abbreviations in the news (AND = ES, THANKS = TNX)</label><div class="seg" data-k="abbr"><button data-v="0">Off</button><button data-v="1">Light</button><button data-v="2">Full</button></div></div>
@@ -205,15 +185,15 @@ $('toggle').onclick=()=>A.command('toggle');
 $('replay').onclick=()=>A.command('replay');
 $('refresh').onclick=()=>A.refresh();
 function unit(k,v){return k==='sendwpm'?v+' WPM':k==='pitch'?v+' Hz':k==='volume'?v+' %':k==='bedDb'?v+' dB':k==='shift'?(v>0?'+':v<0?'−':'')+Math.abs(v)+' Hz':v+' WPM'}
-function paint(){for(const k of ['wpm','eff','pitch','volume','bedDb','shift','sendwpm']){$(k).value=S[k];$('v-'+k).textContent=unit(k,S[k]);}
+function paint(){for(const k of ['wpm','eff','pitch','volume','bedDb','sendwpm']){$(k).value=S[k];$('v-'+k).textContent=unit(k,S[k]);}
  for(const k of TEXTS)if(document.activeElement!==$(k))$(k).value=S[k]||'';
  document.querySelectorAll('.seg').forEach(g=>g.querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S[g.dataset.k])));
  $('bedDb').disabled=S.bed===0;
  const rg=$('region');if(!rg.options.length&&typeof A.regions==='function')JSON.parse(A.regions()).forEach((n,i)=>{const o=el('option','',n);o.value=i;rg.append(o);});
- rg.value=S.region||0;$('weather').value=S.weather||0;}
+ rg.value=S.region||0;}
 const TEXTS=['mycall','myname','myqth','myrig','myant'];
 function load(){S=JSON.parse(A.settings());paint();}
-for(const k of ['wpm','eff','pitch','volume','bedDb','shift','sendwpm']){
+for(const k of ['wpm','eff','pitch','volume','bedDb','sendwpm']){
  $(k).oninput=()=>{let v=+$(k).value;if(k==='eff')v=Math.min(v,S.wpm);if(k==='eff')$(k).value=v;$('v-'+k).textContent=unit(k,v);};
  $(k).onchange=()=>{A.set(k,+$(k).value);load();};
 }
@@ -259,9 +239,6 @@ function paintDial(){
  const a=pos(rxk()+passLo/1000),b=pos(rxk()+passHi/1000);$('pass').style.left=a+'%';$('pass').style.width=Math.max(0.5,b-a)+'%';
  const sc=$('scale').children;for(let i=0;i<5;i++)sc[i].textContent=(v[0]+(v[1]-v[0])*i/4).toFixed(v[1]-v[0]<40?1:0)+(i===4?' kHz':'');
  $('kmark').style.transform='rotate('+((dialV*360)%360).toFixed(1)+'deg) translateY(-46px)';
- if(document.activeElement!==$('rit'))$('rit').value=rit;
- $('v-rit').textContent=(rit>0?'+':rit<0?'−':'')+Math.abs(rit)+' Hz';
- $('span').textContent='Span '+spanK()+' kHz';
 }
 function setDial(v){v=Math.max(LOW,Math.min(HIGH,Math.round(v*100)/100));if(v===dialV)return;dialV=v;A.setDial(v);paintDial();}
 function setRit(v){rit=Math.max(-500,Math.min(500,Math.round(v/10)*10));if(typeof A.setRit==='function')A.setRit(rit);paintDial();}
@@ -330,18 +307,14 @@ let ms={},wiz=null,micWanted=false;
 const SENDTXT=()=>'CQ CQ DE '+(S.mycall||'SP0CWN')+' '+(S.mycall||'SP0CWN')+' K';
 function micMsg(){return 'Allow the microphone, then tap again. The sound is analysed on the phone and never stored or sent.';}
 function needMic(){if(typeof A.micPermission!=='function')return false;if(A.micPermission())return true;$('kres').textContent=micMsg();$('kwiz').style.display='';return false;}
-function wizShow(step,btn){$('kwiz').style.display='';$('kstep').textContent=step;$('kgo').textContent=btn||'Start';$('kres').textContent='';}
-$('ksetup').onclick=()=>{if(!needMic())return;wiz={k:'cal',n:0};wizShow('Step 1 of 3. Hold your key down for two seconds, starting when you tap Start.');};
+function wizShow(step,btn){$('kwiz').style.display='';$('kgo').style.display='';$('kgo').disabled=false;$('kstep').textContent=step;$('kgo').textContent=btn||'Start';$('kres').textContent='';}
+$('ksetup').onclick=()=>{if(!needMic())return;wiz={k:'cal',n:1};wizShow('Hold your key down now (3 s)...');$('kgo').style.display='none';A.micRecord('held',3);};
 $('kfist').onclick=()=>{if(!needMic())return;wiz={k:'fist',n:0};wizShow('Send this three times at your own pace, then tap Done: '+SENDTXT(),'Begin');};
 $('kwarm').onclick=()=>{if(!needMic())return;wiz={k:'warm',n:0};A.warmUp(true);wizShow('Warm up for a minute. Send anything, for example '+SENDTXT()+'. What is read appears below.','Stop');};
 $('kcancel').onclick=()=>{if(wiz&&wiz.k==='warm')A.warmUp(false);wiz=null;$('kwiz').style.display='none';};
 $('kgo').onclick=()=>{
  if(!wiz)return;
- if(wiz.k==='cal'){
-  if(wiz.n===0){A.micRecord('held',2);wiz.n=1;$('kgo').disabled=true;$('kstep').textContent='Hold your key down...';}
-  else if(wiz.n===2){A.micRecord('quiet',2);wiz.n=3;$('kgo').disabled=true;$('kstep').textContent='Stay quiet...';}
-  else if(wiz.n===4){if(curStatus!=='playing'&&curStatus!=='waiting'){$('kres').textContent='Press Play first, so that the band is playing.';return;}A.micRecord('band',3);wiz.n=5;$('kgo').disabled=true;$('kstep').textContent='The band plays...';}
- }else if(wiz.k==='fist'){
+ if(wiz.k==='fist'){
   if(wiz.n===0){A.fistStart();wiz.n=1;$('kgo').textContent='Done';}
   else{const r=A.fistDone(SENDTXT());$('kres').textContent=r||'That was too little to learn from. Try again, sending it three times.';wiz=null;$('kgo').textContent='Start';}
  }else if(wiz.k==='warm'){A.warmUp(false);wiz=null;$('kwiz').style.display='none';}
@@ -359,11 +332,13 @@ function keyTick(){
  $('kstat').textContent=!ms.perm?'The microphone is not allowed yet. Tap Set up my key.':!ms.calibrated?'Not set up yet. Tap Set up my key.':'Ready. Pitch about '+ms.pitch+' Hz.'+(ms.fist?' Your fist is learned.':'');
  $('ksent').innerHTML='';const lt=el('span','klight'+(ms.key?' on':''));$('ksent').append(lt,document.createTextNode('You sent: '+((ms.heard||ms.sent||'')||'...')));
  if(wiz&&wiz.k==='cal'){
-  if(wiz.n===1&&ms.have0){wiz.n=2;$('kgo').disabled=false;$('kstep').textContent='Step 2 of 3. Release the key and stay quiet for two seconds, starting when you tap Start.';}
-  if(wiz.n===3&&ms.have1){wiz.n=4;$('kgo').disabled=false;$('kstep').textContent='Step 3 of 3. The band will play for three seconds. Press Play first if it is not playing.';}
-  if(wiz.n===5&&ms.have2){const r=JSON.parse(A.micCalibrate());wiz=null;$('kgo').disabled=false;$('kgo').textContent='Start';
-   $('kres').textContent=r.ok?'Found your buzzer at about '+r.pitch+' Hz, '+r.snr+' dB above the room.'+(r.leakOk?'':' The band reaches the microphone too strongly: use headphones, or turn the volume down.'):'I could not hear a steady buzzer. Hold the key down for the whole first step, move the phone closer, or see the help below.';
-   $('kstep').textContent='Set-up finished.';}
+  const playing=curStatus==='playing'||curStatus==='waiting';
+  const done=(bandChecked)=>{const r=JSON.parse(A.micCalibrate());wiz=null;
+   $('kres').textContent=r.ok?'Found your buzzer at about '+r.pitch+' Hz, '+r.snr+' dB above the room.'+(bandChecked?(r.leakOk?'':' The band reaches the microphone too strongly: use headphones, or turn the volume down.'):' The band check was skipped because the band is not playing.'):'I could not hear a steady buzzer. Hold the key down for the whole first 3 seconds, move the phone closer, or see the help under More.';
+   $('kstep').textContent='Set-up finished.';};
+  if(wiz.n===1&&ms.have0){A.micRecord('quiet',2);wiz.n=2;$('kstep').textContent='Release the key and stay quiet (2 s)...';}
+  else if(wiz.n===2&&ms.have1){if(playing){A.micRecord('band',3);wiz.n=3;$('kstep').textContent='Checking the band (3 s)...';}else done(false);}
+  else if(wiz.n===3&&ms.have2)done(true);
  }
  if(wiz&&wiz.k==='warm'){const want=SENDTXT().replace(/^/,''),got=ms.warm||'';$('kres').textContent=(got?'Read: '+got:'Listening...')+(got?'  ('+Math.round(100*Math.max(0,1-lev(want,got)/want.length))+'% of the suggested text)':'');if(!ms.warming&&ms.running){wiz=null;}}
  if(wiz&&wiz.k==='fist')$('kres').textContent=ms.heard?'Read so far: '+ms.heard:'';
@@ -437,12 +412,9 @@ knob.onpointermove=e=>{if(kAng===null)return;const a=angle(e);let d=a-kAng;if(d>
  const ms=e.timeStamp-kT;kAng=a;kT=e.timeStamp;if(ms>0)kVel=0.6*kVel+0.4*d/ms*1000;turn(d,ms);};
 knob.onpointerup=knob.onpointercancel=e=>{if(kAng===null)return;kAng=null;if(e.timeStamp-kT<90&&Math.abs(kVel)>2.5){kSpin=kVel;coast(performance.now());}};
 
-$('dminus').onclick=()=>setDial(dialV-0.1);$('dplus').onclick=()=>setDial(dialV+0.1);$('dminus10').onclick=()=>setDial(dialV-0.01);$('dplus10').onclick=()=>setDial(dialV+0.01);
 $('dnext').onclick=()=>{A.nextSignal(1);bandTick();};$('dprev').onclick=()=>{A.nextSignal(-1);bandTick();};
-$('rit').oninput=()=>setRit(+$('rit').value);$('rit0').onclick=()=>setRit(0);
-$('weather').onchange=()=>{A.set('weather',+$('weather').value);load();};
 $('region').onchange=()=>{A.set('region',+$('region').value);load();};
-$('span').onclick=()=>{A.set('span',spanK()>=40?4:40);load();paintDial();};
+$('scale').onclick=()=>{A.set('span',spanK()>=40?4:40);load();paintDial();};
 $('reveal').onclick=()=>{copyShown=!copyShown;bandTick();};
 $('bplay').onclick=()=>A.command('toggle');
 load();paintDial();tick();setInterval(tick,500);

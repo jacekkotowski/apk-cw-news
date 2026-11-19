@@ -219,12 +219,13 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         engine.volume = volume * duck;
         engine.bedDb = prefs.getInt("bedDb", -24);
         engine.setBed(prefs.getInt("bed", Bed.BAND));
-        engine.width = prefs.getInt("width", Rx.NORMAL);
-        engine.agc = Math.max(0, Math.min(2, prefs.getInt("agc", 1)));
-        engine.shift = Math.max(-300, Math.min(300, prefs.getInt("shift", 0)));
-        engine.apf = prefs.getInt("apf", 0) != 0;
-        engine.nb = prefs.getInt("nb", 0) != 0;
-        engine.side = prefs.getInt("side", 0);
+        // The receiver is fixed: a normal-width filter on the CW side, slow AGC, no shift, peak filter or blanker.
+        engine.width = Rx.NORMAL;
+        engine.agc = Rx.AGC_SLOW;
+        engine.shift = 0;
+        engine.apf = false;
+        engine.nb = false;
+        engine.side = 0;
         follow = prefs.getInt("follow", 0);
         Profile d = Profile.defaults();
         profile = new Profile(prefs.getString("mycall", d.call), prefs.getString("myname", d.name), prefs.getString("myqth", d.qth), prefs.getString("myrig", d.rig), prefs.getString("myant", d.ant),
@@ -241,12 +242,11 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
             }
             int region = Math.max(0, Math.min(Prop.REGION.length - 1, prefs.getInt("region", 0)));
             band.setPlace(Prop.REGION[region][0], Prop.REGION[region][1]);
-            band.setActivity(prefs.getInt("activity", 1));
+            band.setActivity(2);
             band.setSpeed(wpm, eff);
-            band.setWeather(prefs.getInt("weather", 0));
-            // A K index older than six hours is not used.
-            boolean fresh = prefs.getInt("realwx", 0) != 0 && System.currentTimeMillis() - prefs.getLong("kpAt", 0) < 6 * 3600000L;
-            band.setKp(fresh ? prefs.getFloat("kp", 0) : Double.NaN);
+            // A busy band on a good day: no storms, aurora or flares, and no real space weather.
+            band.setWeather(Sky.CALM);
+            band.setKp(Double.NaN);
             engine.setBand(band);
         } else { band = null; engine.setBand(null); }
         if ((timingChanged || textChanged) && engine.hasStory() && storyId != PlaybackQueue.NONE) {

@@ -41,7 +41,8 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(BG);
         prefs = getSharedPreferences("cw", MODE_PRIVATE);
         CwService.dial = prefs.getFloat("dial", (float) Band.NEWS);
-        CwService.rit = prefs.getInt("rit", 0);
+        CwService.rit = 0;   // RIT is no longer offered: Net puts the dial on the station
+        prefs.edit().putInt("realwx", 0).apply();
         db = Db.get(this);
         web = new WebView(this);
         web.setBackgroundColor(BG);
@@ -128,6 +129,7 @@ public class MainActivity extends Activity {
         volatile boolean keyDown;
         private volatile long warmEnd;
         volatile boolean learning, calibrating;
+        private boolean bandFresh;
         private volatile String warmText = "";
         private long samples;
         private String lastJson = "", lastText = "";
@@ -168,6 +170,8 @@ public class MainActivity extends Activity {
         /** Records seconds of sound for one calibration step: 0 key held, 1 room quiet, 2 band playing. */
         String record(int kind, double seconds) {
             if (!start()) return status;
+            if (kind == 0) bandFresh = false;
+            if (kind == 2) bandFresh = true;
             cap[kind] = new float[(int) (seconds * RATE)]; capN[kind] = 0; capWant = cap[kind].length; capKind = kind;
             return "";
         }
@@ -176,7 +180,7 @@ public class MainActivity extends Activity {
         boolean calibrate() {
             if (!have(0) || !have(1)) return false;
             calibrating = true;
-            boolean ok = ear.calibrate(cap[0], capN[0], cap[1], capN[1], have(2) ? cap[2] : null, have(2) ? capN[2] : 0);
+            boolean ok = ear.calibrate(cap[0], capN[0], cap[1], capN[1], bandFresh && have(2) ? cap[2] : null, bandFresh && have(2) ? capN[2] : 0);
             if (ok) prefs.edit().putString("keycal", ear.save()).apply();
             calibrating = false;
             return ok;
@@ -261,8 +265,8 @@ public class MainActivity extends Activity {
         @JavascriptInterface public String band() {
             Band b = CwService.band;
             // passLo and passHi are the receiver's passband in Hz around the frequency it listens on.
-            int tone = prefs.getInt("pitch", 600), width = prefs.getInt("width", Rx.NORMAL);
-            double[] heard = Rx.heard(width, tone, prefs.getInt("side", 0) == 1 ? -1 : 1, prefs.getInt("shift", 0));
+            int tone = prefs.getInt("pitch", 600);
+            double[] heard = Rx.heard(Rx.NORMAL, tone, 1, 0);
             return "{\"on\":" + (b != null) + ",\"dial\":" + String.format(java.util.Locale.ROOT, "%.2f", CwService.dial) + ",\"rit\":" + CwService.rit
                 + ",\"passLo\":" + Math.round(heard[0]) + ",\"passHi\":" + Math.round(heard[1])
                 + ",\"low\":" + Band.LOW + ",\"high\":" + Band.HIGH + ",\"news\":" + Band.NEWS

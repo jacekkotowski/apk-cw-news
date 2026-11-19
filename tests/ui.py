@@ -41,9 +41,6 @@ with sync_playwright() as p:
     assert '7 020.00' in g.inner_text('#khz'), g.inner_text('#khz')
     assert g.evaluate("(()=>{const c=document.getElementById('wf'),d=c.getContext('2d').getImageData(Math.round(c.width*12.3/40),0,1,1).data;return d[0]+d[1]+d[2]})()") > 300, 'waterfall shows the station'
     assert g.inner_text('#sval').startswith('S')
-    g.evaluate("(()=>{const e=document.getElementById('rit');e.value=-80;e.dispatchEvent(new Event('input'))})()"); assert calls()[-1] == ['rit',-80]
-    g.click('#rit0'); assert calls()[-1] == ['rit',0]
-    g.click('#span'); assert calls()[-1] == ['set','span',4]; g.click('#span')
     g.click('#dnext'); assert calls()[-1] == ['next',1]
     g.click('#cans'); g.wait_for_timeout(100); assert calls()[-1] == ['answer']
     g.wait_for_timeout(700); assert g.is_visible('#clive') and 'DL1ABC' in g.inner_text('#ccall')
@@ -63,27 +60,15 @@ with sync_playwright() as p:
     g.click('#ccq'); assert calls()[-1] == ['cq'] and 'clear one' in g.inner_text('#cerr')
     g.evaluate("S.sendwith=1"); g.wait_for_timeout(700)
     assert g.is_visible('#keybox') and 'You sent: CQ DE' in g.inner_text('#ksent') and g.locator('.klight.on').count() == 1
-    g.click('#ksetup'); assert 'Step 1' in g.inner_text('#kstep')
-    g.click('#kgo'); g.wait_for_timeout(700); assert 'Step 2' in g.inner_text('#kstep')
-    g.click('#kgo'); g.wait_for_timeout(700); assert 'Step 3' in g.inner_text('#kstep')
-    g.click('#kgo'); assert 'Press Play' in g.inner_text('#kres')
-    g.evaluate("fake.status='playing'"); g.wait_for_timeout(700); g.click('#kgo'); g.wait_for_timeout(900)
+    g.evaluate("fake.status='playing'"); g.click('#ksetup'); assert 'Hold your key' in g.inner_text('#kstep')
+    g.wait_for_timeout(2600)
     assert '812 Hz' in g.inner_text('#kres') and 'headphones' in g.inner_text('#kres')
     g.click('#kfist'); g.click('#kgo'); g.click('#kgo'); assert '2.4 dots' in g.inner_text('#kres')
     g.click('#kwarm'); g.evaluate("mst.warming=true;mst.warm='CQ CQ DE SP0CWN SP0CWN K'"); g.wait_for_timeout(700); assert '100%' in g.inner_text('#kres')
     g.click('#kgo'); g.fill('#kmeant','cq de sp0cwn'); g.click('#kwrong'); assert calls()[-1][0] == 'wrong'
     g.evaluate("S.sendwith=0"); g.wait_for_timeout(700)
+    g.click('#scale'); assert calls()[-1] == ['set','span',4]; g.click('#scale')
     g.click('#reveal'); g.wait_for_timeout(700); assert 'CQ CQ' in g.inner_text('#copy')
-    g.click('#dplus'); assert calls()[-1][0] == 'dial'
-    g.click('#dplus10'); assert abs(calls()[-1][1] - calls()[-2][1] - 0.01) < 1e-6, calls()[-2:]
-    g.click('.seg[data-k=width] button[data-v="2"]'); assert calls()[-1] == ['set','width',2]
-    g.click('.seg[data-k=side] button[data-v="1"]'); assert calls()[-1] == ['set','side',1]
-    g.click('.seg[data-k=agc] button[data-v="0"]'); assert calls()[-1] == ['set','agc',0]
-    g.click('.seg[data-k=agc] button[data-v="2"]'); assert calls()[-1] == ['set','agc',2]
-    g.click('.seg[data-k=apf] button[data-v="1"]'); assert calls()[-1] == ['set','apf',1]
-    g.click('.seg[data-k=nb] button[data-v="1"]'); assert calls()[-1] == ['set','nb',1]
-    g.evaluate("(()=>{const e=document.getElementById('shift');e.value=-150;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))})()"); assert calls()[-1] == ['set','shift',-150]
-    g.click('.seg[data-k=follow] button[data-v="1"]'); assert calls()[-1] == ['set','follow',1]
     assert 'Thunderstorms' in g.inner_text('#sky')
     assert 'CQ WW CW' in g.inner_text('#contest')
     g.click('nav button[data-t=log]'); g.wait_for_timeout(700)
@@ -100,8 +85,6 @@ with sync_playwright() as p:
     g.evaluate("(()=>{const e=document.getElementById('sendwpm');e.value=22;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))})()"); assert calls()[-1] == ['set','sendwpm',22]
     g.click('.seg[data-k=bed] button[data-v="2"]'); assert calls()[-1] == ['set','bed',2]
     g.click('.seg[data-k=sleep] button[data-v="30"]'); assert calls()[-1] == ['set','sleep',30]
-    g.select_option('#weather', '3'); assert calls()[-1] == ['set','weather',3]
-    g.click('.seg[data-k=realwx] button[data-v="1"]'); assert calls()[-1] == ['set','realwx',1]
     g.select_option('#region', '1'); assert calls()[-1] == ['set','region',1]
     g.evaluate("(()=>{const e=document.getElementById('wpm');e.value=10;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))})()")
     assert g.inner_text('#v-eff') == '10 WPM', g.inner_text('#v-eff')
