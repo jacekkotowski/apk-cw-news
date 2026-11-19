@@ -92,11 +92,11 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
       <div class="msg" id="csug" style="display:none"><div style="color:var(--dim);font-size:13px">Suggested to send</div><div id="csugt" style="font-family:ui-monospace,monospace;margin:4px 0"></div><button class="btn" id="cuse">Use</button></div>
       <pre id="ctrans"></pre>
       <div class="row"><div class="msg" id="czero" style="color:var(--dim);flex:1;margin:0"></div><button class="btn" id="cnet">Net</button></div>
-      <details id="ctype" style="margin-top:8px"><summary>Type instead</summary>
+      <div id="ctype" style="margin-top:8px">
         <input type="text" id="ctext" autocomplete="off" autocapitalize="characters" aria-label="Text to send">
       <div class="fills"><button class="btn" data-f="call">Call</button><button class="btn" data-f="report">Report</button><button class="btn" data-f="r">R</button><button class="btn" data-f="agn">AGN?</button><button class="btn" data-f="qrs">QRS</button><button class="btn" data-f="73">73</button></div>
         <div class="row"><button class="btn" id="csend">Send</button></div>
-      </details>
+      </div>
       <div class="row" style="margin-top:8px"><button class="btn" id="cend">End contact</button></div>
     </div>
     <div class="msg" id="csum"></div>
@@ -105,14 +105,13 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <h2>My key</h2>
     <div class="msg" id="kstat"></div>
     <div class="msg" id="ksent"></div>
-    <div class="row"><button class="btn" id="ksetup">Set up my key</button></div>
+    <div class="row"><button class="btn" id="ksetup">Set up my key</button><button class="btn" id="kfist">Learn my fist</button><button class="btn" id="kwarm">Warm up</button></div>
     <div id="kwiz" style="display:none">
       <div class="msg" id="kstep"></div>
       <div class="row"><button class="btn" id="kgo">Start</button><button class="btn" id="kcancel">Cancel</button></div>
       <div class="msg" id="kres"></div>
     </div>
     <details id="ktools"><summary>More</summary>
-    <div class="row"><button class="btn" id="kfist">Learn my fist</button><button class="btn" id="kwarm">Warm up</button></div>
     <div class="row"><input type="text" id="kmeant" placeholder="What you meant to send" autocomplete="off" autocapitalize="characters" style="flex:1;margin:0"><button class="btn" id="kwrong">That's not what I sent</button><button class="btn" id="kexport">Export</button></div>
     <div class="msg" style="color:var(--dim)">The sound is analysed on the phone and never stored or sent. Only the timings of your key can be saved, and only if you tap "That's not what I sent".</div>
     <details><summary>It does not hear my key</summary><div class="msg" style="color:var(--dim)">Hold the phone closer to the buzzer, run Set up again, use headphones so the band does not reach the microphone, try a buzzer with a different pitch, or connect the buzzer to the phone by cable.</div></details>
@@ -159,7 +158,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="set"><label>Band tab</label><div class="seg" data-k="band"><button data-v="1">Band</button><button data-v="0">News only</button></div></div>
   <div class="set"><label>When a contact ends</label><div class="seg" data-k="follow"><button data-v="0">Stay</button><button data-v="1">Go to the strongest</button></div></div>
   <div class="set"><label for="region">Your region</label><select id="region" aria-label="Your region"></select></div>
-  <div class="msg" style="color:var(--dim)">The band is always busy and the day is a good one. It follows the clock from where you are: nearby stations by day, distant ones after dark, and nearby ones drop into the skip zone at night. Evenings and weekends are busier, and on the big contest weekends the band fills with contest stations.</div>
+  <div class="msg" style="color:var(--dim)">The band is always busy. Pick the band weather: Summer static is the default. It follows the clock from where you are: nearby stations by day, distant ones after dark, and nearby ones drop into the skip zone at night. Evenings and weekends are busier, and on the big contest weekends the band fills with contest stations.</div>
+  <div class="set"><label for="weather">Band weather</label><select id="weather" aria-label="Band weather"><option value="2">Summer static</option><option value="1">Calm</option><option value="3">Storm nearby</option><option value="0">Auto (season and chance)</option><option value="4">Aurora</option><option value="5">Solar flare</option></select></div>
   <h2>Sleep</h2>
   <div class="set"><label>Stop playing after</label><div class="seg" data-k="sleep"><button data-v="0">Off</button><button data-v="15">15 min</button><button data-v="30">30 min</button><button data-v="60">60 min</button></div></div>
   <h2>News</h2>
@@ -190,7 +190,7 @@ function paint(){for(const k of ['wpm','eff','pitch','volume','bedDb','sendwpm']
  document.querySelectorAll('.seg').forEach(g=>g.querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S[g.dataset.k])));
  $('bedDb').disabled=S.bed===0;
  const rg=$('region');if(!rg.options.length&&typeof A.regions==='function')JSON.parse(A.regions()).forEach((n,i)=>{const o=el('option','',n);o.value=i;rg.append(o);});
- rg.value=S.region||0;}
+ rg.value=S.region||0;$('weather').value=S.weather2==null?2:S.weather2;}
 const TEXTS=['mycall','myname','myqth','myrig','myant'];
 function load(){S=JSON.parse(A.settings());paint();}
 for(const k of ['wpm','eff','pitch','volume','bedDb','sendwpm']){
@@ -287,7 +287,6 @@ function contactTick(){
  try{live=JSON.parse(A.liveState());}catch(e){return;}
  const on=!!live.on;
  $('clive').style.display=on?'':'none';$('cstart').style.display=on?'none':'';
- if(S.sendwith!==typeOpen){typeOpen=S.sendwith;$('ctype').open=S.sendwith!==1;}
  $('cans').disabled=!live.canAnswer;$('ccq').disabled=!live.canCall;
  $('csum').textContent=live.summary||'';
  if(!on)return;
@@ -413,6 +412,7 @@ knob.onpointermove=e=>{if(kAng===null)return;const a=angle(e);let d=a-kAng;if(d>
 knob.onpointerup=knob.onpointercancel=e=>{if(kAng===null)return;kAng=null;if(e.timeStamp-kT<90&&Math.abs(kVel)>2.5){kSpin=kVel;coast(performance.now());}};
 
 $('dnext').onclick=()=>{A.nextSignal(1);bandTick();};$('dprev').onclick=()=>{A.nextSignal(-1);bandTick();};
+$('weather').onchange=()=>{A.set('weather2',+$('weather').value);load();};
 $('region').onchange=()=>{A.set('region',+$('region').value);load();};
 $('scale').onclick=()=>{A.set('span',spanK()>=40?4:40);load();paintDial();};
 $('reveal').onclick=()=>{copyShown=!copyShown;bandTick();};

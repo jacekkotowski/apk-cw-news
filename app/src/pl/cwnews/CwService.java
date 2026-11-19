@@ -244,8 +244,8 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
             band.setPlace(Prop.REGION[region][0], Prop.REGION[region][1]);
             band.setActivity(2);
             band.setSpeed(wpm, eff);
-            // A busy band on a good day: no storms, aurora or flares, and no real space weather.
-            band.setWeather(Sky.CALM);
+            // A busy band; the weather is the user's choice, summer static by default (a new key, so that older choices do not apply). No real space weather.
+            band.setWeather(prefs.getInt("weather2", Sky.STATIC));
             band.setKp(Double.NaN);
             engine.setBand(band);
         } else { band = null; engine.setBand(null); }
