@@ -73,7 +73,8 @@ with sync_playwright() as p:
     g.click('#kgo'); g.fill('#kmeant','cq de sp0cwn'); g.click('#kwrong'); assert calls()[-1][0] == 'wrong'
     g.evaluate("S.sendwith=0"); g.wait_for_timeout(700)
     g.click('#scale'); assert calls()[-1] == ['set','span',4]; g.click('#scale')
-    g.click('#reveal'); g.wait_for_timeout(700); assert 'CQ CQ' in g.inner_text('#copy')
+    g.wait_for_timeout(700); assert 'CQ CQ' in g.inner_text('#ctrans')  # one window: the tuned station's text when no contact is running
+    g.click('.seg[data-k=band] button[data-v="0"]'); assert calls()[-1] == ['set','band',0]; g.click('.seg[data-k=band] button[data-v="1"]')
     assert 'Thunderstorms' in g.inner_text('#sky')
     assert 'CQ WW CW' in g.inner_text('#contest')
     g.click('nav button[data-t=log]'); g.wait_for_timeout(700)

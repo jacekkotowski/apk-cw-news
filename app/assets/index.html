@@ -76,8 +76,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <div class="col"><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button></div>
   </div>
   <div id="bstat" style="margin:2px 0 8px"><div id="tuned"></div><div id="sky" style="color:var(--dim);font-size:13px"></div><div id="contest" style="color:var(--gold);font-size:13px"></div></div>
-  <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button></div>
-  <pre id="copy"></pre>
+  <div class="row" style="flex-wrap:nowrap"><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button><div class="seg" data-k="band" style="flex:1"><button data-v="1">Band</button><button data-v="0">News only</button></div></div>
+  <pre id="ctrans"></pre>
   <div id="cbox" style="margin-top:12px">
     <div id="cstart">
       <div class="cap" style="margin-top:0">Length of the contact when you call CQ</div>
@@ -89,7 +89,6 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <div id="clive" style="display:none">
       <div id="ccall" style="font-weight:600;margin:8px 0 2px"></div>
       <div id="chint" style="color:var(--dim);margin:0 0 8px"></div>
-      <pre id="ctrans"></pre>
       <div class="row"><div class="msg" id="czero" style="color:var(--dim);flex:1;margin:0"></div><button class="btn" id="cnet">Net</button></div>
       <div id="ctype" style="margin-top:8px">
         <div class="cap">Tell them about you</div>
@@ -151,7 +150,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="set"><label>Sending speed for typed text<b id="v-sendwpm"></b></label><input type="range" id="sendwpm" min="5" max="30" aria-label="Sending speed for typed text"></div>
   <div class="set"><label>Partners are</label><div class="seg" data-k="manners"><button data-v="0">Patient</button><button data-v="1">Normal</button><button data-v="2">Realistic</button></div></div>
   <div class="set"><label>Send with</label><div class="seg" data-k="sendwith"><button data-v="0">Typing</button><button data-v="1">My key (microphone)</button></div></div>
-  <div class="set"><label>Show their text during a contact</label><div class="seg" data-k="showtext"><button data-v="0">After each over</button><button data-v="1">Never</button><button data-v="2">As they send</button></div></div>
+  <div class="set"><label>Show their text</label><div class="seg" data-k="showtext"><button data-v="0">After each over</button><button data-v="1">Never</button><button data-v="2">As they send</button></div></div>
   <div class="set"><label>Hint and suggested text during a contact</label><div class="seg" data-k="hint"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
   <div class="msg" style="color:var(--dim)">With "My key" the phone listens to your key's buzzer through the microphone, on the Band tab only; set it up there. Typing always works too. Patient partners wait for you, ask again kindly and never fail a contact.</div>
   <h2>Morse</h2>
@@ -163,7 +162,6 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="seg" data-k="bed"><button data-v="1">Ionosphere</button><button data-v="2">Cosmic</button><button data-v="0">Off</button></div>
   <div class="set"><label>Background level<b id="v-bedDb"></b></label><input type="range" id="bedDb" min="-40" max="-12"></div>
   <h2>Band</h2>
-  <div class="set"><label>Band tab</label><div class="seg" data-k="band"><button data-v="1">Band</button><button data-v="0">News only</button></div></div>
   <div class="set"><label>Filter</label><div class="seg" data-k="filter"><button data-v="0">Wide</button><button data-v="1">Normal</button><button data-v="2">Narrow</button></div></div>
   <div class="set"><label>When a contact ends</label><div class="seg" data-k="follow"><button data-v="0">Stay</button><button data-v="1">Go to the strongest</button></div></div>
   <div class="set"><label for="region">Your region</label><select id="region" aria-label="Your region"></select></div>
@@ -258,8 +256,6 @@ function bandPaint(b){
  $('tuned').textContent=!b.on?'Press play to start the band.':atNews?'Tuned to your news bulletin.':near?'A station is on this frequency.':'Nothing here. Use Signal to jump to the next one.';
  $('sky').textContent=b.sky||'';
  $('contest').textContent=b.contest?'Contest weekend: '+b.contest+'. Most stations are in the contest.':'';
- $('reveal').textContent=copyShown?'Hide':'Show what they send';
- if(copyShown)$('copy').textContent=A.bandCopy();else $('copy').textContent='';
  $('bplay').innerHTML=(curStatus==='playing'||curStatus==='waiting')?'&#10074;&#10074; Pause':'&#9654; Play';
 }
 for(const k of TEXTS)$(k).onchange=()=>{const r=typeof A.setText==='function'?A.setText(k,$(k).value):'';$('serr').textContent=r;load();};
@@ -312,7 +308,7 @@ function contactTick(){
  $('cnudge').style.display=(S.mycall==='SP0CWN'&&!on)?'':'none';
  if(!on&&live.canAnswer)$('tuned').textContent='A station is calling CQ here. Tap Answer.';
  if(on)$('tuned').textContent='';
- if(!on)return;
+ if(!on){$('ctrans').textContent=(S.showtext===1||typeof A.bandCopy!=='function')?'':A.bandCopy();return;}
  $('ccall').textContent='In contact with '+live.call+(live.sending?'  (sending)':'');
  $('chint').textContent=S.hint===0?'':live.hint||'';
  $('csug').style.display=S.hint===0||!live.suggest?'none':'';$('csugt').textContent=live.suggest||'';
@@ -438,7 +434,6 @@ $('dnext').onclick=()=>{A.nextSignal(1);bandTick();};$('dprev').onclick=()=>{A.n
 $('weather').onchange=()=>{A.set('weather2',+$('weather').value);load();};
 $('region').onchange=()=>{A.set('region',+$('region').value);load();};
 $('scale').onclick=()=>{A.set('span',spanK()>=40?4:40);load();paintDial();};
-$('reveal').onclick=()=>{copyShown=!copyShown;bandTick();};
 $('bplay').onclick=()=>A.command('toggle');
 load();paintDial();tick();setInterval(tick,500);
 </script></body></html>
