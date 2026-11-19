@@ -51,6 +51,7 @@ details{background:var(--panel);border-radius:8px;margin:8px 0;padding:0 12px}su
 .scale{display:flex;justify-content:space-between;color:var(--dim);font-size:12px;margin:2px 2px 8px}
 .lg{padding:10px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.lg b{color:var(--gold);font-weight:600}.lg small{color:var(--dim);display:block}
 .lg.part b{color:var(--text)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}.chips .btn,.chips select{width:auto;margin:0;padding:7px 12px;font-size:14px;border-radius:16px}.chips select{background:var(--panel);color:var(--text);border:1px solid var(--line);font:inherit;font-size:14px}.cap{color:var(--dim);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:10px 0 2px}
 .fills{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.fills .btn{padding:6px 10px;font-size:14px}
 #ctrans{max-height:220px;overflow-y:auto}
 .klight{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--line);vertical-align:middle;margin-right:8px}.klight.on{background:var(--gold)}
@@ -89,14 +90,17 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <div id="clive" style="display:none">
       <div id="ccall" style="font-weight:600;margin:8px 0 2px"></div>
       <div id="chint" style="color:var(--dim);margin:0 0 8px"></div>
-      <div class="msg" id="csug" style="display:none"><div style="color:var(--dim);font-size:13px">Suggested to send</div><div id="csugt" style="font-family:ui-monospace,monospace;margin:4px 0"></div><button class="btn" id="cuse">Use</button></div>
       <pre id="ctrans"></pre>
       <div class="row"><div class="msg" id="czero" style="color:var(--dim);flex:1;margin:0"></div><button class="btn" id="cnet">Net</button></div>
       <div id="ctype" style="margin-top:8px">
-        <input type="text" id="ctext" autocomplete="off" autocapitalize="characters" aria-label="Text to send">
-      <div class="fills"><button class="btn" data-f="call">Call</button><button class="btn" data-f="report">Report</button><button class="btn" data-f="r">R</button><button class="btn" data-f="agn">AGN?</button><button class="btn" data-f="qrs">QRS</button><button class="btn" data-f="73">73</button></div>
-        <div class="row"><button class="btn" id="csend">Send</button></div>
+        <div class="cap">Tell them about you</div>
+        <div class="chips"><button class="btn" data-f="rst">RST</button><button class="btn" data-f="name">Name</button><button class="btn" data-f="qth">QTH</button><select id="cwx" aria-label="Weather"><option value="">Weather</option><option>SUNNY</option><option>CLOUDY</option><option>RAIN</option><option>SNOW</option><option>WINDY</option><option>FOG</option><option>HOT</option><option>COLD</option></select><button class="btn" data-f="rig">Rig</button><button class="btn" data-f="ant">Ant</button></div>
+        <div class="cap">Say</div>
+        <div class="chips"><button class="btn" data-f="call">Call</button><button class="btn" data-f="r">R</button><button class="btn" data-f="agn">AGN?</button><button class="btn" data-f="qrs">QRS</button><button class="btn" data-f="73">73</button></div>
+        <input type="text" id="ctext" autocomplete="off" autocapitalize="characters" aria-label="Text to send" placeholder="Tap the buttons above, then Send">
+        <div class="row"><button class="btn" id="csend">Send</button><button class="btn" id="cclear">Clear</button></div>
       </div>
+      <div class="msg" id="csug" style="display:none"><div style="color:var(--dim);font-size:13px">Suggested to send</div><div id="csugt" style="font-family:ui-monospace,monospace;margin:4px 0"></div><div class="row"><button class="btn" id="csugsend">Send this</button><button class="btn" id="cuse">Edit</button></div></div>
       <div class="row" style="margin-top:8px"><button class="btn" id="cend">End contact</button></div>
     </div>
     <div class="msg" id="csum"></div>
@@ -272,12 +276,20 @@ function bandTick(){if(!$('band').classList.contains('on'))return;try{bandPaint(
 // The Contact card: answer a station that calls CQ or call CQ yourself, and take part by typing.
 let live={on:false},typeOpen=-1;
 function fillText(f){const my=S.mycall||'',th=live.call||'',n=S.myname||'',q=S.myqth||'';
- const t={call:th+' DE '+my+' '+my+' K',report:th+' DE '+my+' <BT> TNX FER CALL <BT> UR RST 579 579 <BT> NAME '+n+' '+n+' <BT> QTH '+q+' '+q+' <BT> HW? '+th+' DE '+my+' <KN>',r:'R',agn:'AGN?',qrs:'QRS','73':th+' DE '+my+' TNX FER QSO 73 <SK>'}[f];
- if(t)$('ctext').value=t;}
-document.querySelectorAll('#clive .fills .btn').forEach(b=>b.onclick=()=>fillText(b.dataset.f));
+ const seg={rst:'UR RST 579 579',name:'NAME '+n+' '+n,qth:'QTH '+q+' '+q,rig:'RIG '+(S.myrig||'')+' PWR '+(S.power||10)+' W',ant:'ANT '+(S.myant||''),r:'R',agn:'AGN?',qrs:'QRS'}[f];
+ const whole={call:th+' DE '+my+' '+my+' K','73':th+' DE '+my+' TNX FER QSO 73 <SK>'}[f];
+ if(whole){$('ctext').value=whole;return;}
+ if(seg)addSeg(seg);}
+function addSeg(t){let v=$('ctext').value.trim();if(v.indexOf(' DE ')>=0)v='';$('ctext').value=v?v+' <BT> '+t:t;}
+// What is sent: a line of parts gets the call signs around it.
+function wrapOver(v){v=v.trim();if(!v||v.indexOf(' DE ')>=0)return v;const my=S.mycall||'',th=live.call||'';return th+' DE '+my+' <BT> '+v+' <BT> '+th+' DE '+my+' <KN>';}
+document.querySelectorAll('#clive [data-f]').forEach(b=>b.onclick=()=>fillText(b.dataset.f));
+$('cwx').onchange=()=>{if($('cwx').value)addSeg('WX HR '+$('cwx').value);$('cwx').value='';};
+$('cclear').onclick=()=>{$('ctext').value='';};
+$('csugsend').onclick=()=>{if(live.suggest){$('cerr').textContent=A.sendText(live.suggest);contactTick();}};
 $('cans').onclick=()=>{$('cerr').textContent=A.answer();contactTick();};
 $('ccq').onclick=()=>{$('cerr').textContent=A.callCq();contactTick();};
-$('csend').onclick=()=>{const r=A.sendText($('ctext').value);$('cerr').textContent=r;if(!r)$('ctext').value='';contactTick();};
+$('csend').onclick=()=>{const r=A.sendText(wrapOver($('ctext').value));$('cerr').textContent=r;if(!r)$('ctext').value='';contactTick();};
 $('cuse').onclick=()=>{if(live.suggest)$('ctext').value=live.suggest;};
 $('cnet').onclick=()=>{A.net();bandTick();};
 $('cend').onclick=()=>{A.endContact();contactTick();};

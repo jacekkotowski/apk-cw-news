@@ -1,3 +1,4 @@
+import re
 # Drives the page in Chromium with a fake Android bridge. Run: python3 tests/ui.py
 import json, pathlib
 from playwright.sync_api import sync_playwright
@@ -47,9 +48,11 @@ with sync_playwright() as p:
     assert 'report' in g.inner_text('#chint') and 'DL1ABC: CQ CQ' in g.inner_text('#ctrans') and 'R GM' not in g.inner_text('#ctrans')
     assert 'above' in g.inner_text('#czero')
     assert 'UR RST 579 579' in g.inner_text('#csugt'); g.click('#cuse'); assert 'UR RST 579 579' in g.input_value('#ctext')
-    g.click('.fills [data-f=call]'); assert g.input_value('#ctext') == 'DL1ABC DE SP0CWN SP0CWN K'
-    g.click('.fills [data-f=report]'); assert 'UR RST 579 579' in g.input_value('#ctext') and 'NAME JACEK JACEK' in g.input_value('#ctext')
-    g.click('#csend'); assert calls()[-1][0] == 'send' and calls()[-1][1].startswith('DL1ABC DE SP0CWN <BT>'), calls()[-1]
+    g.click('#clive [data-f=call]'); assert g.input_value('#ctext') == 'DL1ABC DE SP0CWN SP0CWN K'
+    for f in ['rst','name','qth']: g.click('#clive [data-f=%s]' % f)
+    g.select_option('#cwx','RAIN'); g.click('#clive [data-f=rig]'); g.click('#clive [data-f=ant]')
+    v = g.input_value('#ctext'); assert v == 'UR RST 579 579 <BT> NAME JACEK JACEK <BT> QTH KRAKOW KRAKOW <BT> WX HR RAIN <BT> RIG FT891 PWR 10 W <BT> ANT DIPOLE', v
+    g.click('#csend'); assert calls()[-1][0] == 'send' and calls()[-1][1] == 'DL1ABC DE SP0CWN <BT> ' + v + ' <BT> DL1ABC DE SP0CWN <KN>', calls()[-1]
     g.evaluate('document.querySelector(".seg[data-k=showtext] button[data-v=\'2\']").click()'); assert calls()[-1] == ['set','showtext',2]; g.wait_for_timeout(700)
     assert 'R GM' in g.inner_text('#ctrans')
     g.evaluate('document.querySelector(".seg[data-k=showtext] button[data-v=\'1\']").click()'); g.wait_for_timeout(700); assert 'DL1ABC: CQ CQ' not in g.inner_text('#ctrans') and 'YOU:' in g.inner_text('#ctrans')
