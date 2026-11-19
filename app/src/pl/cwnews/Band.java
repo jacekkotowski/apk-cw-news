@@ -42,6 +42,11 @@ final class Band {
         Keying key;
         String[] words = new String[0];
         final StringBuilder log = new StringBuilder();
+        /** The user's partner when this is a live contact, the words of the over being sent, finished lines, and frames waiting for the user. */
+        Partner live;
+        final StringBuilder partial = new StringBuilder();
+        final List<String> lines = new ArrayList<>();
+        long idle;
     }
 
     private final int rate;
@@ -138,32 +143,36 @@ final class Band {
         s.next = 0; s.who = 0; s.key = null; s.log.setLength(0);
         // The generator decides how strong each operator is, so the reports they exchange match what is heard.
         s.op = new Op[q.call.length];
-        for (int i = 0; i < s.op.length; i++) {
-            Op o = s.op[i] = new Op();
-            o.offsetKhz = i == 0 ? 0 : rng.gauss() * 0.04;
-            // Weak signals that can still be copied are lifted by a fifth of their loss (8 dB at the edge), because a
-            // signal that far down was inaudible under the noise. Beyond 40 dB nothing is heard, as before.
-            double loss = q.lossDb[i];
-            o.strength = PEAK * Math.pow(10, -(loss < 40 ? 0.8 * loss : loss) / 20);
-            o.depthDb = q.qsbDb[i];
-            o.p1 = 2 * Math.PI * rng.uniform(); o.p2 = 2 * Math.PI * rng.uniform();
-            o.w1 = 2 * Math.PI / (10 + 35 * rng.uniform()); o.w2 = 2 * Math.PI / (2 + 6 * rng.uniform());
-            o.wander = o.wanderTarget = rng.uniform();
-            if (rng.chance(0.07)) { o.flutter = 0.2 + 0.25 * rng.uniform(); o.wf = 2 * Math.PI * (6 + 8 * rng.uniform()); }
-            o.auroraW = 2 * Math.PI * (12 + 8 * o.p1 / (2 * Math.PI));
-            if (placed) {
-                o.northern = Prop.highLatitude(lat, lon, q.lat[i], q.lon[i]);
-                double[] mid = Prop.midpoint(lat, lon, q.lat[i], q.lon[i]);
-                o.day = Prop.sunElevation(mid[0], mid[1], month, hourUtcNow()) > 0;
-            }
-            o.g0 = o.g1 = gain(o);
-            o.fist = Fist.of(q.key[i], q.style[i] == Qso.NOVICE, rng);
-            if (q.chirp[i]) o.chirpHz = (rng.chance(0.5) ? 1 : -1) * (12 + 30 * rng.uniform());
-            if (q.rough[i]) { o.hum = 0.35 + 0.35 * rng.uniform(); o.humStep = 2 * Math.PI * (rng.chance(0.5) ? 100 : 120) / rate; }
-            if (q.drift[i]) o.driftKhzPerS = (rng.chance(0.5) ? 1 : -1) * (0.0003 + 0.0012 * rng.uniform());
-            if (rng.chance(0.08)) o.ramp = HARD_RAMP_S; else if (rng.chance(0.2)) o.ramp = 0.008;
-        }
+        for (int i = 0; i < s.op.length; i++) s.op[i] = initOp(q, i);
         s.wait = (int) (q.tx.get(0).pause * rate);
+    }
+
+    /** Makes operator i of a contact: strength, fading, fist and faults. The order of the random draws is part of the band's behaviour. */
+    private Op initOp(Qso q, int i) {
+        Op o = new Op();
+        o.offsetKhz = i == 0 ? 0 : rng.gauss() * 0.04;
+        // Weak signals that can still be copied are lifted by a fifth of their loss (8 dB at the edge), because a
+        // signal that far down was inaudible under the noise. Beyond 40 dB nothing is heard, as before.
+        double loss = q.lossDb[i];
+        o.strength = PEAK * Math.pow(10, -(loss < 40 ? 0.8 * loss : loss) / 20);
+        o.depthDb = q.qsbDb[i];
+        o.p1 = 2 * Math.PI * rng.uniform(); o.p2 = 2 * Math.PI * rng.uniform();
+        o.w1 = 2 * Math.PI / (10 + 35 * rng.uniform()); o.w2 = 2 * Math.PI / (2 + 6 * rng.uniform());
+        o.wander = o.wanderTarget = rng.uniform();
+        if (rng.chance(0.07)) { o.flutter = 0.2 + 0.25 * rng.uniform(); o.wf = 2 * Math.PI * (6 + 8 * rng.uniform()); }
+        o.auroraW = 2 * Math.PI * (12 + 8 * o.p1 / (2 * Math.PI));
+        if (placed) {
+            o.northern = Prop.highLatitude(lat, lon, q.lat[i], q.lon[i]);
+            double[] mid = Prop.midpoint(lat, lon, q.lat[i], q.lon[i]);
+            o.day = Prop.sunElevation(mid[0], mid[1], month, hourUtcNow()) > 0;
+        }
+        o.g0 = o.g1 = gain(o);
+        o.fist = Fist.of(q.key[i], q.style[i] == Qso.NOVICE, rng);
+        if (q.chirp[i]) o.chirpHz = (rng.chance(0.5) ? 1 : -1) * (12 + 30 * rng.uniform());
+        if (q.rough[i]) { o.hum = 0.35 + 0.35 * rng.uniform(); o.humStep = 2 * Math.PI * (rng.chance(0.5) ? 100 : 120) / rate; }
+        if (q.drift[i]) o.driftKhzPerS = (rng.chance(0.5) ? 1 : -1) * (0.0003 + 0.0012 * rng.uniform());
+        if (rng.chance(0.08)) o.ramp = HARD_RAMP_S; else if (rng.chance(0.2)) o.ramp = 0.008;
+        return o;
     }
 
     /** The operator's strength right now, with fading. */
@@ -187,7 +196,7 @@ final class Band {
         Qso.Tx t = s.qso.tx.get(s.next);
         Op o = s.op[t.who];
         s.who = t.who;
-        s.run = 0; s.pos = 0; s.wordIdx = -1;
+        s.run = 0; s.pos = 0; s.wordIdx = -1; s.partial.setLength(0);
         if (t.carrier > 0) {
             s.key = Keying.carrier(t.carrier, rate);
             s.words = new String[0];
@@ -209,12 +218,22 @@ final class Band {
 
     private void advanceWords(Station s) {
         if (s.words.length != s.key.wordStart.length) return;
-        while (s.wordIdx + 1 < s.key.wordStart.length && s.run >= s.key.wordStart[s.wordIdx + 1]) s.log.append(s.words[++s.wordIdx]).append(' ');
+        while (s.wordIdx + 1 < s.key.wordStart.length && s.run >= s.key.wordStart[s.wordIdx + 1]) { s.log.append(s.words[++s.wordIdx]).append(' '); if (s.live != null) s.partial.append(s.words[s.wordIdx]).append(' '); }
     }
 
     private void endTx(Station s) {
         s.key = null;
         s.next++;
+        if (s.live != null) {
+            // A live contact waits for the user: the station is not replaced, and what it just sent goes into the transcript.
+            if (s.partial.length() > 0) { s.lines.add(s.qso.call[0] + ": " + s.qso.tx.get(s.next - 1).text); s.partial.setLength(0); }
+            else s.lines.add(s.qso.call[0] + ": (not heard here)");
+            s.idle = 0;
+            if (s.next < s.qso.tx.size()) s.wait = (int) (s.qso.tx.get(s.next).pause * rate);
+            else if (s.live.done()) { s.live = null; s.qso = null; s.lines.clear(); s.wait = (int) ((6 + 34 * rng.uniform()) * rate); }
+            else s.wait = 1 << 30;
+            return;
+        }
         if (s.next >= s.qso.tx.size()) {
             s.qso = null;
             s.wait = (int) ((6 + 34 * rng.uniform()) * rate);
@@ -302,6 +321,7 @@ final class Band {
                     if (s.run >= s.key.runs.length) { endTx(s); o = null; if (s.qso == null) break; }
                 }
             }
+            if (s.live != null) s.idle = s.key == null && s.next >= s.qso.tx.size() ? s.idle + frames : 0;
             if (s.qso != null) {
                 Op cur = s.op[s.who];
                 boolean inPass = Rx.gain(loHz, hiHz, toneHz + sign * (s.khz + cur.offsetKhz + cur.drifted - dialKhz) * 1000) > 0.25;
@@ -392,6 +412,7 @@ final class Band {
      * names the strongest station that can be heard; a lone CQ or a contact about to end counts for less.
      */
     synchronized double follow(double rxKhz, double quietS, double deadS) {
+        for (Station s : slots) if (s.live != null) return Double.NaN;
         if (!(quietFrames >= quietS * rate && !busyHere) && quietFrames < deadS * rate) return Double.NaN;
         Station best = null; double bestScore = 0;
         for (Station s : slots) {
@@ -406,4 +427,128 @@ final class Band {
         quietFrames = 0;
         return best.khz;
     }
+
+    // ---- a live contact with the user ----
+
+    /** The scene the stations are generated in right now, for building a live partner that fits the band. */
+    synchronized Qso.Scene scene() {
+        Qso.Scene sc = placed ? new Qso.Scene(month, hourNow(), lat, lon, weekend, contest != null) : new Qso.Scene(month, hourNow());
+        sc.qrn = sky.noise(); sc.aurora = sky.aurora() > 0.3;
+        return sc;
+    }
+
+    /** The contact of a station near the dial that is calling CQ and is not yet in a live contact, or null. */
+    synchronized Qso cqNear(double rxKhz) {
+        Station s = tuned(rxKhz);
+        return s != null && s.live == null && s.qso.kind == Qso.CQ && heard(s) ? s.qso : null;
+    }
+
+    /** Whether no station is within the usual spacing of this frequency, so the user may call CQ there. */
+    synchronized boolean clearAt(double khz) {
+        if (Math.abs(khz - NEWS) <= 0.4) return false;
+        for (Station s : slots) if (s.qso != null && Math.abs(s.khz - khz) < MIN_GAP_KHZ) return false;
+        return true;
+    }
+
+    /** The live station's frequency in kHz, or NaN. */
+    synchronized double liveKhz() { Station s = liveStation(); return s == null ? Double.NaN : s.khz; }
+
+    /** Whether a live contact is running. */
+    synchronized boolean hasLive() { for (Station s : slots) if (s.live != null) return true; return false; }
+
+    private Station liveStation() { for (Station s : slots) if (s.live != null) return s; return null; }
+
+    /**
+     * Turns the CQ station near the dial into a live one. It keeps its frequency, strength and fist; what it still has to
+     * send of its CQ finishes, and then it waits for the user. Returns false if there is no such station or one is already live.
+     */
+    synchronized boolean takeOver(double rxKhz, Partner p) {
+        if (liveStation() != null) return false;
+        Station s = tuned(rxKhz);
+        if (s == null || s.live != null || s.qso.kind != Qso.CQ || !s.qso.call[0].equals(p.call())) return false;
+        s.live = p;
+        s.lines.clear(); s.partial.setLength(0); s.idle = 0;
+        // The CQs still to come are not sent: the station waits to be answered after the one on the air.
+        int keep = s.key != null ? s.next + 1 : s.next;
+        while (s.qso.tx.size() > keep) s.qso.tx.remove(s.qso.tx.size() - 1);
+        if (s.key == null) s.wait = 1 << 30;
+        return true;
+    }
+
+    /** A new live station appears on the user's frequency and answers the user's CQ. */
+    synchronized boolean answerMe(double txKhz, Partner p) { return answerMe(txKhz, p, 0); }
+
+    /** As above, but the partner waits this many seconds first, for the user's own CQ to finish. */
+    synchronized boolean answerMe(double txKhz, Partner p, double afterS) {
+        if (liveStation() != null) return false;
+        Station s = null;
+        for (Station x : slots) if (x.qso == null) { s = x; break; }
+        if (s == null) for (Station x : slots) { s = x; break; }
+        if (s == null) return false;
+        Qso q = Qso.live(p.op());
+        Qso.Tx first = p.first();
+        if (first != null) q.tx.add(first);
+        s.qso = q; s.khz = txKhz; s.live = p;
+        s.next = 0; s.who = 0; s.key = null; s.log.setLength(0); s.lines.clear(); s.partial.setLength(0); s.idle = 0;
+        s.op = new Op[]{initOp(q, 0)};
+        s.op[0].offsetKhz = 0;
+        s.wait = first == null ? 1 << 30 : (int) ((first.pause + afterS) * rate);
+        return true;
+    }
+
+    /** The user's over has ended: the live partner hears it and queues its reply after a natural pause. */
+    synchronized void userOver(Heard h, double seconds, double wpm, double txKhz) { userOver(h, seconds, wpm, txKhz, 0); }
+
+    /** As above, with the seconds the user's own sending takes: the reply comes after them. */
+    synchronized void userOver(Heard h, double seconds, double wpm, double txKhz, double afterS) {
+        Station s = liveStation();
+        if (s == null) return;
+        s.idle = 0;
+        s.lines.add("YOU: " + h.text.trim());
+        Qso.Tx t = s.live.hear(h, seconds, (txKhz - s.khz) * 1000, wpm);
+        queue(s, t == null || afterS <= 0 ? t : new Qso.Tx(t.who, t.text, t.speed, t.pause + afterS, t.carrier));
+    }
+
+    /** Silence is passed to the partner once a second: a gentle prompt, and in the end a kind sign-off. */
+    synchronized void tickLive() {
+        Station s = liveStation();
+        if (s == null || s.key != null || s.next < s.qso.tx.size()) return;
+        queue(s, s.live.silence(s.idle / (double) rate));
+    }
+
+    private void queue(Station s, Qso.Tx t) {
+        if (t == null) return;
+        s.qso.tx.add(t);
+        if (s.key == null && s.next == s.qso.tx.size() - 1) s.wait = Math.max(1, (int) (t.pause * rate));
+    }
+
+    /** Ends the live contact: the station goes quiet and its slot is free again. */
+    synchronized void endLive() {
+        Station s = liveStation();
+        if (s == null) return;
+        s.live = null; s.qso = null; s.key = null; s.lines.clear(); s.partial.setLength(0);
+        s.wait = (int) ((6 + 34 * rng.uniform()) * rate);
+    }
+
+    /** State of the live contact for the page. The transcript is split so the page can show it after each over, as it is sent, or not at all. */
+    synchronized String liveJson() {
+        Station s = liveStation();
+        if (s == null) return "{\"on\":false}";
+        StringBuilder l = new StringBuilder("[");
+        int from = Math.max(0, s.lines.size() - 14);
+        for (int i = from; i < s.lines.size(); i++) { if (i > from) l.append(','); l.append(quote(s.lines.get(i))); }
+        l.append(']');
+        Partner p = s.live;
+        return "{\"on\":true,\"call\":" + quote(p.call()) + ",\"stage\":" + p.stage() + ",\"done\":" + p.done() + ",\"sending\":" + (s.key != null)
+            + ",\"khz\":" + num(s.khz) + ",\"hint\":" + quote(p.hint()) + ",\"lines\":" + l + ",\"partial\":" + quote(s.partial.toString().trim()) + "}";
+    }
+
+    private static String quote(String t) {
+        StringBuilder b = new StringBuilder("\"");
+        for (int i = 0; i < t.length(); i++) { char c = t.charAt(i); if (c == '"' || c == '\\') b.append('\\'); if (c >= ' ') b.append(c); }
+        return b.append('"').toString();
+    }
+
+    /** The finished live contact's result for the log, or null. */
+    synchronized Partner livePartner() { Station s = liveStation(); return s == null ? null : s.live; }
 }

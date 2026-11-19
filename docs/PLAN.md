@@ -4,7 +4,7 @@ What is built, what comes next, and how each step will be designed and checked. 
 
 ## Start here (next session)
 
-**Next: your own key and a friendly partner. K1 (your station and the log), K2 (`Heard`) and K3 (`Partner`) are built and pushed; K4 (live station, TX muting, contact card) is next and ships 2.6.0.** K1 is not a delivered build: the version is unchanged, and the Log tab and the database upgrade were compiled by CI only, never tried on a phone. The approved plan is `docs/PLAN-KEY.md` (packages K1 to K8; it replaces P6 to P11 below and in `docs/WORK-PACKAGES.md`). Start with its "Where to start" list. Neural decoding (DeepCW) is a contingency there (K7), built only if the simple decoder fails a measured check.
+**Next: your own key and a friendly partner. K1 to K4 are built (K4 is version 2.6.0: a typed contact on the Band tab); K5 (`KeyEar` and `KeyDecoder`) is next.** The Android parts of K1 and K4 (service, bridge, page on a device, database upgrade) were compiled by CI only and have not been tried on a phone. K1 is not a delivered build: the version is unchanged, and the Log tab and the database upgrade were compiled by CI only, never tried on a phone. The approved plan is `docs/PLAN-KEY.md` (packages K1 to K8; it replaces P6 to P11 below and in `docs/WORK-PACKAGES.md`). Start with its "Where to start" list. Neural decoding (DeepCW) is a contingency there (K7), built only if the simple decoder fails a measured check.
 
 1. **Ask what the owner heard in 2.5.2.** Two things were changed by description alone: weak signals are lifted (`Band.spawn`, a fifth of the loss below 40 dB) and static ticks are smaller and rounder (`Rx` constants `TICK_MIN`, `TICK_SPREAD`, `CRASH_DENSITY_HZ`). Adjust those numbers before anything else.
 2. **Still unheard on a phone:** the "Strongest" follow (2.5 s), the sleep timer with the screen off, CW-R, shift, peak filter, blanker, Slow and Fast AGC, aurora and flare, and the NOAA fetch (the sandbox that built it cannot reach the host).
@@ -22,6 +22,7 @@ What is built, what comes next, and how each step will be designed and checked. 
 | 2.2 | One receiver chain with three filter widths and AGC, 10 Hz tuning, individual fists and signal faults | Built by CI, not released |
 | 2.3 | Front panel: waterfall, S-meter, tuning knob, RIT | Built by CI, not released |
 | 2.4 | A band that follows the clock: propagation, your region, band geography, activity by hour and weekday, contest weekends | Built by CI, not released |
+| 2.6.0 | K1 to K4: your station and the Log tab; a live partner on the band that you answer or call, by typing, with receiver muting while you send | Built by CI, not heard on a phone |
 | 2.5, 2.5.1, 2.5.2 | P1 to P5: follow the strongest signal after 2.5 s of silence, sleep timer, CW-R, passband shift, peak filter, noise blanker, AGC Off/Slow/Fast, band weather (static, storm, aurora, flare), optional NOAA K index. 2.5.2 lifts weak signals and softens the static after a first listen on a phone | Built by CI, listened to on a phone by the owner, now on `main` |
 
 Everything up to 2.5.2 is on `main` (it was merged from the working branches on 2026-11-17). The owner has listened to 2.5.x on a phone and found the weak signals too weak and the storm static too sharp; 2.5.2 changes both and has not been listened to yet.

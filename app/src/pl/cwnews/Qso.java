@@ -161,6 +161,16 @@ final class Qso {
         final List<Integer> plan = new ArrayList<>();
     }
 
+    /** A contact with one operator whose transmissions are added later, one over at a time: a live partner on the band. */
+    static Qso live(Op o) {
+        Qso q = new Qso(RAGCHEW);
+        q.call = new String[]{o.call}; q.qrp = new boolean[]{o.qrp}; q.yl = new boolean[]{o.yl}; q.style = new int[]{o.style}; q.hour = new int[]{o.hour};
+        q.lossDb = new double[]{o.lossDb}; q.qsbDb = new double[]{o.qsbDb}; q.lat = new double[]{o.lat}; q.lon = new double[]{o.lon}; q.baseDb = new double[]{o.baseDb};
+        q.key = new int[]{o.key == null ? Fist.KEYER : o.key.equals("BUG") ? Fist.BUG : o.key.equals("STRAIGHT KEY") ? Fist.STRAIGHT : o.key.equals("SIDESWIPER") ? Fist.SIDESWIPER : Fist.KEYER};
+        q.chirp = new boolean[]{o.chirp}; q.rough = new boolean[]{o.rough}; q.drift = new boolean[]{o.drift};
+        return q;
+    }
+
     /** The user as an operator, for a live partner to talk to. Unknown fields stay null or 0. */
     static Op userOp(Profile p, Scene s) {
         Op o = new Op();

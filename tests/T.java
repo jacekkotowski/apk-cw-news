@@ -1164,8 +1164,93 @@ public class T {
         eq("never a harsh word", badWord, 0); eq("patient partner never faster than the user", badSpeed, 0);
     }
 
+    // ---- K4: a live station, and the user's transmitter ----
+    static void renderBand(Band b, double dial, double seconds) { double[] lr = new double[960]; for (int i = 0; i < (int) (seconds * 100); i++) { java.util.Arrays.fill(lr, 0); b.render(lr, 480, dial, 600); } }
+    static boolean liveOn(Band b) { return b.liveJson().contains("\"on\":true"); }
+
+    static void live() {
+        // The user calls CQ and a live partner answers on the user's frequency, and four scripted overs reach the end.
+        for (long seed = 1; seed <= 6; seed++) {
+            Band b = new Band(R, seed, 5, null);
+            b.setPlace(50, 20); b.setClock(5, 4, 3, 19.0);
+            Partner p = Partner.answering(new Dsp.Rng(seed), b.scene(), me(0), 0, Partner.STANDARD);
+            check("answerMe " + seed, b.answerMe(7015.00, p));
+            check("the band says a contact is live", liveOn(b) && b.hasLive());
+            check("a second live station is refused", !b.answerMe(7016.0, Partner.answering(new Dsp.Rng(9), b.scene(), me(0), 0, Partner.STANDARD)));
+            check("follow stays while live " + seed, Double.isNaN(b.follow(7015, 0, 0)));
+            String[] overs = {"R UR RST 579 579 K", "NAME JACEK K", "QTH KRAKOW K", "TNX 73 SK"};
+            boolean gone = false;
+            for (String o : overs) {
+                renderBand(b, 7015.00, 150);
+                if (!liveOn(b)) { gone = true; break; }
+                check("still the same partner", b.liveJson().contains("\"call\":\"" + p.call() + "\""));
+                b.userOver(Heard.parse(o, p.expect()), 5, 15, 7015.00);
+            }
+            renderBand(b, 7015.00, 200);
+            check("the contact reached its end " + seed, p.done());
+            check("and the station was freed", !liveOn(b));
+        }
+        // Taking over a station that is calling CQ.
+        boolean took = false;
+        for (long seed = 1; seed <= 12 && !took; seed++) {
+            Band b = new Band(R, seed, 5, null);
+            b.setClock(5, 4, 3, 19.0);
+            for (int step = 0; step < 400 && !took; step++) {
+                renderBand(b, 7020, 3);
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"k\":([0-9.]+)").matcher(b.activityJson());
+                while (m.find() && !took) {
+                    double k = Double.parseDouble(m.group(1));
+                    Qso q = b.cqNear(k);
+                    if (q == null) continue;
+                    Partner p = Partner.from(q, 0, b.scene(), new Dsp.Rng(seed), me(0), 0);
+                    if (!b.takeOver(k, p)) continue;
+                    took = true;
+                    check("the taken-over station is live", liveOn(b));
+                    renderBand(b, k, 60);
+                    check("it waits for the user and is not replaced", liveOn(b) && b.liveJson().contains(p.call()));
+                    b.userOver(Heard.parse(p.call() + " DE SP0CWN SP0CWN K", p.expect()), 5, 15, k);
+                    renderBand(b, k, 30);
+                    check("it answered", b.liveJson().contains("SP0CWN"));
+                    check("no other station can be taken over meanwhile", !b.takeOver(k, p));
+                    b.endLive();
+                    check("ending frees it", !liveOn(b));
+                }
+            }
+        }
+        check("a CQ station was found and taken over", took);
+
+        // Engine: the receiver is ducked while the user transmits, with no click, and comes back 0.4 s after the last key-up.
+        Engine e = new Engine(R, 1, 480);
+        e.volume = 1; e.setAudible(true);
+        e.load(Keying.carrier(40, R), 0);
+        float[] x = new float[960];
+        for (int i = 0; i < 100; i++) e.render(x, 480);
+        double a0 = peak(x, 0, 960);
+        double jump = 0, prev = x[958];
+        java.util.List<float[]> blocks = new java.util.ArrayList<>();
+        e.key(true);
+        double[] amp = new double[400];
+        for (int i = 0; i < 400; i++) { e.render(x, 480); amp[i] = peak(x, 0, 960); for (int k = 0; k < 960; k += 2) { jump = Math.max(jump, Math.abs(x[k] - prev)); prev = x[k]; } if (i == 40) e.key(false); }
+        near("full level before", a0, Engine.CW_PEAK, 0.02);
+        check("ducked by 20 dB within 5 ms (the next 10 ms block): " + amp[0] / a0, amp[1] / a0 < 0.12);
+        check("still ducked while keyed", amp[30] / a0 < 0.12);
+        check("still ducked 0.3 s after key-up: " + amp[40 + 30] / a0, amp[40 + 30] / a0 < 0.12);
+        check("released after 0.4 s: " + amp[40 + 50] / a0, amp[40 + 50] / a0 > 0.9);
+        check("no click: max step " + jump, jump < 0.06);
+        // Typed text plays a sidetone at the CW pitch and ducks the receiver while it goes.
+        Engine t = new Engine(R, 2, 480);
+        t.volume = 1; t.toneHz = 700; t.setAudible(true);
+        t.send(Keying.build("TTT", new Timing(20, 20), R));
+        float[] y = new float[960 * 100];
+        for (int i = 0; i < 100; i++) { t.render(x, 480); System.arraycopy(x, 0, y, 960 * i, 960); }
+        double[] tone = new double[1]; float[] seg = java.util.Arrays.copyOfRange(y, 0, 960 * 30);
+        check("sidetone is at the pitch", goertzel(seg, 700) > 20 * goertzel(seg, 1500));
+        check("the sidetone has a sensible level: " + peak(y, 0, y.length), peak(y, 0, y.length) > 0.15 && peak(y, 0, y.length) < 0.3);
+    }
+    static double peak(float[] x, int from, int to) { double m = 0; for (int i = from; i < to; i++) m = Math.max(m, Math.abs(x[i])); return m; }
+
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); partner(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); partner(); live(); if (a.length == 0) { audio(); receiver(); }
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
         if (bad > 0) System.exit(1);

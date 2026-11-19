@@ -25,6 +25,11 @@ public class MainActivity extends Activity {
     private WebView web;
     private SharedPreferences prefs;
     private Db db;
+    // The live contact with a partner on the band, kept here so that it can be logged when it ends.
+    private final Object liveLock = new Object();
+    private Partner contact;
+    private double contactKhz;
+    private String summary = "";
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -57,6 +62,28 @@ public class MainActivity extends Activity {
         setContentView(root);
         web.loadUrl("file:///android_asset/index.html");
         RefreshJob.schedule(this, prefs.getInt("refresh", 30));
+    }
+
+    /** The user's own station from the saved settings. */
+    private Profile profile() {
+        Profile d = Profile.defaults();
+        return new Profile(prefs.getString("mycall", d.call), prefs.getString("myname", d.name), prefs.getString("myqth", d.qth), prefs.getString("myrig", d.rig), prefs.getString("myant", d.ant),
+            prefs.getInt("power", d.power), prefs.getInt("sendwpm", d.sendWpm), prefs.getInt("manners", d.manners), prefs.getInt("sendwith", d.sendWith));
+    }
+
+    /** Logs the live contact, if any user over was made, and prepares the short summary the page shows. No score. */
+    private void finishContact() {
+        synchronized (liveLock) {
+            Partner p = contact;
+            if (p == null) return;
+            contact = null;
+            Partner.Contact c = p.result();
+            if (c.overs > 0) db.addLog(System.currentTimeMillis(), c.call, c.name, c.qth, c.rstSent, c.rstRcvd, contactKhz, c.complete, c.overs);
+            String who = c.call + (c.name.isEmpty() ? "" : " (" + c.name + (c.qth.isEmpty() ? "" : ", " + c.qth) + ")");
+            summary = c.complete
+                ? "Contact with " + who + ". You sent " + (c.rstSent.isEmpty() ? "no report" : c.rstSent) + " and received " + (c.rstRcvd.isEmpty() ? "none" : c.rstRcvd) + ". Thank you for the contact."
+                : c.overs == 0 ? "" : "Contact with " + who + " ended early. That is fine; it is in the log as not finished.";
+        }
     }
 
     private boolean online() {
@@ -146,6 +173,7 @@ public class MainActivity extends Activity {
                 o.put("mycall", prefs.getString("mycall", d.call)); o.put("myname", prefs.getString("myname", d.name)); o.put("myqth", prefs.getString("myqth", d.qth));
                 o.put("myrig", prefs.getString("myrig", d.rig)); o.put("myant", prefs.getString("myant", d.ant));
                 o.put("power", prefs.getInt("power", d.power)); o.put("sendwpm", prefs.getInt("sendwpm", d.sendWpm)); o.put("manners", prefs.getInt("manners", d.manners)); o.put("sendwith", prefs.getInt("sendwith", d.sendWith));
+                o.put("hint", prefs.getInt("hint", 1)); o.put("showtext", prefs.getInt("showtext", 0)); o.put("ckind", prefs.getInt("ckind", Partner.STANDARD));
                 return o.toString();
             } catch (Exception e) { return "{}"; }
         }
@@ -167,6 +195,80 @@ public class MainActivity extends Activity {
             prefs.edit().putString(key, v).commit();
             if (!CwService.status.equals(CwService.STOPPED)) service(CwService.APPLY, -1);
             return "";
+        }
+
+        // ---- a live contact with a station on the band ----
+
+        @JavascriptInterface public String liveState() {
+            try {
+                Band b = CwService.band;
+                JSONObject o = new JSONObject(b == null ? "{\"on\":false}" : b.liveJson());
+                boolean on = o.optBoolean("on");
+                if (!on) finishContact();
+                o.put("canAnswer", b != null && CwService.engine != null && !on && b.cqNear(CwService.rxKhz()) != null);
+                o.put("canCall", b != null && CwService.engine != null && !on && b.clearAt(CwService.dial));
+                o.put("tx", CwService.dial);
+                synchronized (liveLock) { o.put("summary", on ? "" : summary); }
+                return o.toString();
+            } catch (Exception e) { return "{\"on\":false}"; }
+        }
+        /** Answers the CQ station in the filter. Returns "" or a message for the page. */
+        @JavascriptInterface public String answer() {
+            Band b = CwService.band;
+            if (b == null || CwService.engine == null) return "Press play to start the band.";
+            double khz = CwService.rxKhz();
+            Qso q = b.cqNear(khz);
+            if (q == null) return "No station is calling CQ here.";
+            Profile me = profile();
+            Partner p = Partner.from(q, 0, b.scene(), new Dsp.Rng(System.nanoTime()), me, me.manners);
+            p.baseWpm = prefs.getInt("wpm", 20); p.logged = db.logCount();
+            if (!b.takeOver(khz, p)) return "That station cannot be answered now.";
+            synchronized (liveLock) { contact = p; contactKhz = khz; summary = ""; }
+            return "";
+        }
+        /** Calls CQ on the dial: your CQ is played, and a station answers after it. */
+        @JavascriptInterface public String callCq() {
+            Band b = CwService.band;
+            Engine e = CwService.engine;
+            if (b == null || e == null) return "Press play to start the band.";
+            if (!b.clearAt(CwService.dial)) return "Another station is on this frequency. Tune to a clear one.";
+            Profile me = profile();
+            Partner p = Partner.answering(new Dsp.Rng(System.nanoTime()), b.scene(), me, me.manners, Math.max(0, Math.min(2, prefs.getInt("ckind", Partner.STANDARD))));
+            p.baseWpm = prefs.getInt("wpm", 20); p.logged = db.logCount();
+            Keying k = Keying.build("CQ CQ DE " + me.call + " " + me.call + " K", new Timing(me.sendWpm, me.sendWpm), CwService.RATE);
+            double after = k.totalSamples / (double) CwService.RATE;
+            if (!b.answerMe(CwService.dial, p, after)) return "A contact is already running.";
+            e.send(k);
+            synchronized (liveLock) { contact = p; contactKhz = CwService.dial; summary = ""; }
+            return "";
+        }
+        /** Plays what the user typed and gives it to the partner as an over. */
+        @JavascriptInterface public String sendText(String text) {
+            Band b = CwService.band;
+            Engine e = CwService.engine;
+            Partner p = b == null ? null : b.livePartner();
+            if (p == null || e == null) return "No contact is running.";
+            String t = text == null ? "" : text.toUpperCase().replaceAll("\\s+", " ").trim();
+            if (t.isEmpty()) return "Type something to send.";
+            Profile me = profile();
+            Keying k = Keying.build(t, new Timing(me.sendWpm, me.sendWpm), CwService.RATE);
+            double secs = k.totalSamples / (double) CwService.RATE;
+            e.send(k);
+            b.userOver(Heard.parse(t, p.expect()), secs, me.sendWpm, CwService.dial, secs);
+            return "";
+        }
+        /** Puts the dial on the live station and clears RIT. */
+        @JavascriptInterface public void net() {
+            Band b = CwService.band;
+            double d = b == null ? Double.NaN : b.liveKhz();
+            if (Double.isNaN(d)) return;
+            CwService.dial = d; CwService.rit = 0; CwService.lastUserTune = System.currentTimeMillis();
+            prefs.edit().putFloat("dial", (float) d).putInt("rit", 0).apply();
+        }
+        @JavascriptInterface public void endContact() {
+            Band b = CwService.band;
+            finishContact();
+            if (b != null) b.endLive();
         }
         @JavascriptInterface public String log() { try { return db.logJson(200); } catch (Exception e) { return "[]"; } }
         @JavascriptInterface public String logSummary() { return "{\"contacts\":" + db.logCount() + ",\"countries\":" + db.logCountries() + "}"; }

@@ -51,6 +51,8 @@ details{background:var(--panel);border-radius:8px;margin:8px 0;padding:0 12px}su
 .scale{display:flex;justify-content:space-between;color:var(--dim);font-size:12px;margin:2px 2px 8px}
 .lg{padding:10px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.lg b{color:var(--gold);font-weight:600}.lg small{color:var(--dim);display:block}
 .lg.part b{color:var(--text)}
+.fills{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.fills .btn{padding:6px 10px;font-size:14px}
+#ctrans{max-height:220px;overflow-y:auto}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-radius:8px;padding:12px;font:13px/1.5 ui-monospace,monospace;margin:10px 0}pre:empty{display:none}
 </style></head><body>
 <main>
@@ -81,6 +83,23 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="msg" id="contest" style="color:var(--gold)"></div>
   <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button><button class="btn" id="span" aria-label="Waterfall span">Span 40 kHz</button></div>
   <pre id="copy"></pre>
+  <h2>Contact</h2>
+  <div id="cbox">
+    <div class="set"><label>Kind of contact when you call CQ</label><div class="seg" data-k="ckind"><button data-v="0">Short</button><button data-v="1">Standard</button><button data-v="2">Chat</button></div></div>
+    <div class="row"><button class="btn" id="cans">Answer</button><button class="btn" id="ccq">Call CQ</button></div>
+    <div class="msg bad" id="cerr"></div>
+    <div id="clive" style="display:none">
+      <div class="msg" id="ccall"></div>
+      <div class="msg" id="chint" style="color:var(--dim)"></div>
+      <div class="set"><label>Show their text</label><div class="seg" data-k="showtext"><button data-v="0">After each over</button><button data-v="1">Never</button><button data-v="2">As they send</button></div></div>
+      <pre id="ctrans"></pre>
+      <div class="msg" id="czero" style="color:var(--dim)"></div>
+      <input type="text" id="ctext" autocomplete="off" autocapitalize="characters" aria-label="Text to send">
+      <div class="fills"><button class="btn" data-f="call">Call</button><button class="btn" data-f="report">Report</button><button class="btn" data-f="r">R</button><button class="btn" data-f="agn">AGN?</button><button class="btn" data-f="qrs">QRS</button><button class="btn" data-f="73">73</button></div>
+      <div class="row"><button class="btn" id="csend">Send</button><button class="btn" id="cnet">Net</button><button class="btn" id="cend">End</button></div>
+    </div>
+    <div class="msg" id="csum"></div>
+  </div>
   <h2>Receiver</h2>
   <div class="set"><label>Filter</label><div class="seg" data-k="width"><button data-v="0">Wide</button><button data-v="1">Normal</button><button data-v="2">Narrow</button></div></div>
   <div class="set"><label>Sideband</label><div class="seg" data-k="side"><button data-v="0">CW</button><button data-v="1">CW-R</button></div></div>
@@ -117,7 +136,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="set"><label>Sending speed for typed text<b id="v-sendwpm"></b></label><input type="range" id="sendwpm" min="5" max="30" aria-label="Sending speed for typed text"></div>
   <div class="set"><label>Partners are</label><div class="seg" data-k="manners"><button data-v="0">Patient</button><button data-v="1">Normal</button><button data-v="2">Realistic</button></div></div>
   <div class="set"><label>Send with</label><div class="seg" data-k="sendwith"><button data-v="0">Typing</button><button data-v="1">My key (microphone)</button></div></div>
-  <div class="msg" style="color:var(--dim)">Until you can take part in contacts, this is only stored. Patient partners wait for you, ask again kindly and never fail a contact.</div>
+  <div class="set"><label>Hint line during a contact</label><div class="seg" data-k="hint"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+  <div class="msg" style="color:var(--dim)">Until you can send with a key, "My key" is only stored; you take part by typing on the Band tab. Patient partners wait for you, ask again kindly and never fail a contact.</div>
   <h2>Morse</h2>
   <div class="set"><label>Character speed<b id="v-wpm"></b></label><input type="range" id="wpm" min="5" max="50"></div>
   <div class="set"><label>Effective speed<b id="v-eff"></b></label><input type="range" id="eff" min="5" max="50"></div>
@@ -241,7 +261,36 @@ function logTick(){if(!$('log').classList.contains('on')||typeof A.log!=='functi
   const who=[x.name,x.qth].filter(Boolean).join(', ');if(who)d.append(el('small','',who));
   const rp=[x.sent&&'sent '+x.sent,x.rcvd&&'received '+x.rcvd].filter(Boolean).join(', ');if(rp)d.append(el('small','',rp));
   if(!x.complete)d.append(el('small','','Not finished'));l.append(d);});}
-function bandTick(){if(!$('band').classList.contains('on'))return;try{bandPaint(JSON.parse(A.band()));}catch(e){}}
+function bandTick(){if(!$('band').classList.contains('on'))return;try{bandPaint(JSON.parse(A.band()));}catch(e){}contactTick();}
+
+// The Contact card: answer a station that calls CQ or call CQ yourself, and take part by typing.
+let live={on:false};
+function fillText(f){const my=S.mycall||'',th=live.call||'',n=S.myname||'',q=S.myqth||'';
+ const t={call:th+' DE '+my+' '+my+' K',report:th+' DE '+my+' <BT> TNX FER CALL <BT> UR RST 579 579 <BT> NAME '+n+' '+n+' <BT> QTH '+q+' '+q+' <BT> HW? '+th+' DE '+my+' <KN>',r:'R',agn:'AGN?',qrs:'QRS','73':th+' DE '+my+' TNX FER QSO 73 <SK>'}[f];
+ if(t)$('ctext').value=t;}
+document.querySelectorAll('#clive .fills .btn').forEach(b=>b.onclick=()=>fillText(b.dataset.f));
+$('cans').onclick=()=>{$('cerr').textContent=A.answer();contactTick();};
+$('ccq').onclick=()=>{$('cerr').textContent=A.callCq();contactTick();};
+$('csend').onclick=()=>{const r=A.sendText($('ctext').value);$('cerr').textContent=r;if(!r)$('ctext').value='';contactTick();};
+$('cnet').onclick=()=>{A.net();bandTick();};
+$('cend').onclick=()=>{A.endContact();contactTick();};
+function contactTick(){
+ if(typeof A.liveState!=='function')return;
+ try{live=JSON.parse(A.liveState());}catch(e){return;}
+ const on=!!live.on;
+ $('clive').style.display=on?'':'none';
+ $('cans').disabled=!live.canAnswer;$('ccq').disabled=!live.canCall;
+ $('csum').textContent=live.summary||'';
+ if(!on)return;
+ $('ccall').textContent='In contact with '+live.call+(live.sending?'  (sending)':'');
+ $('chint').textContent=S.hint===0?'':live.hint||'';
+ const st=S.showtext||0,lines=(live.lines||[]).filter(x=>st!==1||x.startsWith('YOU:'));
+ let t=lines.join('\n');if(st===2&&live.partial)t+=(t?'\n':'')+live.call+': '+live.partial;
+ $('ctrans').textContent=t;
+ const d=Math.round((live.khz-live.tx)*1000);
+ $('czero').textContent=Math.abs(d)<10?'On your frequency.':'Their signal is '+Math.abs(d)+' Hz '+(d>0?'above':'below')+' your frequency.';
+ $('cnet').disabled=Math.abs(d)<10;
+}
 
 // Waterfall: every 40 ms the picture moves down one row and a new row is drawn on top.
 const wf=$('wf'),cx=wf.getContext('2d'),PAL=[];

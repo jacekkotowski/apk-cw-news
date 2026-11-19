@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class CwService extends Service implements AudioManager.OnAudioFocusChangeListener {
     static final String PLAY = "play", PAUSE = "pause", TOGGLE = "toggle", STOP = "stop", NEXT = "next", PREV = "prev", PLAY_ID = "playId", APPLY = "apply", REPLAY = "replay";
     static final String STOPPED = "stopped", PLAYING = "playing", PAUSED = "paused", WAITING = "waiting";
-    private static final int RATE = 48000, BLOCK = 480, BETWEEN_STORIES_S = 2, WAIT_POLL_S = 5, SAVE_EVERY_S = 10;
+    static final int RATE = 48000; private static final int BLOCK = 480, BETWEEN_STORIES_S = 2, WAIT_POLL_S = 5, SAVE_EVERY_S = 10;
     private static final double DUCK = 0.3;
     private static final String CH = "cw";
 
@@ -59,14 +59,15 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     private final PlaybackQueue queue = new PlaybackQueue();
     private Db db;
     private SharedPreferences prefs;
-    private Engine engine;
+    /** The audio mix, so the Activity can key the user's transmitter into it. */
+    static volatile Engine engine;
     private Thread thread;
     private volatile boolean alive, paused;
     private boolean resumeOnGain, autoAdvance = true, announce = true, finishedRestore;
     private int mode, gap, abbr;
     private double wpm = 20, eff = 12, volume = 0.8, duck = 1;
     private long notBefore = 0, lastRefresh, lastSave, lastTitles, sleepAt;
-    private int followBlocks;
+    private int followBlocks, liveBlocks;
     private volatile java.util.List<String> titles = new java.util.ArrayList<>();
     private int titleAt;
     private int refreshMin = 30;
@@ -357,6 +358,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
                 }
                 if (!trackOn) { track.play(); trackOn = true; }
                 Band fb = band;
+                if (fb != null && ++liveBlocks % 100 == 0) fb.tickLive();
                 if (follow == 1 && fb != null && !paused && ++followBlocks % 50 == 0 && !engine.newsHeard()
                     && System.currentTimeMillis() - lastUserTune > 20000) {
                     double f = fb.follow(rxKhz(), 2.5, 75);

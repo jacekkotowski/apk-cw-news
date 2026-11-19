@@ -10,6 +10,8 @@ final class Engine {
     static final double CW_PEAK = 0.5;
     private static final double RAMP_S = 0.005, GATE_S = 0.008, BED_IN_S = 2.0, BED_OUT_S = 0.3;
     private static final double NOTCH_WIDTH_HZ = 300;
+    /** While the user transmits the receiver is ducked by 20 dB within 5 ms, and released 0.4 s after the last element. */
+    static final double DUCK_GAIN = 0.1, DUCK_RAMP_S = 0.005, DUCK_HOLD_S = 0.4, SIDETONE = 0.5;
     private final int rate;
     private final long seed;
     private final double[] bedBuf;
@@ -26,6 +28,11 @@ final class Engine {
     /** 0 for CW (listening on the upper side of a signal), 1 for CW-R (the lower side). */
     volatile int side;
     private volatile Band band;
+    private volatile boolean txKey;
+    private volatile Keying sendKeying;
+    private Keying sidetone;
+    private int sideRun, sidePos, duckHold;
+    private double sidePhase, duck = 1;
     private final Rx rx;
     private final double[] sig;
     private final double[] wx = new double[3];
@@ -55,6 +62,13 @@ final class Engine {
     /** For tests: plays this background instead of a built-in one. */
     void setBedInstance(Bed b) { bed = b; bedType = wantBed = -1; }
     int bed() { return wantBed; }
+    /** The user's key goes down or up (a real key, or the microphone hearing one). No sidetone: the buzzer is the sidetone. */
+    void key(boolean down) { txKey = down; }
+    /** Plays typed text as a sidetone at the CW pitch, and ducks the receiver while it goes. */
+    void send(Keying k) { sendKeying = k; }
+    /** Whether the receiver is being ducked for the user's own transmission. */
+    boolean transmitting() { return txKey || sidetone != null || duckHold > 0; }
+
     /** While false, the mix fades to silence. */
     void setAudible(boolean a) { audible = a; }
     boolean silent() { return !audible && bedFade <= 0 && noiseFade <= 0 && bandGate <= 0 && (gate <= 0 || keying == null || held); }
@@ -176,6 +190,9 @@ final class Engine {
             rx.process(sig, frames, bedGain * before, bedGain * noiseFade, agc);
         } else noiseFade = 0;
         double scale = CW_PEAK * volume;
+        Keying nk = sendKeying;
+        if (nk != null) { sendKeying = null; sidetone = nk; sideRun = 0; sidePos = 0; }
+        double duckStep = (1 - DUCK_GAIN) / (DUCK_RAMP_S * rate), sideStep = 2 * Math.PI * toneHz / rate;
         for (int i = 0; i < frames; i++) {
             double l = sig[2 * i], r = sig[2 * i + 1];
             if (bedOn) {
@@ -186,8 +203,27 @@ final class Engine {
                 l += a * bl;
                 r += a * br;
             }
-            out[2 * i] = (float) Dsp.softLimit(l * scale);
-            out[2 * i + 1] = (float) Dsp.softLimit(r * scale);
+            // The user's own transmission: duck what was received, then add the sidetone for typed text.
+            boolean down = txKey;
+            double st = 0;
+            if (sidetone != null) {
+                int run = sidetone.runs[sideRun];
+                if (run > 0) {
+                    down = true;
+                    double ramp = Math.min(RAMP_S * rate, run / 2.0), env = 1;
+                    if (sidePos < ramp) env = 0.5 - 0.5 * Math.cos(Math.PI * (sidePos + 0.5) / ramp);
+                    else if (sidePos >= run - ramp) env = 0.5 - 0.5 * Math.cos(Math.PI * (run - sidePos - 0.5) / ramp);
+                    st = SIDETONE * env * Math.sin(sidePhase);
+                }
+                if (++sidePos >= Math.abs(run)) { sidePos = 0; if (++sideRun >= sidetone.runs.length) sidetone = null; }
+            }
+            sidePhase += sideStep;
+            if (sidePhase > 2 * Math.PI) sidePhase -= 2 * Math.PI;
+            if (down) duckHold = (int) (DUCK_HOLD_S * rate); else if (duckHold > 0) duckHold--;
+            double want = down || duckHold > 0 ? DUCK_GAIN : 1;
+            duck = want < duck ? Math.max(want, duck - duckStep) : Math.min(want, duck + duckStep);
+            out[2 * i] = (float) Dsp.softLimit((l * duck + st) * scale);
+            out[2 * i + 1] = (float) Dsp.softLimit((r * duck + st) * scale);
         }
     }
 }
