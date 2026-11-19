@@ -71,12 +71,12 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="scale" id="scale"><span></span><span></span><span></span><span></span><span></span></div>
   <div class="meter"><div class="mbar"><i id="sbar"></i></div><b id="sval">S0</b></div>
   <div class="panel">
-    <div class="col"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button></div>
+    <div class="col"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button><button class="btn" id="bfilt" aria-label="Filter: tap to switch between wide and narrow">Wide</button></div>
     <div class="knob" id="knob" aria-label="Tuning knob. Turn it to tune; one turn is 1 kHz."><i id="kmark"></i><b id="khz"></b><small>kHz</small></div>
-    <div class="col"><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button></div>
+    <div class="col"><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button></div>
   </div>
   <div id="bstat" style="margin:2px 0 8px"><div id="tuned"></div><div id="sky" style="color:var(--dim);font-size:13px"></div><div id="contest" style="color:var(--gold);font-size:13px"></div></div>
-  <div class="row" style="flex-wrap:nowrap"><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button><div class="seg" data-k="band" style="flex:1"><button data-v="1">Band</button><button data-v="0">News only</button></div></div>
+  <div class="seg" data-k="band" style="width:200px;margin:2px 0 8px"><button data-v="1">Band</button><button data-v="0">News only</button></div>
   <pre id="ctrans"></pre>
   <div id="cbox" style="margin-top:12px">
     <div id="cstart">
@@ -89,7 +89,6 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <div id="clive" style="display:none">
       <div id="ccall" style="font-weight:600;margin:8px 0 2px"></div>
       <div id="chint" style="color:var(--dim);margin:0 0 8px"></div>
-      <div class="row"><div class="msg" id="czero" style="color:var(--dim);flex:1;margin:0"></div><button class="btn" id="cnet">Net</button></div>
       <div id="ctype" style="margin-top:8px">
         <div class="cap">Tell them about you</div>
         <div class="chips"><button class="btn" data-f="rst">RST</button><button class="btn" data-f="name">Name</button><button class="btn" data-f="qth">QTH</button><select id="cwx" aria-label="Weather"><option value="">Weather</option><option>SUNNY</option><option>CLOUDY</option><option>RAIN</option><option>SNOW</option><option>WINDY</option><option>FOG</option><option>HOT</option><option>COLD</option></select><select id="ctemp" aria-label="Temperature in degrees"><option value="">Temp</option><option>35</option><option>34</option><option>33</option><option>32</option><option>31</option><option>30</option><option>29</option><option>28</option><option>27</option><option>26</option><option>25</option><option>24</option><option>23</option><option>22</option><option>21</option><option>20</option><option>19</option><option>18</option><option>17</option><option>16</option><option>15</option><option>14</option><option>13</option><option>12</option><option>11</option><option>10</option><option>9</option><option>8</option><option>7</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option><option>0</option><option>-1</option><option>-2</option><option>-3</option><option>-4</option><option>-5</option><option>-6</option><option>-7</option><option>-8</option><option>-9</option><option>-10</option><option>-11</option><option>-12</option><option>-13</option><option>-14</option><option>-15</option></select><button class="btn" data-f="rig">Rig</button><button class="btn" data-f="ant">Ant</button></div>
@@ -99,7 +98,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
         <div class="row"><button class="btn" id="csend">Send</button><button class="btn" id="cclear">Clear</button></div>
       </div>
       <div class="msg" id="csug" style="display:none"><div style="color:var(--dim);font-size:13px">Suggested to send</div><div id="csugt" style="font-family:ui-monospace,monospace;margin:4px 0"></div><div class="row"><button class="btn" id="csugsend">Send this</button><button class="btn" id="cuse">Edit</button></div></div>
-      <div class="row" style="margin-top:8px"><button class="btn" id="cend">End contact</button></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="cend">End contact</button><button class="btn" id="cnet">Net</button></div>
     </div>
     <div class="msg" id="csum"></div>
   </div>
@@ -135,7 +134,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
 <section id="settings">
   <details id="howto"><summary>How to use</summary>
     <div class="msg" style="color:var(--dim)"><b style="color:var(--text)">News.</b> Feeds tab: add a feed from the catalogue. Listen tab: Play. Each headline is sent as Morse.<br><br>
-    <b style="color:var(--text)">The band.</b> Band tab: Play, then turn the knob (or tap the waterfall, or use the Signal buttons) to find stations. Tap Show what they send to check what you copied.<br><br>
+    <b style="color:var(--text)">The band.</b> Band tab: Play, then turn the knob (or tap the waterfall, or use the Signal buttons) to find stations. The text window below shows what the station sends, to check what you copied.<br><br>
     <b style="color:var(--text)">A contact.</b> First set your callsign, name and QTH under Your station below. On the Band tab tap Answer when a station calls CQ, or Call CQ on a clear spot. Build your over with the buttons (RST, Name, QTH, Weather, Rig, Ant) and tap Send, or tap Send this for the suggested text. The partner is patient: it asks again, slows down and never fails you. Net puts the dial on its signal. End contact logs it.<br><br>
     <b style="color:var(--text)">With a key.</b> Set Send with to My key, then tap Set up my key on the Band tab (about 8 seconds; repeat it when the noise changes). Key the suggested text; the line You sent shows what was read.</div>
   </details>
@@ -162,7 +161,6 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="seg" data-k="bed"><button data-v="1">Ionosphere</button><button data-v="2">Cosmic</button><button data-v="0">Off</button></div>
   <div class="set"><label>Background level<b id="v-bedDb"></b></label><input type="range" id="bedDb" min="-40" max="-12"></div>
   <h2>Band</h2>
-  <div class="set"><label>Filter</label><div class="seg" data-k="filter"><button data-v="0">Wide</button><button data-v="1">Normal</button><button data-v="2">Narrow</button></div></div>
   <div class="set"><label>When a contact ends</label><div class="seg" data-k="follow"><button data-v="0">Stay</button><button data-v="1">Go to the strongest</button></div></div>
   <div class="set"><label for="region">Your region</label><select id="region" aria-label="Your region"></select></div>
   <div class="msg" style="color:var(--dim)">The band is always busy. Pick the band weather: Summer static is the default. It follows the clock from where you are: nearby stations by day, distant ones after dark, and nearby ones drop into the skip zone at night. Evenings and weekends are busier, and on the big contest weekends the band fills with contest stations.</div>
@@ -197,7 +195,7 @@ function paint(){for(const k of ['wpm','eff','pitch','volume','bedDb','sendwpm']
  document.querySelectorAll('.seg').forEach(g=>g.querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S[g.dataset.k])));
  $('bedDb').disabled=S.bed===0;
  const rg=$('region');if(!rg.options.length&&typeof A.regions==='function')JSON.parse(A.regions()).forEach((n,i)=>{const o=el('option','',n);o.value=i;rg.append(o);});
- rg.value=S.region||0;$('weather').value=S.weather2==null?2:S.weather2;}
+ $('bfilt').textContent=(S.filter||0)===0?'Wide':'Narrow';rg.value=S.region||0;$('weather').value=S.weather2==null?2:S.weather2;}
 const TEXTS=['mycall','myname','myqth','myrig','myant'];
 function load(){S=JSON.parse(A.settings());paint();}
 for(const k of ['wpm','eff','pitch','volume','bedDb','sendwpm']){
@@ -316,7 +314,6 @@ function contactTick(){
  let t=lines.join('\n');if(st===2&&live.partial)t+=(t?'\n':'')+live.call+': '+live.partial;
  $('ctrans').textContent=t;
  const d=Math.round((live.khz-live.tx)*1000);
- $('czero').textContent=Math.abs(d)<10?'On your frequency.':'Their signal is '+Math.abs(d)+' Hz '+(d>0?'above':'below')+' your frequency.';
  $('cnet').style.display=Math.abs(d)<10?'none':'';
 }
 
@@ -431,6 +428,7 @@ knob.onpointermove=e=>{if(kAng===null)return;const a=angle(e);let d=a-kAng;if(d>
 knob.onpointerup=knob.onpointercancel=e=>{if(kAng===null)return;kAng=null;if(e.timeStamp-kT<90&&Math.abs(kVel)>2.5){kSpin=kVel;coast(performance.now());}};
 
 $('dnext').onclick=()=>{A.nextSignal(1);bandTick();};$('dprev').onclick=()=>{A.nextSignal(-1);bandTick();};
+$('bfilt').onclick=()=>{A.set('filter',(S.filter||0)===0?2:0);load();};
 $('weather').onchange=()=>{A.set('weather2',+$('weather').value);load();};
 $('region').onchange=()=>{A.set('region',+$('region').value);load();};
 $('scale').onclick=()=>{A.set('span',spanK()>=40?4:40);load();paintDial();};

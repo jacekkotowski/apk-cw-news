@@ -16,7 +16,7 @@ An Android app that turns the news into Morse code, and a practice band where yo
 
 **The practice band**
 1. Settings > *Your station*: enter your callsign (a made-up one works), name and QTH. Settings > *Band*: choose your region.
-2. Band tab: tap *Play*. Turn the knob, tap the waterfall, or use the *Signal* buttons to find a station. *Show what they send* checks what you copied by ear.
+2. Band tab: tap *Play*. Turn the knob, tap the waterfall, or use the *Signal* buttons to find a station. The button under the left Signal button switches the filter between Wide and Narrow. The text window under the knob shows what the station you are tuned to sends, to check what you copied by ear (Settings > Show their text turns it off).
 3. When a station calls CQ, tap **Answer**. Or find a clear spot and tap **Call CQ**.
 4. Build your over with the buttons: **RST, Name, QTH, Weather and Temp, Rig, Ant**, plus **Call, R, AGN?, QRS, 73**, then **Send**. Or tap **Send this** to send the suggested text. **Net** puts the dial on the other station. **End contact** logs it in the Log tab.
 
