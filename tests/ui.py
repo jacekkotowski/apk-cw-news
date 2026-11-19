@@ -56,6 +56,8 @@ with sync_playwright() as p:
     g.evaluate('document.querySelector(".seg[data-k=showtext] button[data-v=\'2\']").click()'); assert calls()[-1] == ['set','showtext',2]; g.wait_for_timeout(700)
     assert 'R GM' in g.inner_text('#ctrans')
     g.evaluate('document.querySelector(".seg[data-k=showtext] button[data-v=\'1\']").click()'); g.wait_for_timeout(700); assert 'DL1ABC: CQ CQ' not in g.inner_text('#ctrans') and 'YOU:' in g.inner_text('#ctrans')
+    g.click('#cclear'); g.select_option('#cwx','RAIN'); g.select_option('#ctemp','12'); assert g.input_value('#ctext') == 'WX HR RAIN TEMP 12 C'
+    g.click('#cclear'); g.select_option('#ctemp','-3'); assert g.input_value('#ctext') == 'WX HR TEMP -3 C'; g.click('#cclear')
     g.click('#cnet'); assert calls()[-1] == ['net']
     g.click('#cend'); g.wait_for_timeout(700); assert not g.is_visible('#clive') and 'Thank you' in g.inner_text('#csum')
     g.evaluate("window.live={on:false,canAnswer:false,canCall:false,tx:7015,summary:''}"); g.wait_for_timeout(700); assert g.is_disabled('#cans') and g.is_disabled('#ccq')

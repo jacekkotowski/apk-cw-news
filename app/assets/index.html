@@ -19,7 +19,7 @@ h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)
 .ctrl #toggle{width:76px;height:76px;background:var(--gold);border:0;color:#10222c;font-size:26px}
 .msg{background:var(--panel);border-radius:8px;padding:12px;margin:14px 0;color:var(--text);font-size:15px}
 .msg:empty{display:none}.bad{color:var(--bad)}
-.btn{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 14px;font:inherit}
+.btn{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 12px;font:inherit;font-size:15px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .story{padding:10px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.story small{color:var(--dim);display:block}.story.heard{color:var(--dim)}.story.cur{color:var(--gold)}
 input[type=text],input[type=url],select{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:11px;font:inherit;margin-bottom:8px}
@@ -51,7 +51,7 @@ details{background:var(--panel);border-radius:8px;margin:8px 0;padding:0 12px}su
 .scale{display:flex;justify-content:space-between;color:var(--dim);font-size:12px;margin:2px 2px 8px}
 .lg{padding:10px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.lg b{color:var(--gold);font-weight:600}.lg small{color:var(--dim);display:block}
 .lg.part b{color:var(--text)}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}.chips .btn,.chips select{width:auto;margin:0;padding:7px 12px;font-size:14px;border-radius:16px}.chips select{background:var(--panel);color:var(--text);border:1px solid var(--line);font:inherit;font-size:14px}.cap{color:var(--dim);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:10px 0 2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}.chips .btn,.chips select{width:auto;margin:0;padding:5px 10px;font-size:13px;border-radius:14px}.chips select{background:var(--panel);color:var(--text);border:1px solid var(--line);font:inherit;font-size:13px}.cap{color:var(--dim);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:10px 0 2px}
 .fills{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.fills .btn{padding:6px 10px;font-size:14px}
 #ctrans{max-height:220px;overflow-y:auto}
 .klight{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--line);vertical-align:middle;margin-right:8px}.klight.on{background:var(--gold)}
@@ -94,7 +94,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
       <div class="row"><div class="msg" id="czero" style="color:var(--dim);flex:1;margin:0"></div><button class="btn" id="cnet">Net</button></div>
       <div id="ctype" style="margin-top:8px">
         <div class="cap">Tell them about you</div>
-        <div class="chips"><button class="btn" data-f="rst">RST</button><button class="btn" data-f="name">Name</button><button class="btn" data-f="qth">QTH</button><select id="cwx" aria-label="Weather"><option value="">Weather</option><option>SUNNY</option><option>CLOUDY</option><option>RAIN</option><option>SNOW</option><option>WINDY</option><option>FOG</option><option>HOT</option><option>COLD</option></select><button class="btn" data-f="rig">Rig</button><button class="btn" data-f="ant">Ant</button></div>
+        <div class="chips"><button class="btn" data-f="rst">RST</button><button class="btn" data-f="name">Name</button><button class="btn" data-f="qth">QTH</button><select id="cwx" aria-label="Weather"><option value="">Weather</option><option>SUNNY</option><option>CLOUDY</option><option>RAIN</option><option>SNOW</option><option>WINDY</option><option>FOG</option><option>HOT</option><option>COLD</option></select><select id="ctemp" aria-label="Temperature in degrees"><option value="">Temp</option><option>35</option><option>34</option><option>33</option><option>32</option><option>31</option><option>30</option><option>29</option><option>28</option><option>27</option><option>26</option><option>25</option><option>24</option><option>23</option><option>22</option><option>21</option><option>20</option><option>19</option><option>18</option><option>17</option><option>16</option><option>15</option><option>14</option><option>13</option><option>12</option><option>11</option><option>10</option><option>9</option><option>8</option><option>7</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option><option>0</option><option>-1</option><option>-2</option><option>-3</option><option>-4</option><option>-5</option><option>-6</option><option>-7</option><option>-8</option><option>-9</option><option>-10</option><option>-11</option><option>-12</option><option>-13</option><option>-14</option><option>-15</option></select><button class="btn" data-f="rig">Rig</button><button class="btn" data-f="ant">Ant</button></div>
         <div class="cap">Say</div>
         <div class="chips"><button class="btn" data-f="call">Call</button><button class="btn" data-f="r">R</button><button class="btn" data-f="agn">AGN?</button><button class="btn" data-f="qrs">QRS</button><button class="btn" data-f="73">73</button></div>
         <input type="text" id="ctext" autocomplete="off" autocapitalize="characters" aria-label="Text to send" placeholder="Tap the buttons above, then Send">
@@ -284,7 +284,11 @@ function addSeg(t){let v=$('ctext').value.trim();if(v.indexOf(' DE ')>=0)v='';$(
 // What is sent: a line of parts gets the call signs around it.
 function wrapOver(v){v=v.trim();if(!v||v.indexOf(' DE ')>=0)return v;const my=S.mycall||'',th=live.call||'';return th+' DE '+my+' <BT> '+v+' <BT> '+th+' DE '+my+' <KN>';}
 document.querySelectorAll('#clive [data-f]').forEach(b=>b.onclick=()=>fillText(b.dataset.f));
-$('cwx').onchange=()=>{if($('cwx').value)addSeg('WX HR '+$('cwx').value);$('cwx').value='';};
+const tempTxt=()=>$('ctemp').value===''?'':' TEMP '+$('ctemp').value+' C';
+$('cwx').onchange=()=>{if($('cwx').value)addSeg('WX HR '+$('cwx').value+tempTxt());$('cwx').value='';};
+// A temperature joins the weather part just added, or makes a part of its own.
+$('ctemp').onchange=()=>{if($('ctemp').value==='')return;const v=$('ctext').value.trim(),at=v.lastIndexOf(' <BT> '),last=at<0?v:v.slice(at+6);
+ if(v.indexOf(' DE ')<0&&last.startsWith('WX HR ')&&last.indexOf(' TEMP ')<0)$('ctext').value=v+' TEMP '+$('ctemp').value+' C';else addSeg('WX HR'+tempTxt());};
 $('cclear').onclick=()=>{$('ctext').value='';};
 $('csugsend').onclick=()=>{if(live.suggest){$('cerr').textContent=A.sendText(live.suggest);contactTick();}};
 $('cans').onclick=()=>{$('cerr').textContent=A.answer();contactTick();};
