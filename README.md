@@ -2,11 +2,17 @@
 
 Offline-friendly Android app that fetches RSS and Atom news and sends the headlines, optionally with summaries, as audible Morse code. A built-in catalogue of 36 feeds (ham radio, world news, science, psychology) is one tap away. Ham abbreviations (AND = ES, THANKS = TNX) can replace plain words. A synthesized receiver band or Cosmic background can play underneath. The Band tab is a made-up slice of the 40 m CW band with a receiver front panel: a waterfall, an S-meter, a tuning knob, three filter widths, AGC, RIT and a CW / CW-R sideband switch. Signals sweep in and out as you tune, and generated contacts between operators with different personalities (a chatty old-timer, a terse contester, a beginner who asks you to slow down, someone on a summit), with rigs, antennas, weather, hobbies, fun facts and sometimes a headline from your feeds. Your news is the bulletin station at 7020 kHz. No account, server, telemetry or ads. The app contacts only your feeds, and, if you switch on "Use real space weather" in Settings (off by default), `services.swpc.noaa.gov` for NOAA's public K index, once per refresh; nothing about you is sent.
 
-Current version: 2.9.1. Android 8.0 (API 26) or newer.
+Current version: 2.9.2. Android 8.0 (API 26) or newer.
 
 ## Install
 
-Copy `CWNews.apk` to the phone, open it and allow installs from that source.
+Download the latest `CWNews-<version>.apk` from the [Releases page](https://github.com/jacekkotowski/apk-cw-news/releases) (in Chrome or on a computer), copy it to the phone if needed, open it and allow installs from that source. Updates install over the old version and keep your feeds, settings and log.
+
+### Quick start: a contact on the Band tab
+1. Settings > Your station: enter your callsign, name and QTH, and choose "Send with" Typing or My key (microphone). Settings > Band: choose your region and the band weather.
+2. Listen > Play (or Band > Play). Open the Band tab, turn the knob or tap the waterfall, or use the Signal buttons, until a station calls CQ.
+3. Tap **Answer** (or **Call CQ** on a clear frequency). Build your over with the chips (RST, Name, QTH, Weather and Temp, Rig, Ant, Call, R, AGN?, QRS, 73) and tap **Send**, or tap **Send this** to send the suggested text. With a key and buzzer, tap **Set up my key** once (it takes about 8 seconds; repeat it when the noise changes, for example when a generator starts), then key the suggestion yourself.
+4. **End contact** logs it in the Log tab. Nothing in the app has been tried by more than its author on one phone, so expect rough edges; see `docs/PLAN.md` for what is and is not tested.
 
 Try it: Feeds > Built-in catalogue > open a group > Add. Settings > 20 WPM, effective 12 WPM, 600 Hz. Listen > Play.
 
