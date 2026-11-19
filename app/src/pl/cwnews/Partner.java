@@ -46,6 +46,8 @@ final class Partner {
     private int lastRequested = -1, unreadableRun, overs, userOvers, silencePrompts, totalPrompts, chatOvers, chatTarget, basicsOver = -1, lastEncOver = -10;
     private final boolean[] said = new boolean[Qso.TOPICS];
     private final List<String> pending = new ArrayList<>();
+    /** What the partner's last over asked the user for or asked about: CALL, RST, NAME, QTH, CONFIRM, WX, RIG, HOBBY, JOB, AGE. */
+    private final List<String> asks = new ArrayList<>();
     private final Set<String> told = new HashSet<>(), askedTopics = new HashSet<>();
 
     private Partner(Dsp.Rng r, Qso.Scene scene, Profile me, int manners, int kind, boolean answering, Qso.Op existing) {
@@ -127,6 +129,7 @@ final class Partner {
         wpm = Math.max(5, wpm);
         if (h.unreadable) return unreadable();
         unreadableRun = 0;
+        asks.clear();
         userOvers++;
 
         // Learn what the user sent.
@@ -180,7 +183,7 @@ final class Partner {
 
         // 2. Confirm a callsign that may be one letter off. This replaces a request in the same over.
         boolean confirm = h.callUnsure && !confirmed && !confirmAsked;
-        if (confirm) { seg.add(me.call + "?"); confirmAsked = true; }
+        if (confirm) { seg.add(me.call + "?"); confirmAsked = true; asks.add("CONFIRM"); }
 
         // 3. Answers, at most two, the rest wait for the next over.
         int answered = 0;
@@ -219,12 +222,12 @@ final class Partner {
             if (has(item) || dropped[item] || asked[item] >= limit(item)) continue;
             if (item != I_CALL && !chance) continue;
             if (kind == ACTIVATOR && (item == I_NAME || item == I_QTH)) continue;
-            seg.add(ITEM_ASK[item]); asked[item]++; lastRequested = item; requested = true;
+            seg.add(ITEM_ASK[item]); asked[item]++; lastRequested = item; requested = true; asks.add(new String[]{"CALL", "RST", "NAME", "QTH"}[item]);
         }
         // 7. At most one question, to keep the chat going.
         if (stage == CHAT && !requested && !confirm) {
             String[][] qs = {{"WX", "UR WX?"}, {"RIG", "WHAT RIG ES ANT?"}, {"HOBBY", "ANY OTHER HOBBIES?"}, {"JOB", "WHAT DO U DO FER WORK?"}, {"AGE", "HW LONG HAM?"}};
-            for (String[] q : qs) if (!told.contains(q[0]) && askedTopics.add(q[0])) { seg.add(q[1]); break; }
+            for (String[] q : qs) if (!told.contains(q[0]) && askedTopics.add(q[0])) { seg.add(q[1]); asks.add(q[0]); break; }
         }
         return make(turn(Qso.Gen.join(seg), self.style == Qso.TERSE ? "K" : "<KN>"), g.reply(self));
     }
@@ -252,7 +255,7 @@ final class Partner {
         String body;
         if (unreadableRun == 1) body = "SRI NO COPY PSE AGN";
         else if (unreadableRun == 2) { wpm = Math.max(5, wpm * 0.75); body = "PSE AGN SLOWLY"; }
-        else body = "PSE UR CALL?";
+        else { body = "PSE UR CALL?"; asks.clear(); asks.add("CALL"); }
         return make(turn(body, "K"), g.reply(self));
     }
 
@@ -279,6 +282,44 @@ final class Partner {
         }
         totalPrompts++;
         return make(me.call + "? " + me.call + " DE " + self.call + " K", 0.5);
+    }
+
+    /**
+     * A ready text to send now, built from the user's own station and from what the partner asked, to be keyed or typed as
+     * it stands or edited first. Empty when the contact is over.
+     */
+    String suggest() {
+        String t = self.call, y = me.call;
+        if (stage == DONE) return "";
+        if (stage == CALL && !answeringFlow) return t + " DE " + y + " " + y + " K";
+        List<String> seg = new ArrayList<>();
+        if (greeted) seg.add(asks.contains("CONFIRM") ? "C" : "R");
+        for (String a : asks) {
+            switch (a) {
+                case "CALL": seg.add(y + " " + y); break;
+                case "RST": seg.add("UR RST 579 579"); break;
+                case "NAME": seg.add("NAME " + me.name + " " + me.name); break;
+                case "QTH": seg.add("QTH " + me.qth + " " + me.qth); break;
+                case "WX": seg.add("WX HR NICE"); break;
+                case "RIG": seg.add("RIG " + me.rig + " PWR " + me.power + " W ES ANT " + me.ant); break;
+                case "HOBBY": seg.add("HOBBY RADIO"); break;
+                case "JOB": seg.add("JOB OFFICE"); break;
+                case "AGE": seg.add("HAM FER 10 YRS"); break;
+                default: break;
+            }
+        }
+        if (asks.isEmpty() || asks.size() == 1 && asks.contains("CONFIRM")) {
+            // Nothing was asked: give what is still missing, or finish.
+            if (!gotReport && !dropped[I_REPORT]) seg.add("UR RST 579 579");
+            if (kind != ACTIVATOR && !gotName && !dropped[I_NAME]) seg.add("NAME " + me.name + " " + me.name);
+            if (kind != ACTIVATOR && !gotQth && !dropped[I_QTH]) seg.add("QTH " + me.qth + " " + me.qth);
+            boolean missing = seg.size() > (greeted ? 1 : 0);
+            if (!missing) {
+                if (stage == CHAT && chatOvers + 1 < chatTarget) seg.add("RIG " + me.rig + " PWR " + me.power + " W ES ANT " + me.ant);
+                else return t + " DE " + y + " TNX FER QSO 73 <SK>";
+            }
+        }
+        return t + " DE " + y + " <BT> " + Qso.Gen.join(seg) + " <BT> " + t + " DE " + y + " <KN>";
     }
 
     /** What would be natural to send now, in plain words. */

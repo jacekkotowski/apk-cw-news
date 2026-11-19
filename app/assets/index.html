@@ -92,6 +92,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
     <div id="clive" style="display:none">
       <div class="msg" id="ccall"></div>
       <div class="msg" id="chint" style="color:var(--dim)"></div>
+      <div class="msg" id="csug" style="display:none"><div style="color:var(--dim);font-size:13px">Suggested to send</div><div id="csugt" style="font-family:ui-monospace,monospace;margin:4px 0"></div><button class="btn" id="cuse">Use</button></div>
       <div class="set"><label>Show their text</label><div class="seg" data-k="showtext"><button data-v="0">After each over</button><button data-v="1">Never</button><button data-v="2">As they send</button></div></div>
       <pre id="ctrans"></pre>
       <div class="msg" id="czero" style="color:var(--dim)"></div>
@@ -288,6 +289,7 @@ document.querySelectorAll('#clive .fills .btn').forEach(b=>b.onclick=()=>fillTex
 $('cans').onclick=()=>{$('cerr').textContent=A.answer();contactTick();};
 $('ccq').onclick=()=>{$('cerr').textContent=A.callCq();contactTick();};
 $('csend').onclick=()=>{const r=A.sendText($('ctext').value);$('cerr').textContent=r;if(!r)$('ctext').value='';contactTick();};
+$('cuse').onclick=()=>{if(live.suggest)$('ctext').value=live.suggest;};
 $('cnet').onclick=()=>{A.net();bandTick();};
 $('cend').onclick=()=>{A.endContact();contactTick();};
 function contactTick(){
@@ -301,6 +303,7 @@ function contactTick(){
  if(!on)return;
  $('ccall').textContent='In contact with '+live.call+(live.sending?'  (sending)':'');
  $('chint').textContent=S.hint===0?'':live.hint||'';
+ $('csug').style.display=S.hint===0||!live.suggest?'none':'';$('csugt').textContent=live.suggest||'';
  const st=S.showtext||0,lines=(live.lines||[]).filter(x=>st!==1||x.startsWith('YOU:'));
  let t=lines.join('\n');if(st===2&&live.partial)t+=(t?'\n':'')+live.call+': '+live.partial;
  $('ctrans').textContent=t;

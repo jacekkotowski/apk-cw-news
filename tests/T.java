@@ -1530,8 +1530,39 @@ public class T {
     }
     static boolean found(Heard h) { return h.userCallHeard && "579".equals(h.report) && "JACEK".equals(h.values.get("NAME")) && "KRAKOW".equals(h.values.get("QTH")); }
 
+    static void suggestions() {
+        int done = 0, total = 0;
+        for (int kind = 0; kind < 3; kind++) for (long seed = 1; seed <= 12; seed++) for (int flow = 0; flow < 2; flow++) {
+            Partner p = flow == 0 ? calling(seed, 0, kind) : Partner.answering(new Dsp.Rng(seed), new Qso.Scene(5, 20), me(0), 0, kind);
+            p.first();
+            total++;
+            boolean sendableAll = true, nonEmpty = true;
+            if (flow == 0) check("the first suggestion answers the CQ", p.suggest().startsWith(p.call() + " DE SP0CWN"));
+            for (int i = 0; i < 40 && !p.done(); i++) {
+                String t = p.suggest();
+                if (t.isEmpty()) { nonEmpty = false; break; }
+                if (!sendable(t)) sendableAll = false;
+                over(p, t);
+            }
+            check("every suggestion can be sent in Morse " + kind + "/" + seed + "/" + flow, sendableAll && nonEmpty);
+            if (p.done() && p.result().complete) done++;
+        }
+        check("following only the suggestions finishes the contact: " + done + "/" + total, done == total);
+        Partner q = calling(3, 0, Partner.STANDARD); q.first();
+        over(q, q.call() + " DE SP0CWN K");
+        check("after the exchange the partner asks for the name, and the suggestion has it", over(q, "R UR RST 579 K").text.contains("UR NAME?") && q.suggest().contains("NAME JACEK JACEK"));
+        Partner w = calling(4, 0, Partner.CHATTY); w.first();
+        over(w, w.call() + " DE SP0CWN K");
+        boolean wx = false;
+        Qso.Tx r = over(w, "R UR RST 579 579 <BT> NAME JACEK <BT> QTH KRAKOW K");
+        for (int i = 0; i < 8 && !wx && r != null; i++) { if (r.text.contains("UR WX?")) wx = w.suggest().contains("WX HR"); r = over(w, "R FB K"); }
+        check("a question about the weather gets a weather answer", wx);
+        check("nothing is suggested once the contact is over", suggestAfterEnd());
+    }
+    static boolean suggestAfterEnd() { Partner p = calling(5, 0, Partner.ACTIVATOR); p.first(); over(p, p.call() + " DE SP0CWN K"); over(p, "R UR 599 TU 73"); return p.done() && p.suggest().isEmpty(); }
+
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); partner(); live(); keyear(); keydecoder(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); partner(); suggestions(); live(); keyear(); keydecoder(); if (a.length == 0) { audio(); receiver(); }
         if (a.length == 1 && a[0].equals("targets")) learnerTargets();
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");

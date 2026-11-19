@@ -543,7 +543,7 @@ final class Band {
         l.append(']');
         Partner p = s.live;
         return "{\"on\":true,\"call\":" + quote(p.call()) + ",\"stage\":" + p.stage() + ",\"done\":" + p.done() + ",\"sending\":" + (s.key != null)
-            + ",\"khz\":" + num(s.khz) + ",\"hint\":" + quote(p.hint()) + ",\"lines\":" + l + ",\"partial\":" + quote(s.partial.toString().trim()) + "}";
+            + ",\"khz\":" + num(s.khz) + ",\"hint\":" + quote(p.hint()) + ",\"suggest\":" + quote(p.suggest()) + ",\"lines\":" + l + ",\"partial\":" + quote(s.partial.toString().trim()) + "}";
     }
 
     private static String quote(String t) {
