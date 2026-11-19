@@ -73,38 +73,44 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="scale" id="scale"><span></span><span></span><span></span><span></span><span></span></div>
   <div class="meter"><div class="mbar"><i id="sbar"></i></div><b id="sval">S0</b><div class="mticks"><span style="left:0">1</span><span style="left:16.7%">3</span><span style="left:33.3%">5</span><span style="left:50%">7</span><span style="left:66.7%">9</span><span style="left:83.3%">+10</span><span style="left:100%">+20</span></div></div>
   <div class="panel">
-    <div class="col"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button><button class="btn" id="dminus" aria-label="Down 100 Hz">&minus;100</button><button class="btn" id="dminus10" aria-label="Down 10 Hz">&minus;10</button></div>
+    <div class="col"><button class="btn" id="dprev" aria-label="Previous signal">&#9664;&#9664; Signal</button></div>
     <div class="knob" id="knob" aria-label="Tuning knob. Turn it to tune; one turn is 1 kHz."><i id="kmark"></i></div>
-    <div class="col"><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button><button class="btn" id="dplus" aria-label="Up 100 Hz">+100</button><button class="btn" id="dplus10" aria-label="Up 10 Hz">+10</button></div>
+    <div class="col"><button class="btn" id="dnext" aria-label="Next signal">Signal &#9654;&#9654;</button></div>
   </div>
+  <details><summary>Fine tuning and RIT</summary>
+    <div class="fills"><button class="btn" id="dminus" aria-label="Down 100 Hz">&minus;100</button><button class="btn" id="dminus10" aria-label="Down 10 Hz">&minus;10</button><button class="btn" id="dplus10" aria-label="Up 10 Hz">+10</button><button class="btn" id="dplus" aria-label="Up 100 Hz">+100</button></div>
   <div class="set"><label>RIT<b id="v-rit"></b></label><div class="ritrow"><input type="range" id="rit" min="-500" max="500" step="10" aria-label="Receiver incremental tuning"><button class="btn" id="rit0">Clear</button></div></div>
-  <div class="set"><label>When it goes quiet</label><div class="seg" data-k="follow"><button data-v="0">Stay</button><button data-v="1">Strongest</button></div></div>
-  <div class="msg" id="tuned"></div>
-  <div class="msg" id="sky" style="color:var(--dim)"></div>
-  <div class="msg" id="contest" style="color:var(--gold)"></div>
-  <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button><button class="btn" id="span" aria-label="Waterfall span">Span 40 kHz</button></div>
+  </details>
+  <div class="msg"><div id="tuned"></div><div id="sky" style="color:var(--dim)"></div><div id="contest" style="color:var(--gold)"></div></div>
+  <div class="row"><button class="btn" id="reveal">Show what they send</button><button class="btn" id="bplay" aria-label="Play or pause">&#9654; Play</button></div>
   <pre id="copy"></pre>
   <h2>Contact</h2>
   <div id="cbox">
-    <div class="set"><label>Kind of contact when you call CQ</label><div class="seg" data-k="ckind"><button data-v="0">Short</button><button data-v="1">Standard</button><button data-v="2">Chat</button></div></div>
-    <div class="row"><button class="btn" id="cans">Answer</button><button class="btn" id="ccq">Call CQ</button></div>
+    <div id="cstart">
+      <div class="seg" data-k="ckind" aria-label="Kind of contact when you call CQ"><button data-v="0">Short</button><button data-v="1">Standard</button><button data-v="2">Chat</button></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="cans">Answer</button><button class="btn" id="ccq">Call CQ</button></div>
+    </div>
     <div class="msg bad" id="cerr"></div>
     <div id="clive" style="display:none">
-      <div class="msg" id="ccall"></div>
-      <div class="msg" id="chint" style="color:var(--dim)"></div>
+      <div id="ccall" style="font-weight:600;margin:8px 0 2px"></div>
+      <div id="chint" style="color:var(--dim);margin:0 0 8px"></div>
       <div class="msg" id="csug" style="display:none"><div style="color:var(--dim);font-size:13px">Suggested to send</div><div id="csugt" style="font-family:ui-monospace,monospace;margin:4px 0"></div><button class="btn" id="cuse">Use</button></div>
-      <div class="set"><label>Show their text</label><div class="seg" data-k="showtext"><button data-v="0">After each over</button><button data-v="1">Never</button><button data-v="2">As they send</button></div></div>
       <pre id="ctrans"></pre>
-      <div class="msg" id="czero" style="color:var(--dim)"></div>
-      <input type="text" id="ctext" autocomplete="off" autocapitalize="characters" aria-label="Text to send">
+      <div class="row"><div class="msg" id="czero" style="color:var(--dim);flex:1;margin:0"></div><button class="btn" id="cnet">Net</button></div>
+      <details id="ctype" style="margin-top:8px"><summary>Type instead</summary>
+        <input type="text" id="ctext" autocomplete="off" autocapitalize="characters" aria-label="Text to send">
       <div class="fills"><button class="btn" data-f="call">Call</button><button class="btn" data-f="report">Report</button><button class="btn" data-f="r">R</button><button class="btn" data-f="agn">AGN?</button><button class="btn" data-f="qrs">QRS</button><button class="btn" data-f="73">73</button></div>
-      <div class="row"><button class="btn" id="csend">Send</button><button class="btn" id="cnet">Net</button><button class="btn" id="cend">End</button></div>
+        <div class="row"><button class="btn" id="csend">Send</button></div>
+      </details>
+      <div class="row" style="margin-top:8px"><button class="btn" id="cend">End contact</button></div>
     </div>
     <div class="msg" id="csum"></div>
   </div>
   <div id="keybox" style="display:none">
     <h2>My key</h2>
     <div class="msg" id="kstat"></div>
+    <div class="msg" id="ksent"></div>
+    <details id="ktools"><summary>Set up and tools</summary>
     <div class="row"><button class="btn" id="ksetup">Set up my key</button><button class="btn" id="kfist">Learn my fist</button><button class="btn" id="kwarm">Warm up</button></div>
     <div id="kwiz" style="display:none">
       <div class="msg" id="kstep"></div>
@@ -112,21 +118,26 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
       <div class="row" style="margin-top:8px"><button class="btn" id="kgo">Start</button><button class="btn" id="kcancel">Cancel</button></div>
       <div class="msg" id="kres"></div>
     </div>
-    <div class="msg" id="ksent"></div>
     <div class="row"><input type="text" id="kmeant" placeholder="What you meant to send" autocomplete="off" autocapitalize="characters" style="flex:1;margin:0"><button class="btn" id="kwrong">That's not what I sent</button><button class="btn" id="kexport">Export</button></div>
     <div class="msg" style="color:var(--dim)">The sound is analysed on the phone and never stored or sent. Only the timings of your key can be saved, and only if you tap "That's not what I sent".</div>
     <details><summary>It does not hear my key</summary><div class="msg" style="color:var(--dim)">Hold the phone closer to the buzzer, run Set up again, use headphones so the band does not reach the microphone, try a buzzer with a different pitch, or connect the buzzer to the phone by cable.</div></details>
+    </details>
   </div>
-  <h2>Receiver</h2>
+  <details id="rcv"><summary>Receiver and band settings</summary>
+  <div class="set"><label>When it goes quiet</label><div class="seg" data-k="follow"><button data-v="0">Stay</button><button data-v="1">Strongest</button></div></div>
+    <div class="set"><label>Waterfall</label><button class="btn" id="span" aria-label="Waterfall span">Span 40 kHz</button></div>
   <div class="set"><label>Filter</label><div class="seg" data-k="width"><button data-v="0">Wide</button><button data-v="1">Normal</button><button data-v="2">Narrow</button></div></div>
   <div class="set"><label>Sideband</label><div class="seg" data-k="side"><button data-v="0">CW</button><button data-v="1">CW-R</button></div></div>
   <div class="set"><label>AGC</label><div class="seg" data-k="agc"><button data-v="0">Off</button><button data-v="1">Slow</button><button data-v="2">Fast</button></div></div>
   <div class="set"><label>Shift<b id="v-shift"></b></label><input type="range" id="shift" min="-300" max="300" step="50" aria-label="Passband shift"></div>
   <div class="set"><label>Peak filter</label><div class="seg" data-k="apf"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
   <div class="set"><label>Noise blanker</label><div class="seg" data-k="nb"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
-  <h2>Band activity</h2>
-  <div class="seg" data-k="activity"><button data-v="0">Quiet</button><button data-v="1">Normal</button><button data-v="2">Busy</button></div>
+    <div class="set"><label>Band activity</label>
+<div class="seg" data-k="activity"><button data-v="0">Quiet</button><button data-v="1">Normal</button><button data-v="2">Busy</button></div></div>
+    <details><summary>About the band</summary>
   <div class="msg" style="color:var(--dim)">Stations are made up: each contact is generated on the spot, in real time. Operators differ: some chat at length, some are brief, beginners send slowly and ask for QRS, some are out on a summit or in a park. The report they give is how well the two stations hear each other, which is often close to what you hear, and the greeting matches the other station's time of day. Sometimes you hear only one side of a contact: the other station is too far, or too near and inside the skip zone. &lt;HH&gt; is the error sign, &lt;AS&gt; means wait. Your news is the bulletin station at 7020 kHz. Tune a few hundred Hz off a signal and its pitch changes, as on a real receiver. Everything passes one filter and one AGC: a strong station pushes the noise down, and a narrow filter cuts out the neighbours but needs careful tuning. The band noise follows the Ionosphere background and its level in Settings. The waterfall shows the band scrolling down: each station is a line that breaks up with its keying. Tap it to tune, or turn the knob; one turn is 1 kHz and a fast spin goes further. RIT moves only the receiver, up to 500 Hz either side of the dial.</div>
+    </details>
+  </details>
   </div>
 </section>
 <section id="feeds">
@@ -153,7 +164,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border-r
   <div class="set"><label>Sending speed for typed text<b id="v-sendwpm"></b></label><input type="range" id="sendwpm" min="5" max="30" aria-label="Sending speed for typed text"></div>
   <div class="set"><label>Partners are</label><div class="seg" data-k="manners"><button data-v="0">Patient</button><button data-v="1">Normal</button><button data-v="2">Realistic</button></div></div>
   <div class="set"><label>Send with</label><div class="seg" data-k="sendwith"><button data-v="0">Typing</button><button data-v="1">My key (microphone)</button></div></div>
-  <div class="set"><label>Hint line during a contact</label><div class="seg" data-k="hint"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+  <div class="set"><label>Show their text during a contact</label><div class="seg" data-k="showtext"><button data-v="0">After each over</button><button data-v="1">Never</button><button data-v="2">As they send</button></div></div>
+  <div class="set"><label>Hint and suggested text during a contact</label><div class="seg" data-k="hint"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
   <div class="msg" style="color:var(--dim)">With "My key" the phone listens to your key's buzzer through the microphone, on the Band tab only; set it up there. Typing always works too. Patient partners wait for you, ask again kindly and never fail a contact.</div>
   <h2>Morse</h2>
   <div class="set"><label>Character speed<b id="v-wpm"></b></label><input type="range" id="wpm" min="5" max="50"></div>
@@ -281,7 +293,7 @@ function logTick(){if(!$('log').classList.contains('on')||typeof A.log!=='functi
 function bandTick(){if(!$('band').classList.contains('on'))return;try{bandPaint(JSON.parse(A.band()));}catch(e){}contactTick();}
 
 // The Contact card: answer a station that calls CQ or call CQ yourself, and take part by typing.
-let live={on:false};
+let live={on:false},typeOpen=-1;
 function fillText(f){const my=S.mycall||'',th=live.call||'',n=S.myname||'',q=S.myqth||'';
  const t={call:th+' DE '+my+' '+my+' K',report:th+' DE '+my+' <BT> TNX FER CALL <BT> UR RST 579 579 <BT> NAME '+n+' '+n+' <BT> QTH '+q+' '+q+' <BT> HW? '+th+' DE '+my+' <KN>',r:'R',agn:'AGN?',qrs:'QRS','73':th+' DE '+my+' TNX FER QSO 73 <SK>'}[f];
  if(t)$('ctext').value=t;}
@@ -297,7 +309,8 @@ function contactTick(){
  if(typeof A.liveState!=='function')return;
  try{live=JSON.parse(A.liveState());}catch(e){return;}
  const on=!!live.on;
- $('clive').style.display=on?'':'none';
+ $('clive').style.display=on?'':'none';$('cstart').style.display=on?'none':'';
+ if(S.sendwith!==typeOpen){typeOpen=S.sendwith;$('ctype').open=S.sendwith!==1;}
  $('cans').disabled=!live.canAnswer;$('ccq').disabled=!live.canCall;
  $('csum').textContent=live.summary||'';
  if(!on)return;
@@ -309,7 +322,7 @@ function contactTick(){
  $('ctrans').textContent=t;
  const d=Math.round((live.khz-live.tx)*1000);
  $('czero').textContent=Math.abs(d)<10?'On your frequency.':'Their signal is '+Math.abs(d)+' Hz '+(d>0?'above':'below')+' your frequency.';
- $('cnet').disabled=Math.abs(d)<10;
+ $('cnet').style.display=Math.abs(d)<10?'none':'';
 }
 
 // My key: the phone listens to the buzzer through the microphone, on this screen only.

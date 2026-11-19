@@ -37,7 +37,7 @@ with sync_playwright() as p:
     g.click('#cat summary >> nth=0'); g.click('#cat .ci .btn >> nth=0'); g.wait_for_timeout(700)
     g.click('text=Disable'); assert calls()[-1] == ['en','1',False]
     g.wait_for_timeout(100); g.click('text=Remove'); g.click('text=Tap again'); assert calls()[-1] == ['rm','1']
-    g.click('nav button[data-t=band]'); g.wait_for_timeout(700)
+    g.click('nav button[data-t=band]'); g.evaluate("document.querySelectorAll('#band details').forEach(d=>d.open=true)"); g.wait_for_timeout(700)
     assert '7 020.00' in g.inner_text('#khz'), g.inner_text('#khz')
     assert g.evaluate("(()=>{const c=document.getElementById('wf'),d=c.getContext('2d').getImageData(Math.round(c.width*12.3/40),0,1,1).data;return d[0]+d[1]+d[2]})()") > 300, 'waterfall shows the station'
     assert g.inner_text('#sval').startswith('S')
@@ -53,9 +53,9 @@ with sync_playwright() as p:
     g.click('.fills [data-f=call]'); assert g.input_value('#ctext') == 'DL1ABC DE SP0CWN SP0CWN K'
     g.click('.fills [data-f=report]'); assert 'UR RST 579 579' in g.input_value('#ctext') and 'NAME JACEK JACEK' in g.input_value('#ctext')
     g.click('#csend'); assert calls()[-1][0] == 'send' and calls()[-1][1].startswith('DL1ABC DE SP0CWN <BT>'), calls()[-1]
-    g.click('.seg[data-k=showtext] button[data-v="2"]'); assert calls()[-1] == ['set','showtext',2]; g.wait_for_timeout(700)
+    g.evaluate('document.querySelector(".seg[data-k=showtext] button[data-v=\'2\']").click()'); assert calls()[-1] == ['set','showtext',2]; g.wait_for_timeout(700)
     assert 'R GM' in g.inner_text('#ctrans')
-    g.click('.seg[data-k=showtext] button[data-v="1"]'); g.wait_for_timeout(700); assert 'DL1ABC: CQ CQ' not in g.inner_text('#ctrans') and 'YOU:' in g.inner_text('#ctrans')
+    g.evaluate('document.querySelector(".seg[data-k=showtext] button[data-v=\'1\']").click()'); g.wait_for_timeout(700); assert 'DL1ABC: CQ CQ' not in g.inner_text('#ctrans') and 'YOU:' in g.inner_text('#ctrans')
     g.click('#cnet'); assert calls()[-1] == ['net']
     g.click('#cend'); g.wait_for_timeout(700); assert not g.is_visible('#clive') and 'Thank you' in g.inner_text('#csum')
     g.evaluate("window.live={on:false,canAnswer:false,canCall:false,tx:7015,summary:''}"); g.wait_for_timeout(700); assert g.is_disabled('#cans') and g.is_disabled('#ccq')
