@@ -1034,6 +1034,190 @@ public class T {
     }
     static void contactsUnchanged() { eq("generated contacts unchanged", contactsHash(), 9109856235999552946L); }
 
+    /**
+     * Renders a fixed band at several dial positions (7010, the news, a busy spot, CW-R), through Wide and Narrow,
+     * and hashes every sample with what the UI reads at intervals. With the story off this must never change.
+     */
+    static long bandHash(Script story) {
+        long h = 1125899906842597L;
+        for (int w : new int[]{Rx.WIDE, Rx.NARROW}) {
+            Band b = new Band(R, 77 + w, 4, () -> "Parliament passes the new energy law after long debate");
+            b.setActivity(2); b.setPlace(50, 20); b.setClock(4, 12, 2, 18.5);
+            if (story != null) b.setStory(story, 0);
+            double lo = Rx.lo(w, 600), hi = Rx.hi(w, 600), dial = 7010;
+            double[] buf = new double[960];
+            double[] spots = {7010, 7020, -1, 7003.5, 7010, -1, 7010.03};
+            for (int seg = 0; seg < spots.length; seg++) {
+                dial = spots[seg] < 0 ? b.next(dial, 1) : spots[seg];
+                int sign = seg == 5 ? -1 : 1;
+                for (int blk = 0; blk < 100 * 25; blk++) {
+                    java.util.Arrays.fill(buf, 0);
+                    b.render(buf, 480, dial, 600, lo, hi, sign);
+                    for (double v : buf) h = 31 * h + Double.doubleToLongBits(v);
+                    if (blk % 100 == 0) {
+                        String x = b.waterfallJson() + b.activityJson() + b.copy(dial) + b.clearAt(dial + 0.2);
+                        for (int i = 0; i < x.length(); i++) h = 31 * h + x.charAt(i);
+                    }
+                    if (blk % 1000 == 999) h = 31 * h + Double.doubleToLongBits(b.next(dial, -1)) + 7 * Double.doubleToLongBits(b.follow(dial, 8, 30));
+                }
+            }
+        }
+        return h;
+    }
+    static void bandUnchanged() { eq("band with the story off unchanged", bandHash(null), -3495697929261530587L); }
+
+    // ---- the story station ----
+    static final double[] SB = new double[960];
+    /** Renders seconds of band at a dial, through a filter width, in blocks of 10 ms. */
+    static void run(Band b, double dial, double seconds, int width, int sign) {
+        double lo = Rx.lo(width, 600), hi = Rx.hi(width, 600);
+        for (int i = 0; i < seconds * 100; i++) { java.util.Arrays.fill(SB, 0); b.render(SB, 480, dial, 600, lo, hi, sign); }
+    }
+    static boolean sending(Band b) { return b.storyJson().contains("\"sending\":true"); }
+    /** Renders at the dial until the story starts (or stops, with want false) sending; returns the seconds it took, or -1. */
+    static double until(Band b, double dial, boolean want, double max, int width) {
+        for (int i = 0; i < max * 100; i++) { if (sending(b) == want) return i / 100.0; run(b, dial, 0.01, width, 1); }
+        return -1;
+    }
+    static Script net(String... overs) {
+        StringBuilder t = new StringBuilder("Test Net\n@ AAA = Alpha one\n@ BBB = Bravo two\n  0.10 min  === EP 1  START ===\n");
+        for (int i = 0; i < overs.length; i++) {
+            if (i == overs.length / 2) t.append("  0.20 min  === EP 2  MIDDLE ===\n");
+            t.append("  0.10 min  ").append(overs[i]).append('\n');
+        }
+        return Script.parse("test.txt", t.toString());
+    }
+
+    static void storyStation() throws Exception {
+        Script h = Script.parse("hail_mary_net.txt", readAsset("hail_mary_net.txt"));
+        // It waits while you are tuned away.
+        Band b = new Band(R, 31, 5, null);
+        b.setActivity(0); b.setSpeed(25, 25);
+        b.setStory(h, 5);
+        eq("story starts at the given line", b.storyLine(), 5);
+        run(b, 7030, 40, Rx.NORMAL, 1);
+        check("tuned away it does not send", !sending(b));
+        eq("tuned away it keeps its line", b.storyLine(), 5);
+        check("and says it waits", b.storyJson().contains("\"waiting\":true"));
+        check("the JSON names the story", b.storyJson().contains("\"title\":\"Hail Mary Net\"") && b.storyJson().contains("\"total\":668"));
+        double t0 = until(b, 7010, true, 3, Rx.NORMAL);
+        check("tuned in it starts at once: " + t0, t0 >= 0 && t0 < 1.5);
+        Script.Line l5 = h.lines.get(5);
+        String name5 = h.names[java.util.Arrays.asList(h.calls).indexOf(l5.speaker)];
+        check("the JSON names the sender", b.storyJson().contains("\"now\":\"" + name5 + "\""));
+        // Tuned away in the middle of an over, it stops and sends the whole over again once you are back.
+        run(b, 7010, 4, Rx.NORMAL, 1);
+        check("some of the over was copied", b.copy(7010).contains(l5.speaker + ": "));
+        double stop = until(b, 7030, false, 10, Rx.NORMAL);
+        check("tuned away mid-over it stops at the end of a word: " + stop, stop >= 0 && stop < 2.5);
+        run(b, 7030, 30, Rx.NORMAL, 1);
+        eq("the over is kept", b.storyLine(), 5);
+        check("still waiting", !sending(b));
+        until(b, 7010, true, 3, Rx.NORMAL);
+        until(b, 7010, false, 300, Rx.NORMAL);
+        eq("after the repeat comes the next line", b.storyLine(), 6);
+        String c = b.copy(7010);
+        check("the whole over is in the copy, prosigns as written", c.contains(l5.speaker + ": " + l5.text));
+        eq("and only once", c.split(java.util.regex.Pattern.quote(l5.speaker + ": "), -1).length - 1, 1);
+        // The same story again keeps its position; another one starts where asked.
+        b.setStory(Script.parse("hail_mary_net.txt", readAsset("hail_mary_net.txt")), 0);
+        eq("same story keeps the position", b.storyLine(), 6);
+        // Going to a line: the over stops at the end of its word, and that line is next. Again is the line before.
+        until(b, 7010, true, 10, Rx.NORMAL);
+        b.setStoryLine(40);
+        eq("the chosen line is reported at once", b.storyLine(), 40);
+        double cut = until(b, 7010, false, 10, Rx.NORMAL);
+        check("the over stops within a word: " + cut, cut >= 0 && cut < 2.5);
+        until(b, 7010, true, 5, Rx.NORMAL);
+        eq("the chosen line is sent", b.storyLine(), 40);
+        check("its sender is named", b.storyJson().contains("\"call\":\"" + h.lines.get(40).speaker + "\""));
+        b.setStoryLine(b.storyLine() - 1);
+        until(b, 7010, false, 10, Rx.NORMAL);
+        until(b, 7010, true, 5, Rx.NORMAL);
+        eq("Again sends the line before", b.storyLine(), 39);
+        check("the episode is that line's", b.storyJson().contains("\"ep\":" + (h.lines.get(39).episode + 1) + ","));
+        b.setStoryLine(99999);
+        eq("a line past the end is the last", b.storyLine(), 667);
+        b.setStory(null, 0);
+        eq("off", b.storyJson(), "{\"on\":false}");
+        check("off: 7010 is no longer a station", Math.abs(b.next(7009, 1) - Band.STORY) > 0.01);
+
+        // Lines advance and wrap round after 60 s; pauses come from the script.
+        Script s3 = net("AAA -> BBB  BBB DE AAA <BT> HI <KN>", "BBB -> AAA  AAA DE BBB R <KN>", "AAA -> BBB  TU <SK>");
+        Band w = new Band(R, 32, 5, null);
+        w.setActivity(0); w.setSpeed(30, 30);
+        w.setStory(s3, 0);
+        StringBuilder seq = new StringBuilder();
+        double gap = 0, quiet = 0;
+        for (int i = 0; i < 100 * 120; i++) {
+            boolean was = sending(w);
+            run(w, 7010, 0.01, Rx.NORMAL, 1);
+            boolean now = sending(w);
+            if (now && !was) { seq.append(w.storyLine()); gap = Math.max(gap, quiet); }
+            quiet = now ? 0 : quiet + 0.01;
+            if (seq.length() >= 4) break;
+        }
+        eq("lines advance and wrap", seq.toString(), "0120");
+        check("60 s before starting again: " + gap, gap > 59.9 && gap < 61.5);
+
+        // Every call of a net is heard in Narrow, on CW and CW-R: none is held as outside the filter.
+        // Four calls that all talk to each other, so the outer pitches are used.
+        String[] k4 = {"AAA", "BBB", "CCC", "DDD"};
+        StringBuilder kt = new StringBuilder("K Net\n  0.1 min  === EP 1  ALL ===\n");
+        for (String p : k4) for (String q : k4) if (!p.equals(q)) kt.append("  0.1 min  ").append(p).append(" -> ").append(q).append("  E\n");
+        Script ring = Script.parse("k.txt", kt.toString());
+        int[] off = Script.offsetsHz(ring);
+        java.util.Set<Integer> used = new java.util.HashSet<>();
+        for (int o : off) used.add(o);
+        check("the net uses both outer pitches " + used, used.contains(-75) && used.contains(75));
+        for (int side : new int[]{1, -1}) {
+            Band n = new Band(R, 33, 5, null);
+            n.setActivity(0); n.setSpeed(30, 30);
+            n.setStory(ring, 0);
+            int lines = 0, last = -1;
+            for (int i = 0; i < 100 * 90 && lines < 12; i++) {
+                run(n, 7010, 0.01, Rx.NARROW, side);
+                if (sending(n) && n.storyLine() != last) { last = n.storyLine(); lines++; }
+            }
+            eq("all calls sent in Narrow, side " + side, lines, 12);
+        }
+
+        // With a story on, random stations keep 0.4 kHz away from 7010, and no CQ there; next() visits 7010.
+        Band busy = new Band(R, 34, 5, () -> "Parliament passes the new energy law after long debate");
+        busy.setActivity(2); busy.setClock(5, 19.5);
+        busy.setStory(h, 0);
+        double closest = 99; int seen = 0;
+        for (int sec = 0; sec < 20 * 60; sec++) {
+            run(busy, 7025, 1, Rx.WIDE, 1);
+            for (double f : busy.slotKhz()) { closest = Math.min(closest, Math.abs(f - Band.STORY)); seen++; }
+        }
+        check("random stations were on: " + seen, seen > 1000);
+        check("random stations never within 0.4 kHz of 7010: " + closest, closest > 0.4);
+        check("7010 is not clear for a CQ", !busy.clearAt(7010.3) && !busy.clearAt(7009.7));
+        boolean visits = false;
+        double d = Band.LOW;
+        for (int i = 0; i < 30; i++) { d = busy.next(d, 1); if (Math.abs(d - Band.STORY) < 1e-9) visits = true; }
+        check("next() visits 7010", visits);
+        check("no CQ is taken at 7010", busy.cqNear(7010) == null);
+        // Tuned to the story, follow() never moves the dial.
+        boolean stays = true;
+        for (int sec = 0; sec < 300; sec++) { run(busy, 7010, 1, Rx.NORMAL, 1); if (!Double.isNaN(busy.follow(7010, 2, 5))) stays = false; }
+        check("follow() stays on the story", stays);
+        check("the waterfall shows the story", busy.waterfallJson().contains("[7010.0") || busy.waterfallJson().contains("[7009.9"));
+        check("and the activity list", busy.activityJson().contains("\"k\":7010.0") || busy.activityJson().contains("\"k\":7009.9"));
+        // The same title sounds the same.
+        Band x1 = new Band(R, 35, 5, null), x2 = new Band(R, 35, 5, null);
+        x1.setActivity(0); x2.setActivity(0); x1.setStory(h, 0); x2.setStory(h, 0);
+        double[] a1 = new double[960], a2 = new double[960]; boolean same = true, any = false;
+        for (int i = 0; i < 3000; i++) {
+            java.util.Arrays.fill(a1, 0); java.util.Arrays.fill(a2, 0);
+            x1.render(a1, 480, 7010, 600); x2.render(a2, 480, 7010, 600);
+            same &= java.util.Arrays.equals(a1, a2);
+            for (double v : a1) if (v != 0) any = true;
+        }
+        check("the story is heard and the same each time", same && any);
+    }
+
     // ---- K3: the friendly partner ----
     static final Profile ME = new Profile("SP0CWN", "JACEK", "KRAKOW", "FT891", "DIPOLE", 10, 15, 0, 0);
     static Profile me(int manners) { return new Profile("SP0CWN", "JACEK", "KRAKOW", "FT891", "DIPOLE", 10, 15, manners, 0); }
@@ -1643,7 +1827,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); partner(); suggestions(); live(); keyear(); keydecoder(); script(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); bandUnchanged(); storyStation(); partner(); suggestions(); live(); keyear(); keydecoder(); script(); if (a.length == 0) { audio(); receiver(); }
         if (a.length == 1 && a[0].equals("targets")) learnerTargets();
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");

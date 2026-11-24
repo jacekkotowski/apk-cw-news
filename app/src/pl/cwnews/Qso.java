@@ -13,6 +13,8 @@ import java.util.List;
  */
 final class Qso {
     static final int RAGCHEW = 0, QUICK = 1, CQ = 2, SKED = 3, TUNE = 4, KINDS = 5;
+    /** The story station's net (see Band.setStory). Not made by generate, so it is not counted in KINDS. */
+    static final int STORY = 5;
     /** Personalities. */
     static final int CASUAL = 0, CHATTY = 1, TERSE = 2, NOVICE = 3, OUTDOOR = 4;
 
@@ -168,6 +170,20 @@ final class Qso {
         q.lossDb = new double[]{o.lossDb}; q.qsbDb = new double[]{o.qsbDb}; q.lat = new double[]{o.lat}; q.lon = new double[]{o.lon}; q.baseDb = new double[]{o.baseDb};
         q.key = new int[]{o.key == null ? Fist.KEYER : o.key.equals("BUG") ? Fist.BUG : o.key.equals("STRAIGHT KEY") ? Fist.STRAIGHT : o.key.equals("SIDESWIPER") ? Fist.SIDESWIPER : Fist.KEYER};
         q.chirp = new boolean[]{o.chirp}; q.rough = new boolean[]{o.rough}; q.drift = new boolean[]{o.drift};
+        return q;
+    }
+
+    /**
+     * A stretch of a story net as a contact: one operator per call, and one transmission per over, at the listener's
+     * speed. who[i] is the index in calls of over i's sender; pause[i] is the silence before it in seconds.
+     */
+    static Qso story(String[] calls, int[] who, String[] text, double[] pause) {
+        Qso q = new Qso(STORY);
+        int n = calls.length;
+        q.call = calls; q.qrp = new boolean[n]; q.yl = new boolean[n]; q.style = new int[n]; q.hour = new int[n];
+        q.lossDb = new double[n]; q.qsbDb = new double[n]; q.lat = new double[n]; q.lon = new double[n]; q.baseDb = new double[n];
+        q.key = new int[n]; q.chirp = new boolean[n]; q.rough = new boolean[n]; q.drift = new boolean[n];
+        for (int i = 0; i < who.length; i++) q.tx.add(new Tx(who[i], text[i], 1, pause[i]));
         return q;
     }
 
