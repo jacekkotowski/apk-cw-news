@@ -1777,10 +1777,9 @@ public class T {
                 String[] ab = top.get(i).getKey().split(" ");
                 three.addAll(java.util.Arrays.asList(ab));
                 int ia = java.util.Arrays.asList(s.calls).indexOf(ab[0]), ib = java.util.Arrays.asList(s.calls).indexOf(ab[1]);
-                if (ia >= 0 && ib >= 0 && Math.abs(off[ia] - off[ib]) >= 100) apart++;
+                if (ia >= 0 && ib >= 0 && Math.abs(off[ia] - off[ib]) >= Script.APART) apart++;
             }
-            // three calls all talking to each other cannot be 100 Hz apart in a 150 Hz span: then two of the three pairs
-            check(n[0] + " top partner pairs >= 100 Hz apart (" + apart + " of " + topN + ")", apart == topN || (three.size() == 3 && apart == topN - 1));
+            check(n[0] + " top partner pairs >= 60 Hz apart (" + apart + " of " + topN + ")", apart == topN);
             for (int o : off) check(n[0] + " offset in Narrow " + o, Rx.gain(Rx.lo(Rx.NARROW, 600), Rx.hi(Rx.NARROW, 600), 600 + o) > 0.5);
         }
         Script h = Script.parse("hail_mary_net.txt", readAsset("hail_mary_net.txt"));

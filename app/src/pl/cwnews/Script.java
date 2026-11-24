@@ -212,20 +212,25 @@ final class Script {
     }
 
     /**
-     * Pitch offsets in Hz from the story frequency, one per call (parallel to {@link #calls}). Four slots,
-     * {-75, -25, 25, 75}. Calls are placed in order of how much they talk; each takes the slot that keeps it
-     * 100 Hz or more from the partners it talks to most (then the farthest, then the least used). The result is then improved by search so the least talk is left between calls closer than 100 Hz; a triangle of three busy calls cannot all be 100 Hz apart in a 150 Hz span.
+     * Pitch offsets in Hz from the story frequency, one per call (parallel to {@link #calls}). Six slots, {@link #SLOTS}.
+     * Calls are placed in order of how much they talk; each takes the slot that keeps it {@link #APART} Hz or more from
+     * the partners it talks to most (then the farthest, then the least used). The result is then improved by a seeded
+     * search so the least talk is left between calls closer than that. Three mutual partners fit (-75, -15, 45).
      */
+    /** Pitch slots in Hz from the story frequency, 30 Hz apart (the ear tells 20 Hz apart; this only has to tell stations apart), and the least gap kept between partners. */
+    static final int[] SLOTS = {-75, -45, -15, 15, 45, 75};
+    static final int APART = 60;
+
     private static long cost(int[][] w, int[] slot, int[] slots) {
         long c = 0;
         for (int a = 0; a < slot.length; a++)
             for (int b = a + 1; b < slot.length; b++)
-                if (w[a][b] > 0 && Math.abs(slots[slot[a]] - slots[slot[b]]) < 100) c += w[a][b];
+                if (w[a][b] > 0 && Math.abs(slots[slot[a]] - slots[slot[b]]) < APART) c += w[a][b];
         return c;
     }
 
     static int[] offsetsHz(Script s) {
-        final int[] slots = {-75, -25, 25, 75};
+        final int[] slots = SLOTS;
         int n = s.calls.length;
         Map<String, Integer> idx = new HashMap<>();
         for (int i = 0; i < n; i++) idx.put(s.calls[i], i);
@@ -255,7 +260,7 @@ final class Script {
                 for (int p = 0; p < n; p++) {
                     if (slot[p] < 0 || w[c][p] == 0) continue;
                     int d = Math.abs(slots[k] - slots[slot[p]]);
-                    if (d < 100) conflict += w[c][p];
+                    if (d < APART) conflict += w[c][p];
                     dist += (long) w[c][p] * d;
                 }
                 if (conflict < bc || (conflict == bc && (dist > bd || (dist == bd && used[k] < bu)))) { best = k; bc = conflict; bd = dist; bu = used[k]; }
