@@ -1561,8 +1561,89 @@ public class T {
     }
     static boolean suggestAfterEnd() { Partner p = calling(5, 0, Partner.ACTIVATOR); p.first(); over(p, p.call() + " DE SP0CWN K"); over(p, "R UR 599 TU 73"); return p.done() && p.suggest().isEmpty(); }
 
+
+    static String readAsset(String f) throws Exception { return new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get("app/assets/stories/" + f)), StandardCharsets.UTF_8); }
+
+    static void script() throws Exception {
+        String[][] nets = {{"lv426_net.txt", "624", "23"}, {"hail_mary_net.txt", "668", "14"}, {"terminus_net.txt", "472", "30"}, {"endurance_net.txt", "464", "14"}, {"mars_net_pro.txt", "620", "14"}};
+        for (String[] n : nets) {
+            Script s = Script.parse(n[0], readAsset(n[0]));
+            eq(n[0] + " messages", s.lines.size(), Integer.parseInt(n[1]));
+            eq(n[0] + " episodes", s.episodes.size(), Integer.parseInt(n[2]));
+            boolean named = s.calls.length >= 7, credit = false, clean = true, pauses = true;
+            for (int i = 0; i < s.calls.length; i++) if (s.names[i].equals(s.calls[i])) named = false;
+            for (Script.Line l : s.lines) {
+                if (l.text.contains("MUSIC:") || l.text.contains("STELLARDRONE")) credit = true;
+                if (!l.text.matches("[A-Z0-9 .,/?()<>'\"-]+") || l.text.contains("  ")) clean = false;
+                if (l.pauseS != 0 && (l.pauseS < 1.5 || (l.pauseS > 3 && l.pauseS != 10))) pauses = false;
+            }
+            check(n[0] + " every call has a name", named);
+            check(n[0] + " credit ignored", !credit);
+            check(n[0] + " text is Morse-safe", clean);
+            check(n[0] + " pauses", pauses);
+            eq(n[0] + " episode 0 starts at 0", s.episodes.get(0).first, 0);
+            int[] off = Script.offsetsHz(s);
+            java.util.Map<String, Integer> pair = new java.util.HashMap<>();
+            for (Script.Line l : s.lines) { if (l.to.equals("ALL") || l.to.equals(l.speaker)) continue; String k = l.speaker.compareTo(l.to) < 0 ? l.speaker + " " + l.to : l.to + " " + l.speaker; pair.merge(k, 1, Integer::sum); }
+            List<java.util.Map.Entry<String, Integer>> top = new java.util.ArrayList<>(pair.entrySet());
+            java.util.Collections.sort(top, (a, b) -> b.getValue() - a.getValue());
+            int apart = 0, topN = Math.min(3, top.size());
+            java.util.Set<String> three = new java.util.HashSet<>();
+            for (int i = 0; i < topN; i++) {
+                String[] ab = top.get(i).getKey().split(" ");
+                three.addAll(java.util.Arrays.asList(ab));
+                int ia = java.util.Arrays.asList(s.calls).indexOf(ab[0]), ib = java.util.Arrays.asList(s.calls).indexOf(ab[1]);
+                if (ia >= 0 && ib >= 0 && Math.abs(off[ia] - off[ib]) >= 100) apart++;
+            }
+            // three calls all talking to each other cannot be 100 Hz apart in a 150 Hz span: then two of the three pairs
+            check(n[0] + " top partner pairs >= 100 Hz apart (" + apart + " of " + topN + ")", apart == topN || (three.size() == 3 && apart == topN - 1));
+            for (int o : off) check(n[0] + " offset in Narrow " + o, Rx.gain(Rx.lo(Rx.NARROW, 600), Rx.hi(Rx.NARROW, 600), 600 + o) > 0.5);
+        }
+        Script h = Script.parse("hail_mary_net.txt", readAsset("hail_mary_net.txt"));
+        eq("title", h.title, "Hail Mary Net");
+        eq("legend name", h.names[java.util.Arrays.asList(h.calls).indexOf("RKY")], "Rocky, Eridian engineer on the Blip-A");
+        eq("first over speaker", h.lines.get(0).speaker, "MRY");
+        eq("first over to", h.lines.get(0).to, "ALL");
+        check("first over keeps <BT>", h.lines.get(0).text.contains(" <BT> "));
+        eq("BT keys as -...-", codes("<BT>"), "-...- /");
+        check("keyed BT survives in an over", codes(h.lines.get(0).text).contains("-...- /"));
+        eq("episode title", h.episodes.get(0).title, "WAKING UP");
+        eq("episode 2 first line has the long pause", h.lines.get(h.episodes.get(1).first).pauseS, 10.0);
+        eq("lines carry their episode", h.lines.get(h.episodes.get(1).first).episode, 1);
+        Script m = Script.parse("x.txt", "﻿Test Net\r\n@ AAA = Alpha\r\n\r\n  0.10 min  === EP 1  START ===\r\n  0.10 min  aaa -> bbb  bbb de aaa <bt> Zażółć <kn>\r\nMusic: nobody\r\n");
+        eq("net BOM/CRLF title", m.title, "Test Net");
+        eq("one line", m.lines.size(), 1);
+        eq("prosigns kept, text cleaned", m.lines.get(0).text, "BBB DE AAA <BT> ZAZOLC <KN>");
+        eq("calls: legend then speakers", java.util.Arrays.asList(m.calls).toString(), "[AAA]");
+        String book = "The Project Gutenberg eBook of A Small Tale\n\nTitle: A Small Tale\n\n*** START OF THE PROJECT GUTENBERG EBOOK A SMALL TALE ***\n\nCHAPTER I\n\nIt was a dark night. The wind blew hard. Nobody came.\n\nHe said \"Hello\", and she left!\n\nCHAPTER II\n\nThe end of it all.\n\n*** END OF THE PROJECT GUTENBERG EBOOK A SMALL TALE ***\nLicense text that must not be sent.\n";
+        Script b = Script.parse("small_tale.txt", book);
+        eq("book title", b.title, "A Small Tale");
+        eq("book one station", b.calls.length, 1);
+        eq("book station name from the short title", b.calls[0], "SMALL");
+        eq("book episodes", b.episodes.size(), 2);
+        eq("book episode title", b.episodes.get(0).title, "CHAPTER I");
+        eq("book overs", b.lines.size(), 3);
+        eq("book first over", b.lines.get(0).text, "IT WAS A DARK NIGHT. THE WIND BLEW HARD. NOBODY CAME. <BT>");
+        eq("book second chapter starts at 2", b.episodes.get(1).first, 2);
+        boolean lic = false;
+        for (Script.Line l : b.lines) { if (l.text.contains("LICENSE") || l.text.contains("GUTENBERG")) lic = true; if (!l.text.endsWith(" <BT>")) lic = true; }
+        check("book strips Gutenberg parts, every over ends <BT>", !lic);
+        StringBuilder long1 = new StringBuilder();
+        for (int i = 0; i < 12; i++) long1.append("One two three four five six seven. ");
+        Script lb = Script.parse("long.txt", long1.toString());
+        boolean fit = lb.lines.size() > 1;
+        for (Script.Line l : lb.lines) if (l.text.split(" ").length > 41 + 1) fit = false;
+        check("book overs of at most about 40 words", fit);
+        eq("empty file lines", Script.parse("empty.txt", "").lines.size(), 0);
+        eq("empty file title from name", Script.parse("empty.txt", "").title, "empty");
+        eq("null text", Script.parse("n.txt", null).lines.size(), 0);
+        eq("BOM only", Script.parse("n.txt", "﻿").lines.size(), 0);
+        eq("empty offsets", Script.offsetsHz(Script.parse("e.txt", "")).length, 0);
+        eq("book offsets", Script.offsetsHz(b).length, 1);
+    }
+
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); partner(); suggestions(); live(); keyear(); keydecoder(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); partner(); suggestions(); live(); keyear(); keydecoder(); script(); if (a.length == 0) { audio(); receiver(); }
         if (a.length == 1 && a[0].equals("targets")) learnerTargets();
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");
