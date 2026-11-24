@@ -4,7 +4,7 @@ import json, pathlib
 from playwright.sync_api import sync_playwright
 FAKE = """
 window.calls=[];window.mst={running:true,perm:true,calibrated:false,fist:false,key:true,heard:'CQ DE',sent:'',have0:false,have1:false,have2:false,warming:false,warm:'',pitch:812};window.fake={status:'stopped',title:'',source:'',word:0,words:0,error:'',id:'-1',refreshing:false,news:{state:'no_feeds',failed:0}};
-window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,region:0,auto:1,announce:1,age:0,refresh:30,filter:0,follow:0,sleep:0,mycall:'SP0CWN',myname:'JACEK',myqth:'KRAKOW',myrig:'FT891',myant:'DIPOLE',power:10,sendwpm:15,manners:0,sendwith:0,hint:1,showtext:0,ckind:1,side:0,shift:0,apf:0,nb:0,weather:0,realwx:0};
+window.slist=[{id:'asset:a.txt',title:'Hail Mary Net',added:false,total:600,episodes:[{t:'WAKING UP',first:0},{t:'THE BLIP',first:100},{t:'ROCKY',first:300}]},{id:'file:mine.txt',title:'My Book',added:true,total:50,episodes:[{t:'',first:0}]}];window.sline=250;window.sCalls=[];window.fs=[];window.st={wpm:20,eff:12,pitch:600,volume:80,mode:0,abbr:1,band:1,activity:1,bed:1,bedDb:-24,width:1,agc:1,span:40,region:0,auto:1,announce:1,age:0,refresh:30,filter:0,follow:0,sleep:0,mycall:'SP0CWN',myname:'JACEK',myqth:'KRAKOW',myrig:'FT891',myant:'DIPOLE',power:10,sendwpm:15,manners:0,sendwith:0,hint:1,showtext:0,ckind:1,side:0,shift:0,apf:0,nb:0,weather:0,realwx:0};
 window.Android={state:()=>JSON.stringify(fake),settings:()=>JSON.stringify(st),feeds:()=>JSON.stringify(fs),
 recent:()=>JSON.stringify([{id:'5',title:'<b>Not markup</b>',source:'HN',heard:false}]),
 set:(k,v)=>{calls.push(['set',k,v]);st[k]=v;if(k==='wpm'&&st.eff>v)st.eff=v;},command:c=>calls.push([c]),playStory:i=>calls.push(['story',i]),
@@ -16,8 +16,8 @@ micState:()=>JSON.stringify(window.mst),notWhatISent:t=>calls.push(['wrong',t]),
 liveState:()=>JSON.stringify(window.live||{on:false,canAnswer:true,canCall:true,tx:7015,summary:''}),answer:()=>{calls.push(['answer']);window.live={on:true,call:'DL1ABC',stage:1,done:false,sending:false,khz:7015.12,tx:7015,hint:'Give DL1ABC a report.',suggest:'DL1ABC DE SP0CWN <BT> R <BT> UR RST 579 579 <BT> DL1ABC DE SP0CWN <KN>',lines:['DL1ABC: CQ CQ DE DL1ABC K','YOU: DL1ABC DE SP0CWN K'],partial:'R GM',canAnswer:false,canCall:false};return '';},
 callCq:()=>{calls.push(['cq']);return 'Another station is on this frequency. Tune to a clear one.';},sendText:t=>{calls.push(['send',t]);return '';},net:()=>calls.push(['net']),endContact:()=>{calls.push(['end']);window.live={on:false,canAnswer:true,canCall:true,tx:7015,summary:'Contact with DL1ABC. Thank you for the contact.'};},setText:(k,v)=>{calls.push(['text',k,v]);if(k==='mycall'&&!/^[A-Z0-9]{1,3}[0-9][A-Z0-9]{0,3}[A-Z]$/.test(v.toUpperCase()))return 'That is not a callsign. A call looks like SP9ABC.';st[k]=v.toUpperCase();return '';},
 log:()=>JSON.stringify([{id:'2',at:1700000000000,call:'DL1XYZ',name:'HANS',qth:'BERLIN',sent:'579',rcvd:'599',khz:7012.3,complete:true,overs:6},{id:'1',at:1699990000000,call:'OH2BH',name:'',qth:'',sent:'',rcvd:'',khz:7031,complete:false,overs:2}]),logSummary:()=>JSON.stringify({contacts:2,countries:2}),
-band:()=>JSON.stringify({on:true,dial:window.dialV||7020,rit:window.ritV||0,passLo:-200,passHi:200,low:7000,high:7040,news:7020,contest:'CQ WW CW',sky:'Thunderstorms in the distance: crackling static.',act:[{k:7012.3,l:.8,on:true},{k:7031.1,l:.3,on:false}]}),
-panel:()=>JSON.stringify({s:0.3,n:1,w:[[7012.3,.8,1],[7031.1,.3,0]]}),setRit:v=>{window.ritV=v;calls.push(['rit',v]);},tick:()=>calls.push(['tick']),bandCopy:()=>'DL1ABC: CQ CQ',setDial:v=>{window.dialV=v;calls.push(['dial',v]);},nextSignal:d=>{calls.push(['next',d]);return 7012.3;},abbrevs:()=>JSON.stringify([{a:'ES',m:'and',l:1},{a:'CQ',m:'calling any station',l:0}])};
+band:()=>JSON.stringify({story:{on:true,khz:7010,title:'Hail Mary Net',ep:2,eps:3,epTitle:'THE BLIP',line:window.sline,total:600,call:'RKY',now:'Rocky, Eridian engineer',sending:true,waiting:false},on:true,dial:window.dialV||7020,rit:window.ritV||0,passLo:-200,passHi:200,low:7000,high:7040,news:7020,contest:'CQ WW CW',sky:'Thunderstorms in the distance: crackling static.',act:[{k:7012.3,l:.8,on:true},{k:7031.1,l:.3,on:false}]}),
+panel:()=>JSON.stringify({s:0.3,n:1,w:[[7012.3,.8,1],[7031.1,.3,0]]}),setRit:v=>{window.ritV=v;calls.push(['rit',v]);},tick:()=>calls.push(['tick']),bandCopy:()=>'DL1ABC: CQ CQ',setDial:v=>{window.dialV=v;calls.push(['dial',v]);},nextSignal:d=>{calls.push(['next',d]);return 7012.3;},stories:()=>JSON.stringify(slist),chooseStory:i=>{calls.push(['chooseStory',i]);st.story=i;return '';},pickStory:()=>{calls.push(['pick']);st.story='file:mine.txt';setTimeout(()=>window.onStoryPicked({id:'file:mine.txt',title:'My Book'}),10);},removeStory:i=>{calls.push(['rmStory',i]);slist.pop();st.story='';return '';},storyFrom:l=>{calls.push(['storyFrom',l]);window.sline=l;},abbrevs:()=>JSON.stringify([{a:'ES',m:'and',l:1},{a:'CQ',m:'calling any station',l:0}])};
 """
 page_url = pathlib.Path('app/assets/index.html').resolve().as_uri()
 with sync_playwright() as p:
@@ -42,11 +42,24 @@ with sync_playwright() as p:
     assert '7 020.00' in g.inner_text('#khz'), g.inner_text('#khz')
     assert g.evaluate("(()=>{const c=document.getElementById('wf'),d=c.getContext('2d').getImageData(Math.round(c.width*12.3/40),0,1,1).data;return d[0]+d[1]+d[2]})()") > 300, 'waterfall shows the station'
     assert g.inner_text('#sval').startswith('S')
+    assert not g.is_visible('#sline'), 'no Story line away from 7010'
+    g.evaluate("window.dialV=7010"); g.wait_for_timeout(700)
+    assert g.is_visible('#sline') and g.inner_text('#sline') == 'Story: Hail Mary Net, EP 2 \u00b7 Rocky, Eridian engineer \u25b8', g.inner_text('#sline')
+    assert not g.is_visible('#spos')
+    g.click('#sline'); g.wait_for_timeout(100); assert g.is_visible('#spos')
+    assert g.input_value('#sep') == '100' and 'over 251 of 600' in g.inner_text('#slab') and 'EP 2' in g.inner_text('#slab'), g.inner_text('#slab')
+    g.select_option('#sep', '300'); assert calls()[-1] == ['storyFrom', 300], calls()[-1]
+    g.evaluate("(()=>{const e=document.getElementById('sslide');e.value=420;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))})()"); assert calls()[-1] == ['storyFrom', 420], calls()[-1]
+    g.wait_for_timeout(700); g.click('#sagain'); assert calls()[-1] == ['storyFrom', 419], calls()[-1]
+    g.evaluate("window.dialV=7020"); g.wait_for_timeout(700)
+    assert not g.is_visible('#sline') and not g.is_visible('#spos'), 'panel hides after tuning away'
+    g.evaluate("window.dialV=7010"); g.wait_for_timeout(700); assert g.is_visible('#sline') and not g.is_visible('#spos'), 'panel stays closed when tuning back'
+    g.evaluate("window.dialV=7020"); g.wait_for_timeout(700)
     g.click('#dnext'); assert calls()[-1] == ['next',1]
     g.click('#cans'); g.wait_for_timeout(100); assert calls()[-1] == ['answer']
     g.wait_for_timeout(700); assert g.is_visible('#clive') and 'DL1ABC' in g.inner_text('#ccall')
     assert 'DL1ABC: CQ CQ' in g.inner_text('#ctrans') and 'R GM' not in g.inner_text('#ctrans')
-    assert 'above' in g.inner_text('#czero')
+    assert g.is_visible('#cnet')  # the partner is 120 Hz off, so Net is offered
     assert 'UR RST 579 579' in g.inner_text('#csugt'); g.click('#cuse'); assert 'UR RST 579 579' in g.input_value('#ctext')
     g.click('#clive [data-f=call]'); assert g.input_value('#ctext') == 'DL1ABC DE SP0CWN SP0CWN K'
     for f in ['rst','name','qth']: g.click('#clive [data-f=%s]' % f)
@@ -75,13 +88,18 @@ with sync_playwright() as p:
     g.evaluate("S.sendwith=0"); g.wait_for_timeout(700)
     g.click('#scale'); assert calls()[-1] == ['set','span',4]; g.click('#scale')
     g.click('#bfilt'); assert calls()[-1] == ['set','filter',2]
-    g.wait_for_timeout(700); assert 'CQ CQ' in g.inner_text('#ctrans')  # one window: the tuned station's text when no contact is running
+    g.evaluate('document.querySelector(".seg[data-k=showtext] button[data-v=\'0\']").click()'); g.wait_for_timeout(700); assert 'CQ CQ' in g.inner_text('#ctrans')  # one window: the tuned station's text when no contact is running
     assert 'CQ WW CW' in g.inner_text('#contest')
     g.click('nav button[data-t=log]'); g.wait_for_timeout(700)
     assert '2 contacts, 2 countries' in g.inner_text('#lsum'), g.inner_text('#lsum')
     assert 'DL1XYZ' in g.inner_text('#llist') and 'Not finished' in g.inner_text('#llist')
     assert g.locator('#llist .bad').count() == 0
     g.click('nav button[data-t=settings]')
+    assert g.inner_text('h2 >> text=Story station, 7010 kHz') and g.locator('#story option').count() == 3, g.locator('#story option').count()
+    assert g.is_visible('#sadd') and not g.is_visible('#srm') and 'Tune to 7010 kHz' in g.inner_text('#settings')
+    g.select_option('#story', 'asset:a.txt'); assert calls()[-1] == ['chooseStory', 'asset:a.txt'] and not g.is_visible('#srm')
+    g.click('#sadd'); g.wait_for_timeout(200); assert ['pick'] in calls() and calls()[-1] == ['pick'] and g.is_visible('#srm') and g.input_value('#story') == 'file:mine.txt'
+    g.click('#srm'); assert 'Tap again' in g.inner_text('#srm'); g.click('#srm'); assert calls()[-1] == ['rmStory', 'file:mine.txt'] and not g.is_visible('#srm') and g.locator('#story option').count() == 2
     g.fill('#mycall','hello'); g.dispatch_event('#mycall','change'); assert calls()[-1] == ['text','mycall','hello'] and 'not a callsign' in g.inner_text('#serr')
     g.fill('#mycall','sp9abc'); g.dispatch_event('#mycall','change'); assert calls()[-1] == ['text','mycall','sp9abc'] and g.inner_text('#serr') == ''
     g.fill('#myname','Jan'); g.dispatch_event('#myname','change'); assert calls()[-1] == ['text','myname','Jan']

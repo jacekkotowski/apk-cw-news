@@ -4,6 +4,8 @@ What is built, what comes next, and how each step will be designed and checked. 
 
 ## Start here (next session)
 
+**State on 2026-11-24: version 2.12.0 is on the branch `claude/loving-feynman-07o32d`, not yet on `main`.** It adds the story station at 7010 kHz: `Script`, the station in `Band`, `Stories`, the Settings block and the Band-tab panel (plan: `docs/PLAN-STORIES.md`, files: `docs/STORIES.md`). The NOAA K-index fetch was removed (no way to switch it on). **Not tested on a phone:** the file picker, the sound of the story by ear, and the layout of the Story line and panel.
+
 **State on 2026-11-19: version 2.9.2 is on `main` and released.** The typed and keyed contact (K1 to K6) is built and the owner has listened to 2.6 to 2.8 on a phone and found it works well; since then 2.8.0 fixed the receiver (normal-width filter, slow AGC) and made the band always busy, 2.8.1 made summer static the default weather (chosen in Settings), 2.9.0 added the chips for a whole contact by touch and 2.9.1 smaller buttons and a temperature. **Not built:** K7 (neural decoding, only if a go/no-go check fails) and K8 (feedback on sending). **Known gap:** K5's decoder misreads a very sloppy hand (see Known gaps). **Not tested on a phone:** the one-tap key set-up with a real microphone, the key through the microphone in a real contact, the 2.9.x layout. **Next:** the owner's field test with the key, saved overs ("That's not what I sent" and Export) into `tests/data/fist/`, then an element-level decoder (a stronger model) and K8.
   - P6 decides how a partner reacts to anything you might send. It also reworks the contact generator without changing the contacts it produces, and adds your transmitter to the audio path. The design matters more than the typing, and a wrong design would make contacts frustrating.
   - P9 is signal processing that has to work in a real room with an unknown buzzer, plus a decoder that must read a learner's uneven timing.
@@ -82,7 +84,7 @@ None of these blocks P1 to P5.
 - Awards from the logbook: countries, QRP contacts, summits and parks.
 - Pile-up mode: you are the park activator and stations call you.
 - A touch key or paddle on the screen, for when there is no key at hand. It needs a delay measurement on the phone first.
-- Nets and round tables; a DX station working split.
+- A DX station working split.
 - Real weather for the operators' towns.
 
 ## How every step is finished
@@ -98,7 +100,6 @@ None of these blocks P1 to P5.
 - **K5, a learner's hand (stopped after two attempts, as the rules say).** `KeyEar` and `KeyDecoder` meet every other listed test on synthetic sound: keyer 5 to 30 WPM, straight key and bug at 10 dB, a beginner at 20/8 (word breaks right in 7 of 8 runs), key times within 15 ms, noise, voice and door slam silent, the speaker leak, the end of an over, the five straight-key rules, the 800 Hz shifted copy. Two targets are not met: with a learner's hand (dashes of 2.25 dots, letter gaps about as long as a dash) call, report, name and QTH are all recovered in only 43 of 200 runs (target 180), and with the severe hand 21 of 200 even with a learned profile (target 170). The profile does not help, because the decoder already clusters the whole over; it would matter for short overs. Per field the first hand gives call 72%, report 50%, name 64%, QTH 82%: timing alone cannot separate such dashes from dots (the overlap is about 5% per mark), so this needs a decoder that uses what the partner expects at element level, not a threshold change. Run them with `java -cp out_test pl.cwnews.T targets`. Until then K6 works for a tidy hand and for typed overs.
 
 - 2.1 to 2.4 have not been tested on a phone, and the new audio has not been listened to by anyone.
-- `tests/ui.py` needs the Python Playwright module, which is missing in the cloud session.
 - SOTA region codes are plausible but unchecked against the real summit lists.
 - POTA prefixes outside the US follow the ISO country scheme by inference; only the US change (`K-` to `US-`) is confirmed.
 - The propagation model is simple and was tuned for Europe; see the limits under 2.4.

@@ -27,6 +27,11 @@ The other station is patient. It asks again kindly, slows down when you ask, and
 2. Band tab > **Set up my key**: it takes about eight seconds (hold the key, stay quiet, let the band play). Repeat it whenever the noise changes, for example when a generator starts.
 3. Key the suggested text. The line *You sent* shows what the phone read; if it is wrong, type what you meant and tap *That's not what I sent*.
 
+**Stories**
+1. Settings > *Story station, 7010 kHz*: choose one of the five nets, or **Add a .txt file** of your own.
+2. Band tab: tune to 7010 kHz. The stations talk to each other, each at its own pitch. The story waits while you are tuned away and resumes where you stopped.
+3. Tap the *Story:* line to pick an episode, move along the story, or hear the last over again. How the files work, and a prompt for making new nets: docs/STORIES.md.
+
 ## Good to know
 
 - The band is made up: every station and contact is generated on the spot, and follows the time of day and your region.
