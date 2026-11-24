@@ -299,4 +299,41 @@ final class Script {
         for (int i = 0; i < n; i++) out[i] = slots[slot[i]];
         return out;
     }
+
+    /** A safe name for an added file in the app's own folder: letters, digits, space, dot, dash and underscore, ending in .txt. */
+    static String fileName(String display) {
+        String n = display == null ? "" : display.replaceAll("^.*[/\\\\]", "").replaceAll("\\.[A-Za-z0-9]{1,5}$", "");
+        n = n.replaceAll("[^A-Za-z0-9 ._-]", "_").replaceAll("\\.{2,}", ".").replaceAll("^[ .]+|[ .]+$", "");
+        if (n.length() > 60) n = n.substring(0, 60).trim();
+        return (n.isEmpty() ? "story" : n) + ".txt";
+    }
+
+    /** Whether a story id is one this app can open: asset:NAME or file:NAME with a plain name, no folders. */
+    static boolean validId(String id) {
+        if (id == null) return false;
+        String n = id.startsWith("asset:") ? id.substring(6) : id.startsWith("file:") ? id.substring(5) : null;
+        return n != null && !n.isEmpty() && !n.contains("/") && !n.contains("\\") && !n.equals(".") && !n.equals("..");
+    }
+
+    /** This story for the Settings menu and the Episode menu: {"id","title","added","total","episodes":[{"t","first"}]}. */
+    String json(String id) {
+        StringBuilder b = new StringBuilder("{\"id\":").append(quote(id)).append(",\"title\":").append(quote(title))
+            .append(",\"added\":").append(id.startsWith("file:")).append(",\"total\":").append(lines.size()).append(",\"episodes\":[");
+        for (int i = 0; i < episodes.size(); i++) {
+            if (i > 0) b.append(',');
+            b.append("{\"t\":").append(quote(episodes.get(i).title)).append(",\"first\":").append(episodes.get(i).first).append('}');
+        }
+        return b.append("]}").toString();
+    }
+
+    static String quote(String t) {
+        StringBuilder b = new StringBuilder("\"");
+        for (int i = 0; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (c == '"' || c == '\\') b.append('\\').append(c);
+            else if (c < ' ') b.append(' ');
+            else b.append(c);
+        }
+        return b.append('"').toString();
+    }
 }

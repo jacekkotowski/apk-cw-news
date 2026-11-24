@@ -51,12 +51,19 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     static volatile int follow;
     /** The user's own station, rebuilt whenever the settings are applied. */
     static volatile Profile profile = Profile.defaults();
+    /** The story on the band's story station ("asset:NAME", "file:NAME"), once it is loaded; "" for none. */
+    static volatile String storyOn = "";
     /** Where the receiver actually listens, in kHz. */
     static double rxKhz() { return dial + rit / 1000.0; }
 
     private final ConcurrentLinkedQueue<Runnable> cmds = new ConcurrentLinkedQueue<>();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final PlaybackQueue queue = new PlaybackQueue();
+    /** Loads and parses stories off the audio thread, one request after another, so the last choice wins. */
+    private final java.util.concurrent.ExecutorService storyLoader = java.util.concurrent.Executors.newSingleThreadExecutor();
+    /** The story asked for and the band it was given to. */
+    private String storyWant = "";
+    private Band storyBand;
     private Db db;
     private SharedPreferences prefs;
     /** The audio mix, so the Activity can key the user's transmitter into it. */
@@ -176,7 +183,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
     }
     private void finishService() {
         synchronized (this) { thread = null; }
-        band = null;
+        band = null; storyOn = ""; storyWant = ""; storyBand = null;
         status = STOPPED; storyId = PlaybackQueue.NONE; title = ""; source = ""; word = 0; words = 0;
         am.abandonAudioFocusRequest(focus);
         if (noisyOn) { unregisterReceiver(noisy); noisyOn = false; }
@@ -248,10 +255,32 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
             band.setWeather(prefs.getInt("weather2", Sky.STATIC));
             band.setKp(Double.NaN);
             engine.setBand(band);
+            applyStory(band);
         }
         if ((timingChanged || textChanged) && engine.hasStory() && storyId != PlaybackQueue.NONE) {
             load(storyId, textChanged ? 0 : engine.word());
         }
+    }
+
+    /**
+     * Puts the chosen story on the band's story station at its saved position. Reading and parsing a net takes a
+     * moment, so it is done on the loader thread; the band takes it whenever it is ready.
+     */
+    private void applyStory(Band b) {
+        String want = prefs.getString("story", "");
+        if (!Script.validId(want)) want = "";
+        if (want.equals(storyWant) && b == storyBand) return;
+        savePosition();
+        storyWant = want; storyBand = b;
+        final String id = want;
+        final int line = id.isEmpty() ? 0 : prefs.getInt(Stories.lineKey(id), 0);
+        storyLoader.execute(() -> {
+            if (band != b) return;
+            Script s = id.isEmpty() ? null : Stories.load(this, id);
+            storyOn = "";   // no saving while the band changes story: the old position was saved above
+            b.setStory(s, line);
+            storyOn = s == null || band != b ? "" : id;
+        });
     }
 
     /** Tells the band the month and UTC hour, so greetings and weather on it fit the time of day. */
@@ -322,7 +351,15 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
 
     private void savePosition() {
         if (storyId != PlaybackQueue.NONE) prefs.edit().putLong("lastId", storyId).putInt("lastWord", word).apply();
+        saveStoryLine();
         lastSave = System.currentTimeMillis();
+    }
+
+    /** Keeps the story station's position, so a net of many hours resumes where it was. */
+    private void saveStoryLine() {
+        String id = storyOn;
+        Band b = band;
+        if (!id.isEmpty() && b != null) prefs.edit().putInt(Stories.lineKey(id), b.storyLine()).apply();
     }
 
     private void loop() {
@@ -440,6 +477,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
 
     @Override public void onDestroy() {
         alive = false;
+        storyLoader.shutdown();
         session.release();
         if (noisyOn) { try { unregisterReceiver(noisy); } catch (RuntimeException ignored) { } noisyOn = false; }
         if (wake.isHeld()) wake.release();

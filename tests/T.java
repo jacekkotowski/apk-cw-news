@@ -1823,6 +1823,18 @@ public class T {
         eq("BOM only", Script.parse("n.txt", "﻿").lines.size(), 0);
         eq("empty offsets", Script.offsetsHz(Script.parse("e.txt", "")).length, 0);
         eq("book offsets", Script.offsetsHz(b).length, 1);
+        // Names and ids for added files, and the JSON the menus are built from.
+        eq("file name kept", Script.fileName("My Book.txt"), "My Book.txt");
+        eq("folders and odd characters go", Script.fileName("../a/b\\Zaż ółć?.TXT"), "Za_ ____.txt");
+        eq("no hidden or empty name", Script.fileName("..txt"), "story.txt");
+        eq("long name cut", Script.fileName("x".repeat(80) + ".txt").length(), 64);
+        check("asset id", Script.validId("asset:hail_mary_net.txt") && Script.validId("file:My Book.txt"));
+        check("bad ids", !Script.validId("") && !Script.validId(null) && !Script.validId("file:") && !Script.validId("file:../x.txt") && !Script.validId("asset:a/b.txt") && !Script.validId("http:x") && !Script.validId("file:.."));
+        String j = h.json("asset:hail_mary_net.txt");
+        check("json: id, title, total", j.startsWith("{\"id\":\"asset:hail_mary_net.txt\",\"title\":\"Hail Mary Net\",\"added\":false,\"total\":668,\"episodes\":[{\"t\":\"WAKING UP\",\"first\":0},"));
+        eq("json: one entry per episode", j.split("\"first\":", -1).length - 1, 14);
+        check("json: added file", b.json("file:small_tale.txt").contains("\"added\":true"));
+        eq("quote escapes", Script.quote("a\"b\\c\nd"), "\"a\\\"b\\\\c d\"");
     }
 
     public static void main(String[] a) throws Exception {

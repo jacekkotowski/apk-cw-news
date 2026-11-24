@@ -24,7 +24,7 @@ import android.widget.FrameLayout;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
-    private static final int BG = Color.rgb(16, 34, 44), LIST = 60;
+    private static final int BG = Color.rgb(16, 34, 44), LIST = 60, PICK_STORY = 7;
     private WebView web;
     private SharedPreferences prefs;
     private Db db;
@@ -272,7 +272,8 @@ public class MainActivity extends Activity {
                 + ",\"low\":" + Band.LOW + ",\"high\":" + Band.HIGH + ",\"news\":" + Band.NEWS
                 + ",\"sky\":\"" + (b == null ? "" : b.sky()) + "\""
                 + ",\"contest\":\"" + (b == null || b.contest() == null ? "" : b.contest()) + "\""
-                + ",\"act\":" + (b == null ? "[]" : b.activityJson()) + "}";
+                + ",\"act\":" + (b == null ? "[]" : b.activityJson())
+                + ",\"story\":" + (b == null ? "{\"on\":false}" : b.storyJson()) + "}";
         }
         /** The regions the listener can be in, as a JSON list of names; the region setting is an index into it. */
         @JavascriptInterface public String regions() { return new org.json.JSONArray(java.util.Arrays.asList(Prop.REGION_NAME)).toString(); }
@@ -319,6 +320,7 @@ public class MainActivity extends Activity {
                 o.put("mycall", prefs.getString("mycall", d.call)); o.put("myname", prefs.getString("myname", d.name)); o.put("myqth", prefs.getString("myqth", d.qth));
                 o.put("myrig", prefs.getString("myrig", d.rig)); o.put("myant", prefs.getString("myant", d.ant));
                 o.put("power", prefs.getInt("power", d.power)); o.put("sendwpm", prefs.getInt("sendwpm", d.sendWpm)); o.put("manners", prefs.getInt("manners", d.manners)); o.put("sendwith", prefs.getInt("sendwith", d.sendWith));
+                o.put("story", prefs.getString("story", ""));
                 o.put("hint", prefs.getInt("hint", 1)); o.put("showtext", prefs.getInt("showtext", 0)); o.put("ckind", prefs.getInt("ckind", Partner.STANDARD));
                 return o.toString();
             } catch (Exception e) { return "{}"; }
@@ -341,6 +343,50 @@ public class MainActivity extends Activity {
             prefs.edit().putString(key, v).commit();
             if (!CwService.status.equals(CwService.STOPPED)) service(CwService.APPLY, -1);
             return "";
+        }
+
+        // ---- the story station ----
+
+        /** The stories that can be played, shipped ones first: [{"id","title","added","total","episodes":[{"t","first"}]}]. */
+        @JavascriptInterface public String stories() { try { return Stories.listJson(MainActivity.this); } catch (Exception e) { return "[]"; } }
+        /** Chooses the story on 7010 kHz ("" for none). It resumes where it was last heard. Returns "" or a message. */
+        @JavascriptInterface public String chooseStory(String id) {
+            String v = id == null ? "" : id;
+            if (!v.isEmpty() && !Stories.exists(MainActivity.this, v)) return "That story is not there any more.";
+            prefs.edit().putString("story", v).commit();
+            if (!CwService.status.equals(CwService.STOPPED)) service(CwService.APPLY, -1);
+            return "";
+        }
+        /** Opens the system file picker for a .txt story; the result comes to the page as onStoryPicked({id, title} or {error}). */
+        @JavascriptInterface public void pickStory() {
+            runOnUiThread(() -> {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/*")
+                    .putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"text/*", "*/*"});
+                try { startActivityForResult(i, PICK_STORY); }
+                catch (RuntimeException e) { storyPicked("{\"error\":\"No file picker on this phone.\"}"); }
+            });
+        }
+        /** Removes an added story; the shipped ones stay. Returns "" or a message. */
+        @JavascriptInterface public String removeStory(String id) {
+            if (id == null || !id.startsWith("file:")) return "Only added files can be removed.";
+            boolean chosen = id.equals(prefs.getString("story", ""));
+            SharedPreferences.Editor e = prefs.edit().remove(Stories.lineKey(id));
+            if (chosen) e.putString("story", "");
+            e.commit();
+            if (chosen && !CwService.status.equals(CwService.STOPPED)) service(CwService.APPLY, -1);
+            return Stories.remove(MainActivity.this, id) ? "" : "The file could not be removed.";
+        }
+        /** Goes to an over of the story (Episode menu, Position slider, Again) and keeps that position at once. */
+        @JavascriptInterface public void storyFrom(int line) {
+            Band b = CwService.band;
+            String on = CwService.storyOn;
+            if (b != null && !on.isEmpty()) {
+                b.setStoryLine(line);
+                prefs.edit().putInt(Stories.lineKey(on), b.storyLine()).apply();
+            } else {
+                String id = prefs.getString("story", "");
+                if (!id.isEmpty()) prefs.edit().putInt(Stories.lineKey(id), Math.max(0, line)).apply();
+            }
         }
 
         // ---- a live contact with a station on the band ----
@@ -527,6 +573,30 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void setFeedEnabled(String id, boolean on) { db.setEnabled(Long.parseLong(id), on); }
         @JavascriptInterface public void removeFeed(String id) { db.removeFeed(Long.parseLong(id)); }
         @JavascriptInterface public void refresh() { new Thread(() -> Refresher.all(MainActivity.this), "refresh").start(); }
+    }
+
+    @Override protected void onActivityResult(int code, int result, Intent data) {
+        super.onActivityResult(code, result, data);
+        if (code != PICK_STORY) return;
+        if (result != RESULT_OK || data == null || data.getData() == null) { storyPicked("{\"cancelled\":true}"); return; }
+        android.net.Uri uri = data.getData();
+        new Thread(() -> {
+            String r = Stories.add(this, uri);
+            try {
+                String id = new JSONObject(r).optString("id", "");
+                if (!id.isEmpty()) {
+                    // An added story is the one you want to hear: it becomes the story on 7010 kHz.
+                    prefs.edit().putString("story", id).commit();
+                    if (!CwService.status.equals(CwService.STOPPED)) service(CwService.APPLY, -1);
+                }
+            } catch (org.json.JSONException ignored) { }
+            storyPicked(r);
+        }, "add-story").start();
+    }
+
+    /** Tells the page how adding a story went. */
+    private void storyPicked(String json) {
+        runOnUiThread(() -> web.evaluateJavascript("typeof onStoryPicked==='function'&&onStoryPicked(" + json + ")", null));
     }
 
     @Override protected void onDestroy() { web.destroy(); super.onDestroy(); }
