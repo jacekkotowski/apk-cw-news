@@ -217,7 +217,7 @@ public class CwService extends Service implements AudioManager.OnAudioFocusChang
         boolean ann = prefs.getBoolean("announce", true);
         int ab = prefs.getInt("abbr", Abbrev.LIGHT);
         boolean timingChanged = w != wpm || e != eff, textChanged = m != mode || ann != announce || ab != abbr;
-        wpm = w; eff = e; mode = m; announce = ann; abbr = ab;
+        wpm = w; eff = e; engine.setSpeed(w, e); mode = m; announce = ann; abbr = ab;
         autoAdvance = prefs.getBoolean("auto", true);
         volume = prefs.getInt("volume", 80) / 100.0;
         refreshMin = prefs.getInt("refresh", 30);

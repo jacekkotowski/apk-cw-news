@@ -64,8 +64,8 @@ final class Sky {
         } else if (mode == STORM && thunder != T_STORM || mode == STATIC && thunder != T_STATIC) hold(mode);
         tAurora = mode == AURORA ? 1 : mode == AUTO && kp >= 5 ? Math.min(1, (kp - 4) / 5) : auroraAge < 0 ? 0 : Math.min(1, Math.min(auroraAge, auroraLen - auroraAge) / 1800);
         tFlare = mode == FLARE ? 1 : flareAge < 0 ? 0 : flareAge < 180 ? flareAge / 180 : flareAge < 180 + flareHold ? 1 : Math.max(0, 1 - (flareAge - 180 - flareHold) / 1800);
-        tTicks = thunder == T_STORM ? 40 : thunder == T_STATIC ? 25 : 2.5;
-        tCrash = thunder == T_STORM ? 1.5 : thunder == T_STATIC ? 6 : 40;
+        tTicks = thunder == T_STORM ? 80 : thunder == T_STATIC ? 25 : 2.5;
+        tCrash = thunder == T_STORM ? 3 : thunder == T_STATIC ? 6 : 40;
         tGain = thunder == T_STORM ? 2.5 : 1;
         double a = 1 - Math.exp(-seconds / SMOOTH_S);
         ticks += a * (tTicks - ticks); crash += a * (tCrash - crash); crashGain += a * (tGain - crashGain);

@@ -475,7 +475,7 @@ public class T {
 
     static void weather() {
         // Each fixed mode settles on its own numbers within a minute.
-        double[][] want = {{2.5, 40, 1, 0, 0}, {25, 6, 1, 0, 0}, {40, 1.5, 2.5, 0, 0}, {2.5, 40, 1, 1, 0}, {2.5, 40, 1, 0, 1}};
+        double[][] want = {{2.5, 40, 1, 0, 0}, {25, 6, 1, 0, 0}, {80, 3, 2.5, 0, 0}, {2.5, 40, 1, 1, 0}, {2.5, 40, 1, 0, 1}};
         for (int m = 0; m < 5; m++) {
             Sky k = new Sky(5);
             for (int i = 0; i < 6000; i++) k.advance(0.01, 6, 15, 50, Sky.CALM + m);
@@ -503,7 +503,7 @@ public class T {
         near("the southern summer is in December", Sky.season(11, -34), 1, 1e-9);
         // Smooth: no output jumps between two calls 10 ms apart, even when the mode is switched.
         Sky sm = new Sky(9);
-        double[] range = {37.5, 38.5, 1.5, 1, 1}, before = skyNow(sm);
+        double[] range = {77.5, 38.5, 1.5, 1, 1}, before = skyNow(sm);
         double worst = 0;
         for (int i = 0; i < 6 * 60 * 100; i++) {
             sm.advance(0.01, 6, 15, 50, 1 + (i / 3000) % 5);
@@ -532,7 +532,7 @@ public class T {
         for (int v = 0; v < 4; v++) {
             boolean storm = v % 2 == 1; boolean blank = v >= 2;
             Rx rx = new Rx(R, 51); rx.tune(Rx.lo(Rx.NORMAL, 600), Rx.hi(Rx.NORMAL, 600), 600, false); rx.blanker(blank);
-            if (storm) rx.weather(40, 1.5, 2.5);
+            if (storm) rx.weather(80, 3, 2.5);
             double[] b = new double[960]; double sq = 0; long n = 0;
             for (int blk = 0; blk < 120 * R / 480; blk++) {
                 java.util.Arrays.fill(b, 0);
@@ -544,7 +544,8 @@ public class T {
         double rise = db(rms[1] / rms[0]), riseBlanked = db(rms[3] / rms[2]);
         System.out.printf("storm static: %.1f dB louder than calm, %.1f dB with the blanker on%n", rise, riseBlanked);
         check("a storm nearby is at least 6 dB louder than calm: " + rise, rise >= 6);
-        check("the blanker leaves at least half of that rise: " + riseBlanked, riseBlanked >= 0.5 * rise);
+        // Flashes are now made of single-sample impulses, which is what the blanker takes out; the old swell it could not remove is gone.
+        check("the blanker takes most of that rise away: " + riseBlanked, riseBlanked < 0.5 * rise);
 
         // The band owns a sky; its weather reaches the receiver and the Band tab.
         Band b = new Band(R, 3, 6, null);
@@ -552,7 +553,7 @@ public class T {
         double[] buf = new double[960], out = new double[3];
         for (int i = 0; i < 100 * 90; i++) { java.util.Arrays.fill(buf, 0); b.render(buf, 480, 7010, 600); }
         b.weather(out);
-        near("band weather: storm ticks", out[0], 40, 0.1); near("band weather: storm crashes", out[1], 1.5, 0.05); near("band weather: storm gain", out[2], 2.5, 0.02);
+        near("band weather: storm ticks", out[0], 80, 0.2); near("band weather: storm crashes", out[1], 3, 0.05); near("band weather: storm gain", out[2], 2.5, 0.02);
         check("the Band tab says there is a storm: " + b.sky(), b.sky().contains("thunderstorm"));
         b.setWeather(Sky.CALM);
         for (int i = 0; i < 100 * 90; i++) { java.util.Arrays.fill(buf, 0); b.render(buf, 480, 7010, 600); }
@@ -570,7 +571,7 @@ public class T {
         check("operators mention the aurora", sawAurora);
 
         // A busy band in a storm still stays clear of full scale.
-        double max = 0;
+        double max = 0; long over = 0, total = 0;
         for (int w = 0; w < 3; w++) {
             Engine e = new Engine(R, 61 + w, 480);
             Band busy = new Band(R, 19 + w, 6, null);
@@ -578,9 +579,10 @@ public class T {
             e.setBand(busy); e.setBed(Bed.BAND); e.bedDb = -12; e.volume = 1; e.width = w; e.agc = w; e.nb = w == 1; e.setAudible(true);
             e.load(Keying.build("TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST", new Timing(25, 25), R), 0);
             float[] fb = new float[960];
-            for (int blk = 0; blk < 120 * R / 480; blk++) { e.render(fb, 480); for (float v : fb) max = Math.max(max, Math.abs(v)); }
+            for (int blk = 0; blk < 120 * R / 480; blk++) { e.render(fb, 480); for (float v : fb) { max = Math.max(max, Math.abs(v)); total++; if (Math.abs(v) > 0.9) over++; } }
         }
-        check("busy band in a storm stays clear of full scale: " + max, max < 0.9);
+        // The loudest crashes of a storm nearby (45 dB over the noise) reach the soft limiter, but only a tiny share of the samples.
+        check("busy band in a storm stays clear of full scale: " + over + " of " + total + " samples above 0.9, peak " + max, over < 1e-4 * total && max < 1.0);
     }
 
     static String file(String name) throws java.io.IOException { return new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get("tests/data/" + name)), StandardCharsets.UTF_8); }
@@ -734,10 +736,10 @@ public class T {
     static double through(Rx rx, double hz, double amp, boolean agc) {
         double[] b = new double[960];
         double peak = 0, ph = 0;
-        for (int blk = 0; blk < 60; blk++) {
+        for (int blk = 0; blk < 140; blk++) {   // long enough for the AGC to forget the overshoot at the start of the tone
             for (int i = 0; i < 480; i++) { b[2 * i] = b[2 * i + 1] = amp * Math.sin(ph); ph += 2 * Math.PI * hz / R; }
             rx.process(b, 480, 0, 0, agc ? 1 : 0);
-            if (blk >= 40) for (double v : b) peak = Math.max(peak, Math.abs(v));
+            if (blk >= 120) for (double v : b) peak = Math.max(peak, Math.abs(v));
         }
         return peak;
     }
@@ -859,6 +861,210 @@ public class T {
         for (Engine e : new Engine[]{e1, e2}) { e.setBed(Bed.BAND); e.setAudible(true); }
         for (int i = 0; i < 3000; i++) { e1.render(x1, 480); e2.render(x2, 480); same &= java.util.Arrays.equals(x1, x2); }
         check("the band is repeatable from its seeds", same);
+    }
+
+    // ---- Band noise: lightning, crackle, AGC hang, audio floor (2.12.1) ----
+
+    static Lightning storm(long seed, double ticks, double crashEvery, double gain) {
+        Lightning l = new Lightning(new Dsp.Rng(seed), R, Math.sqrt(400.0 / (R / 2.0)));
+        l.weather(ticks, crashEvery, gain);
+        return l;
+    }
+    static double median(java.util.ArrayList<Double> v) { java.util.Collections.sort(v); return v.get(v.size() / 2); }
+
+    /** One run of the keyed station through the receiver: how much the noise in the gaps rises from just after the signal to just before the next. */
+    static double[] gapRise(double hang) {
+        double floor = 0.05;
+        Rx rx = new Rx(R, 7); rx.setHang(hang); rx.weather(2.5, 40, 1);
+        Timing t = new Timing(20, 12);
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < 16; i++) text.append("PARIS ");
+        Keying k = Keying.build(text.toString(), t, R);
+        int total = (int) k.totalSamples;
+        boolean[] on = new boolean[total];
+        int p = 0;
+        for (int run : k.runs) for (int i = 0; i < Math.abs(run) && p < total; i++) on[p++] = run > 0;
+        double[] mon = new double[total], b = new double[960];
+        double ph = 0;
+        for (int s = 0; s + 480 <= total; s += 480) {
+            for (int i = 0; i < 480; i++) { b[2 * i] = b[2 * i + 1] = on[s + i] ? Math.sin(ph) : 0; ph += 2 * Math.PI * 600 / R; }
+            rx.process(b, 480, floor, floor, Rx.AGC_SLOW);
+            for (int i = 0; i < 480; i++) mon[s + i] = b[2 * i];
+        }
+        double[] early = new double[3], late = new double[3]; int[] cnt = new int[3];
+        int w = (int) (0.1 * R); p = 0;
+        for (int run : k.runs) {
+            int len = Math.abs(run);
+            if (run < 0 && p > total / 4 && p + len < total && len > 0.3 * R) {
+                int type = len > 0.8 * R ? 2 : 1;   // a word gap or a letter gap
+                double e = 0, l = 0;
+                for (int i = 0; i < w; i++) { double x = mon[p + 3000 + i], y = mon[p + len - w - 200 + i]; e += x * x; l += y * y; }
+                early[type] += Math.sqrt(e / w); late[type] += Math.sqrt(l / w); cnt[type]++;
+            }
+            p += len;
+        }
+        return new double[]{db(late[1] / early[1]), db(late[2] / early[2]), db(early[1] / cnt[1] / floor), db(late[2] / cnt[2] / floor), cnt[1], cnt[2]};
+    }
+
+    static void noise() {
+        // ---- Lightning statistics, no filter in the way ----
+        Lightning f = storm(101, 2.5, 0.05, 1);
+        while (f.flashes < 2500) f.step();
+        double perFlash = f.strokeCount / (double) f.strokeFlashes;
+        System.out.printf("lightning: %d flashes, %.2f strokes per return-stroke flash, %.3f intra-cloud, stroke interval GM %.1f ms, train spacing GM %.2f ms%n",
+            f.flashes, perFlash, f.intraCloud / (double) f.flashes, 1000 * Math.exp(f.gapLogSum / f.gapCount), 1000 * Math.exp(f.kLogSum / f.kCount));
+        near("strokes per return-stroke flash", perFlash, 3.8, 0.3);
+        near("intra-cloud share", f.intraCloud / (double) f.flashes, 0.5, 0.03);
+        near("inter-stroke interval, geometric mean in s", Math.exp(f.gapLogSum / f.gapCount), 0.060, 0.004);
+        near("train spacing, geometric mean in s", Math.exp(f.kLogSum / f.kCount), 0.0025, 0.0002);
+
+        // Rates per weather state: crackle clusters per second, flashes per second.
+        double[][] states = {{2.5, 40, 1, 200}, {25, 6, 1, 600}, {80, 3, 2.5, 600}};
+        for (double[] st : states) {
+            Lightning l = storm(202, st[0], st[1], st[2]);
+            long n = (long) (st[3] * R);
+            for (long i = 0; i < n; i++) l.step();
+            double tickRate = l.ticks / st[3], flashRate = l.flashes * st[1] / st[3];
+            System.out.printf("weather %.1f/s, a flash every %.1f s: %.2f crackle clusters/s, %.2f flashes per interval%n", st[0], st[1], tickRate, flashRate);
+            near("crackle rate at " + st[0], tickRate, st[0], 0.06 * st[0]);
+            if (st[3] >= 600) near("flash rate at " + st[0], flashRate, 1, 0.15);
+        }
+
+        // Crackle median per storminess, and first-stroke median per crash gain.
+        for (double[] st : new double[][]{{2.5, 400}, {21.25, 100}, {80, 30}}) {
+            Lightning l = storm(303, st[0], 1e9, 1);
+            java.util.ArrayList<Double> v = new java.util.ArrayList<>();
+            long seen = 0;
+            for (long i = 0; i < (long) (st[1] * R); i++) { l.step(); if (l.ticks > seen) { seen = l.ticks; v.add(l.lastCrackleDb); } }
+            double m = median(v);
+            System.out.printf("crackle at %.2f/s: median %.1f dB over %d clusters%n", st[0], m, v.size());
+            near("crackle median at " + st[0], m, Lightning.crackleMedianDb(st[0]), 1.0);
+        }
+        near("crackle median, calm", Lightning.crackleMedianDb(2.5), -3, 1e-9);
+        near("crackle median, storm", Lightning.crackleMedianDb(80), 6, 1e-9);
+        near("first stroke median, calm", Lightning.strokeMedianDb(1), 18, 1e-9);
+        near("first stroke median, storm", Lightning.strokeMedianDb(2.5), 32, 1e-9);
+        for (double gain : new double[]{1, 1.75, 2.5}) {
+            Lightning l = storm(404, 2.5, 0.05, gain);
+            java.util.ArrayList<Double> v = new java.util.ArrayList<>();
+            long seen = 0;
+            while (v.size() < 1500) { l.step(); if (l.strokeFlashes > seen) { seen = l.strokeFlashes; v.add(l.lastStrokeDb); } }
+            near("first-stroke median at crash gain " + gain, median(v), Lightning.strokeMedianDb(gain), 0.8);
+        }
+
+        // ---- Through the filter (Normal, no AGC, a small noise so nothing reaches the ceiling) ----
+        double noise = 0.004;
+        for (double tk : new double[]{2, 40}) {
+            Rx rx = new Rx(R, 6); rx.whiteOff = true; rx.weather(tk, 1e9, 1);
+            double[] b = new double[96]; java.util.ArrayList<Double> peaks = new java.util.ArrayList<>();
+            double cur = 0; int since = 1 << 20; boolean open = false;
+            for (int blk = 0; blk < 150 * R / 48; blk++) {
+                java.util.Arrays.fill(b, 0);
+                long before = rx.storm().ticks;
+                rx.process(b, 48, noise, noise, 0);
+                if (rx.storm().ticks > before) { if (open && since < 1500) { open = false; cur = -1; since = 0; continue; } cur = 0; open = true; since = 0; }
+                if (open) { for (int i = 0; i < 96; i += 2) cur = Math.max(cur, Math.abs(b[i])); since += 48; if (since >= 1500) { open = false; if (cur > 0) peaks.add(db(cur / noise)); } }
+            }
+            double m = median(peaks);
+            System.out.printf("isolated crackle at %.0f/s through the filter: median peak %.1f dB re the noise RMS (%d clusters)%n", tk, m, peaks.size());
+            near("crackle peak through the filter at " + tk, m, Lightning.crackleMedianDb(tk), 1.5);
+        }
+        for (double gain : new double[]{1, 2.5}) {
+            Rx rx = new Rx(R, 8); rx.whiteOff = true; rx.weather(0.0001, 0.4, gain);
+            double[] b = new double[96]; java.util.ArrayList<Double> peaks = new java.util.ArrayList<>();
+            int win = -1; double cur = 0;
+            for (int blk = 0; blk < 600 * R / 48; blk++) {
+                java.util.Arrays.fill(b, 0);
+                long before = rx.storm().strokeFlashes;
+                rx.process(b, 48, noise, noise, 0);
+                if (rx.storm().strokeFlashes > before) { win = 0; cur = 0; }
+                if (win >= 0) { for (int i = 0; i < 96; i += 2) cur = Math.max(cur, Math.abs(b[i])); if (++win == 24) { peaks.add(db(cur / noise)); win = -1; } }
+            }
+            double m = median(peaks);
+            System.out.printf("first stroke at crash gain %.1f through the filter: median peak %.1f dB re the noise RMS (%d flashes)%n", gain, m, peaks.size());
+            near("first-stroke peak through the filter at gain " + gain, m, Lightning.strokeMedianDb(gain), 1.5);
+        }
+
+        // Flash body: 10 ms RMS through the filter while a flash is on, re the floor.
+        for (double gain : new double[]{1, 2.5}) {
+            Rx rx = new Rx(R, 5); rx.weather(2.5, 1.0, gain);
+            double[] b = new double[960]; java.util.ArrayList<Double> w = new java.util.ArrayList<>();
+            for (int blk = 0; blk < 100 * R / 480; blk++) {
+                java.util.Arrays.fill(b, 0);
+                boolean was = rx.storm().flashLeft() > 0;
+                rx.process(b, 480, noise, noise, 0);
+                if (blk > 50 && was && rx.storm().flashLeft() > 0) { double q = 0; for (int i = 0; i < 960; i += 2) q += b[i] * b[i]; w.add(db(Math.sqrt(q / 480) / noise)); }
+            }
+            int in = 0; for (double v : w) if (v >= 5 && v <= 9.5) in++;
+            double m = median(w), share = in / (double) w.size();
+            System.out.printf("flash body at crash gain %.1f: %d windows of 10 ms, median %.1f dB over the floor, %.0f%% within +5 to +9.5 dB%n", gain, w.size(), m, 100 * share);
+            if (gain == 1) { check("flash body median is +5 to +9.5 dB: " + m, m >= 5 && m <= 9.5); check("at least half of a flash sits in +5 to +9.5 dB: " + share, share >= 0.5); }
+            else check("a storm nearby is louder than a static flash: " + m, m > 9.5);
+        }
+
+        // ---- AGC hang ----
+        double letter = new Timing(20, 12).charGap;
+        double[] without = gapRise(0), with = gapRise(1.1 * letter);
+        System.out.printf("AGC hang, 20/12 WPM, slow AGC, calm: noise rises %.1f dB across a letter gap and %.1f dB across a word gap without hang; with %.2f s of hang %.1f dB and %.1f dB (word gap ends %.1f dB re the floor)%n",
+            without[0], without[1], 1.1 * letter, with[0], with[1], with[3]);
+        check("without a hang the noise pumps in the letter gaps (more than 3 dB): " + without[0], without[0] > 3);
+        check("with the hang the letter gaps stay within 3 dB: " + with[0], with[0] <= 3);
+        check("with the hang a word gap still recovers by more than 6 dB: " + with[1], with[1] > 6);
+        Engine eh = new Engine(R, 1, 480);
+        eh.setSpeed(20, 12);
+        near("the engine sets the hang from the speed", eh.hang(), 1.1 * letter, 1e-9);
+        eh.setSpeed(30, 30);
+        near("the hang follows the speed", eh.hang(), 1.1 * new Timing(30, 30).charGap, 1e-9);
+        near("default hang", new Rx(R, 1).hang(), 0.35, 1e-9);
+
+        // ---- Audio-stage floor ----
+        // The probe is steep (8th-order high-pass at 1.6 kHz, 4th-order low-pass at 2.3 kHz) so that the band noise around 600 Hz cannot leak into it.
+        double nn = 0.05;
+        double[] hpQ = {0.5098, 0.6013, 0.9, 2.5629};
+        double[] ref = new double[3];   // probe RMS of white noise with the density 60 dB under the band noise, and of the receiver's output with only the floor
+        for (int pass = 0; pass < 2; pass++) {
+            Dsp.Biquad[] probe = new Dsp.Biquad[6];
+            for (int k = 0; k < 4; k++) probe[k] = new Dsp.Biquad().highpass(1600, hpQ[k], R);
+            probe[4] = new Dsp.Biquad().lowpass(2300, 0.5412, R); probe[5] = new Dsp.Biquad().lowpass(2300, 1.3066, R);
+            double q = 0, full = 0; long n = 0;
+            Rx rx = new Rx(R, 33); rx.tune(Rx.lo(Rx.NARROW, 600), Rx.hi(Rx.NARROW, 600));
+            if (pass == 1) { rx.whiteOff = true; rx.weather(0, 1e9, 1); }
+            double[] b = new double[960];
+            for (int blk = 0; blk < 20 * R / 480; blk++) {
+                java.util.Arrays.fill(b, 0);
+                rx.process(b, 480, nn, nn, Rx.AGC_SLOW);
+                if (blk >= 50) for (int i = 0; i < 480; i++) {
+                    double y = b[2 * i];
+                    for (Dsp.Biquad bq : probe) y = bq.step(y);
+                    q += y * y; full += b[2 * i] * b[2 * i]; n++;
+                }
+            }
+            if (pass == 0) { ref[0] = Math.sqrt(q / n); ref[2] = Math.sqrt(full / n); }
+            else ref[1] = Math.sqrt(full / n);
+        }
+        // White noise with that density through the same probe (computed with a second, identical chain).
+        Dsp.Biquad[] pr = new Dsp.Biquad[6];
+        for (int k = 0; k < 4; k++) pr[k] = new Dsp.Biquad().highpass(1600, hpQ[k], R);
+        pr[4] = new Dsp.Biquad().lowpass(2300, 0.5412, R); pr[5] = new Dsp.Biquad().lowpass(2300, 1.3066, R);
+        Dsp.Rng wr = new Dsp.Rng(78); double wq = 0; long wn = 0, warm = 20000;
+        for (long i = 0; i < 20 * R; i++) { double y = wr.gauss() * nn * Math.sqrt(60) * 1e-3; for (Dsp.Biquad bq : pr) y = bq.step(y); if (i >= warm) { wq += y * y; wn++; } }
+        double densityDb = db(ref[0] / Math.sqrt(wq / wn));
+        System.out.printf("floor, narrow filter: probe above 1.6 kHz %.2e (white noise 60 dB under the band noise density gives %.2e), whole floor %.1f dB under the narrow band noise%n", ref[0], Math.sqrt(wq / wn), db(ref[2] / ref[1]));
+        check("the 2 kHz probe region is no longer silent: " + ref[0], ref[0] > 1e-6);
+        near("floor density is 60 dB under the band noise (relative to white noise of that density, dB)", densityDb, 0, 2);
+        check("the floor is at least 35 dB under the narrow band noise: " + db(ref[2] / ref[1]), db(ref[2] / ref[1]) >= 35);
+        Rx zero = new Rx(R, 34); double[] zb = new double[960]; double zmax = 0;
+        for (int blk = 0; blk < 100; blk++) { java.util.Arrays.fill(zb, 0); zero.process(zb, 480, 0, 0, Rx.AGC_SLOW); for (double v : zb) zmax = Math.max(zmax, Math.abs(v)); }
+        eq("with no band noise the floor is zero too", zmax, 0.0);
+
+        // No allocation while processing: the receiver, with weather, floor and blanker on, runs a long time without the heap growing.
+        Rx al = new Rx(R, 35); al.weather(80, 3, 2.5); al.blanker(true);
+        double[] ab = new double[960];
+        for (int i = 0; i < 2000; i++) { java.util.Arrays.fill(ab, 0); al.process(ab, 480, 0.05, 0.05, Rx.AGC_SLOW); }
+        Runtime rt = Runtime.getRuntime(); System.gc(); long used0 = rt.totalMemory() - rt.freeMemory();
+        for (int i = 0; i < 30000; i++) { java.util.Arrays.fill(ab, 0); al.process(ab, 480, 0.05, 0.05, Rx.AGC_SLOW); }
+        long grown = rt.totalMemory() - rt.freeMemory() - used0;
+        check("no allocation in Rx.process: heap grew " + grown + " bytes over 300 s of audio", grown < 2_000_000);
     }
 
     static void audio() {
@@ -1838,7 +2044,7 @@ public class T {
     }
 
     public static void main(String[] a) throws Exception {
-        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); bandUnchanged(); storyStation(); partner(); suggestions(); live(); keyear(); keydecoder(); script(); if (a.length == 0) { audio(); receiver(); }
+        morse(); timing(); text(); abbrev(); band(); follow(); sideband(); filters(); weather(); spaceWeather(); feeds(); queue(); fists(); propagation(); profile(); heard(); contactsUnchanged(); bandUnchanged(); storyStation(); partner(); suggestions(); live(); keyear(); keydecoder(); script(); if (a.length == 0) { audio(); receiver(); noise(); }
         if (a.length == 1 && a[0].equals("targets")) learnerTargets();
         if (a.length > 1) { FeedParser.Feed f = FeedParser.parse(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(a[1])), "https://x.example/"); System.out.println("real feed: " + f.title + ", " + f.items.size() + " items, first: " + TextNorm.story(f.title, f.items.get(0).title, f.items.get(0).summary, 1, true)); }
         System.out.println(ok + " passed, " + bad + " failed");

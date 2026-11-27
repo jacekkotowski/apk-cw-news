@@ -22,6 +22,8 @@ final class Engine {
     /** Receiver filter width (an Rx constant) and whether its AGC is on. Both only matter with a band. */
     volatile int width = Rx.NORMAL;
     volatile int agc = Rx.AGC_SLOW;
+    /** How long the slow AGC holds its gain after a signal drops: a little longer than the letter gap of the news speed. */
+    private volatile double hang = Rx.DEFAULT_HANG_S;
     /** Passband shift in Hz, the peak filter and the noise blanker. Only matter with a band. */
     volatile int shift;
     volatile boolean apf, nb;
@@ -55,6 +57,10 @@ final class Engine {
         rx = new Rx(rate, seed ^ 0x5DEECE66DL);
         for (int c = 0; c < 2; c++) for (int k = 0; k < 2; k++) notch[c][k] = new Dsp.Biquad();
     }
+
+    /** Tells the receiver the sending speed (character speed, effective speed) so that its AGC does not pump in the letter gaps. */
+    void setSpeed(double wpm, double eff) { hang = 1.1 * new Timing(wpm, eff).charGap; }
+    double hang() { return hang; }
 
     /** With a band, the news is one station on it and the dial decides what is heard. Without one, the news plays alone. */
     void setBand(Band b) { band = b; }
@@ -148,6 +154,7 @@ final class Engine {
             double lo = edge[0], hi = edge[1];
             rx.tune(lo, hi, toneHz, apf);
             rx.blanker(nb);
+            rx.setHang(hang);
             bd.weather(wx);
             rx.weather(wx[0], wx[1], wx[2]);
             // The bulletin is one station on the band. Its pitch is its distance from the dial, kept inside what a

@@ -32,6 +32,14 @@ The other station is patient. It asks again kindly, slows down when you ask, and
 2. Band tab: tune to 7010 kHz. The stations talk to each other, each at its own pitch. The story waits while you are tuned away and resumes where you stopped.
 3. Tap the *Story:* line to pick an episode, move along the story, or hear the last over again. How the files work, and a prompt for making new nets: docs/STORIES.md.
 
+## New in {{VERSION}}: the static
+
+- **Crashes are lightning now.** In summer static and in a storm nearby you hear separate flashes: a sharp first stroke, a few weaker strokes about 60 ms apart, and a rattle that lasts a third of a second. About half of the flashes are the soft cloud-to-cloud kind, with a rattle but no strokes. A storm nearby is much louder than before, and the noise blanker now takes out most of it (it did not before).
+- **Distant thunderstorms crackle** instead of ticking: each tick is a small cluster of pops, quiet in calm weather and sharp in a storm. A storm nearby has twice as many (80 a second).
+- **The noise no longer pumps in the gaps between letters.** With the slow AGC and a slow effective speed, the hiss used to swell back in every letter gap. The AGC now holds its gain a little longer than the letter gap, so it only recovers in the longer gaps between words.
+- **A very quiet hiss across the whole audio range**, also where the filter cuts everything, so the Narrow filter no longer sounds like a dead line.
+- Not tried by ear on a phone yet: how loud a storm nearby feels with the fast AGC and the Narrow filter, and how the flashes sound on headphones.
+
 ## Good to know
 
 - The band is made up: every station and contact is generated on the spot, and follows the time of day and your region.
