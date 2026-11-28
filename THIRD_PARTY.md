@@ -9,6 +9,7 @@ The app has no third-party libraries. It uses only the Android framework.
 | Morse From RSS News Feeds (Android, 2017) | Unknown | Nothing used. No source code was found, and its APK was deliberately not downloaded. |
 | [Morse Runner](https://github.com/VE3NEA/MorseRunner) by Alex Shovkoplyas VE3NEA | MPL-2.0 | The idea of Rayleigh fading and static only. No code was read or copied.
 | [WebMorseRunner](https://github.com/fritzsche/WebMorseRunner) by Fritz Schmid | Unlicense | The receiver model of the Band background: noise and static pass together through a narrow filter at the CW pitch, then an AGC. Code reviewed and rewritten in Java. |
+| [Dust](https://github.com/mashu/dust) by mashu | GPL-3.0 | Compared only, for 2.12.1: its band noise was read to see what ours lacked. No code was copied or translated. `Lightning.java` is written from published lightning measurements (return strokes per flash, their spacing, the train of in-cloud discharges, crash levels), which are facts, not code. |
 | CW abbreviation lists (CWops, amateurradio.com, giangrandi.org) | n/a | Which abbreviations are common. The table in `Abbrev.java` is our own. | |
 
 ## cwtool licence notice
